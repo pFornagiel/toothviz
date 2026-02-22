@@ -43,3 +43,8 @@ Frontend
     - https://www.cornerstonejs.org/
 
 https://fullstackopen.com/en/
+
+Datasets:
+- https://www.nature.com/articles/s41597-024-04306-9
+- https://www.nature.com/articles/s41597-024-04130-1
+- https://ditto.ing.unimore.it/toothfairy3/
