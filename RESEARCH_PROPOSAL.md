@@ -1,7 +1,5 @@
 # Research and Architecture Proposal: Web-Based CBCT Image Analysis System
 
-[Segmentacja kanalika w żuchwie z UNet-3D](https://www.researchgate.net/publication/386338289_Location_Matters_Harnessing_Spatial_Information_to_Enhance_the_Segmentation_of_the_Inferior_Alveolar_Canal_in_CBCTs)
-
 ## 1. Executive Summary
 
 This document outlines the proposed architecture and research strategy for a web-based Cone Beam Computed Tomography (CBCT) 3D medical image analysis system. The primary objective is to build a robust platform that leverages advanced Deep Learning—specifically Diffusion Models for image denoising and 3D segmentation networks for anatomical isolation—to process dental NIFTI (`.nii.gz`) files.
