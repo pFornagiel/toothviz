@@ -21,6 +21,9 @@ AI frameworks:
     - https://github.com/Project-MONAI/MONAI
     - https://anjanaram2306.medium.com/monai-unleashed-the-hidden-powers-of-medical-imagings-specialized-ai-framework-e142adf488a8
 
+Links:
+[Segmentacja kanalika w żuchwie z UNet-3D](https://www.researchgate.net/publication/386338289_Location_Matters_Harnessing_Spatial_Information_to_Enhance_the_Segmentation_of_the_Inferior_Alveolar_Canal_in_CBCTs)
+
 Backend infrastructure:
 - FastAPI:
     - https://fastapi.tiangolo.com/
