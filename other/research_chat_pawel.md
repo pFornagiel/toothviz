@@ -1,3 +1,5 @@
+Bardzo wstępny research z czatem, który robiłem przed spotkaniem z Brodzickim. Na podstawie tego później wklejałem też linki.
+
 # Research and Architecture Proposal: Web-Based CBCT Image Analysis System
 
 ## 1. Executive Summary
