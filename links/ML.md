@@ -38,14 +38,29 @@ AI frameworks:
   - https://github.com/Project-MONAI/MONAI
   - https://anjanaram2306.medium.com/monai-unleashed-the-hidden-powers-of-medical-imagings-specialized-ai-framework-e142adf488a8
 
+- NiBabel - biblioteka do czytania NIFTII i innych formatów, działa pod spodem MONAI
+  https://nipy.org/nibabel/
+
+- NiLearn - służy do pracy z plikami będaćy,i obrazowaniem mózgu, ale bazuje na NIFTII. Przydatne metody wizualizacji.
+  https://nilearn.github.io/stable/index.html
+
+- Zapisywanie numpy array jako plików `.npy`
+  https://numpy.org/devdocs/reference/generated/numpy.lib.format.html
 
 #### DATASETY
+
+- Ładowanie danych używając MONAI
+  https://medium.com/@rynharari/building-a-fast-and-efficient-mri-data-pipeline-using-monai-and-pytorch-d0795f4886b2
 
 Datasets:
 
 - https://www.nature.com/articles/s41597-024-04306-9
 - https://www.nature.com/articles/s41597-024-04130-1
 - https://ditto.ing.unimore.it/toothfairy3/
+
+#### Books
+- Visionbook z MIT - przyjemna książka o obrazkach, somewhat rozbudowa naszych obrazków
+  https://visionbook.mit.edu/
 
 ### Emil
 
