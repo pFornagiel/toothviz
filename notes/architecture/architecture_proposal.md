@@ -1,4 +1,4 @@
-This document is the architecture proposal for **CBCT Image Analysis Application**
+This document is an early architecture proposal for **CBCT Image Analysis Application**
 
 ### System Overview
 
@@ -62,12 +62,17 @@ graph TD
 
 4. `[Frontend]` The user clicks "Run Segmentation". React sends a request to FastAPI with the file identifier.
 
-5. `[Backend]` FastAPI creates a unique Task ID, places a segmentation job onto the Redis queue, and immediately returns the Task ID to the frontend.
+5. `[Backend]` FastAPI creates a unique Task ID, places a segmentation job onto the  TASK-QUEUE, and immediately returns the Task ID to the frontend.
 
-6. `[Task-Queue]` The TASK-QUEUE worker picks up the job. It loads the file from the local storage, normalizes the data (resampling, intensity clipping), and runs the inference using MONAI (e.g., using a Swin UNETR model).
+6. `[Task-Queue]` The TASK-QUEUE worker picks up the job. It loads the file from the local storage, normalizes the data (resampling, intensity clipping), and runs the inference using MONAI using the trained model.
 
 7. `[Task-Queue]` The TASK-QUEUE worker generates a binary mask of the segmented teeth and saves it back to the global storage (e.g., app/data/masks/scan_001_mask.nii.gz).
 
 8. `[Frontend]` The frontend periodically polls FastAPI with the Task ID. Once FastAPI reports the task as "Completed", React receives the URL for the newly generated mask.
 
 9. `[Frontend/Backend]` NiiVue fetches the mask URL and overlays the segmentation on top of the original CBCT scan.
+
+
+### Machine Learning Model
+
+The aforementioned ML model for the image segmentation will be included as part of the application. It is going to be a trained solution, developed as part of the work, with already established weights (or other parameters, determined by model architecture). The model is supposed to be a lightweight utility, which will be able to perform featurs segmentation on NiFTI files.
