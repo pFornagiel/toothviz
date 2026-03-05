@@ -52,7 +52,7 @@ graph TD
 | **Storage**        | Local File System / Local Databse | Global persistent storage for images and masks. |
 
 
-### Infomration FLow
+### Information FLow
 
 1. `[Frontend]` The user selects a NIfTI file via the React UI. A POST request sends the file to FastAPI.
 
