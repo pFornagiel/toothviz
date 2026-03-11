@@ -1,8 +1,11 @@
-### Inżynierka 
+### Engineering Thesis 
+#### Machine learning based application for CBCT image analysis
+(Aplikacja wykorzystująca uczenie maszynowe do analizy obrazów CBCT)
+Paweł Fornagiel, Katarzyna Bęben, Łukasz Dragon, Emil Żychowicz
 
-Repo do notatek i organizacji.
-
-Struktura folderów:
-- `links` - folder na linki, na które natrafiliśmy i które są w waszej opinii warte przeczytania, obejrzenia
-- `notatki_spotkania` - notatki ze spotkań, co robimy na dany tydzień
-- `other` - jakiś inny research, strumień świadomości chata, etc.
+Current folder structure:
+- `notes` - markdown files with summaries nad research (mainly in polish)
+    - `architecture` - main architecture proposal
+    - `links` - links to sources reviewed, which seem to be worth reading about
+    - `internal_meetings` - notes from meetings
+    - `other` - other things, which do not fit elsewhere
