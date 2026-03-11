@@ -65,7 +65,7 @@ Datasets:
 ### Emil
 
 - [Segmentacja kanalika w żuchwie z UNet-3D](https://www.researchgate.net/publication/386338289_Location_Matters_Harnessing_Spatial_Information_to_Enhance_the_Segmentation_of_the_Inferior_Alveolar_Canal_in_CBCTs)
-
+- [Strona do śledzenia postępu treningu modelu, sama tworzy wykresy itd.](https://wandb.ai/site)
 
 ### Kasia
 
