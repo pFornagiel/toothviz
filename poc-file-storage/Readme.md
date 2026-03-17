@@ -1,4 +1,4 @@
-## CBCT Starage (PoC)
+## CBCT Storage (PoC)
 
 ## 0) GLossary
 - **CAS (Content‑Addressed Storage)** - Files stored by hash (SHA‑256) so identical content is deduplicated.
@@ -33,7 +33,7 @@ poc-file-storage/
 ## 2) How It Works
 
 1. **Create a study** - This allocates metadata and folders (raw/, derived/, ...)
-2. **Upload Original NIfTI - Done in chunks via HTTP or directly from local path:
+2. **Upload Original NIfTI** - Done in chunks via HTTP or directly from local path:
 - Chunks are saved in a temporary upload directory.
 - On finalize: chunks are stitched, SHA‑256 is computed, and the file is moved atomically into CAS under data/blobs/sha256/....
 - A hardlink (or copy fallback) is created in the study’s raw/ folder with your supplied filename.
