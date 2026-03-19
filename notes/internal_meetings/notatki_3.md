@@ -48,3 +48,8 @@ Przekazaliśmy informację z Pracowni Projektowej, doprecyzowaliśmy poniższe k
 
 - Będziemy pisać w języki angielskim
 
+
+
+DICOM to NIFTI
+
+https://www.sciencedirect.com/science/article/abs/pii/S0165027016300073?via%3Dihub
