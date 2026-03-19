@@ -1,6 +1,6 @@
 ## CBCT Storage (PoC)
 
-## 0) GLossary
+## 0) Glossary
 - **CAS (Content‑Addressed Storage)** - Files stored by hash (SHA‑256) so identical content is deduplicated.
 - **Originals** vs **Derivatives** - Originals are the uploaded scans; derivatives are outputs (segmentation masks, denoise, labels, thumbnails, logs).
 - **Study** - A case/folder that groups originals and derivatives.
@@ -99,7 +99,7 @@ A study‑scoped “file handle” with path + metadata.
 | Column            | Type        | Purpose                                                       |
 |-------------------|-------------|----------------------------------------------------------------|
 | `id`              | `str(uuid)` | Primary key.                                                  |
-| `study_id`        | `str`       | FK → `Study`.                                                 |
+| `study_id`        | `str`       | FK → `Study`                                                 |
 | `role`            | `str`       | original/derived/thumb/log                                 |
 | `kind`            | `str?`      | nifti/segmentation/denoise/labels/png/...                 |
 | `rel_path`        | `str`       | Path under `data/` to the per‑study link.                    |
@@ -117,7 +117,7 @@ Resumable upload state.
 |-------------------|-------------|------------------------------------------------------|
 | `id`              | `str(uuid)` | Upload session ID.                                   |
 | `study_id`        | `str`       | FK → `Study`.                                        |
-| `role`            | `str`       | Target `role` for final link                        |
+| `role`            | `str`       | Target `role` for final link.                        |
 | `kind`            | `str`       | Target `kind` for final metadata.                    |
 | `filename`        | `str`       | Target filename under study.                         |
 | `content_type`    | `str?`      | MIME type.                                           |
@@ -134,7 +134,7 @@ Resumable upload state.
 **What it contains**
 - `StoredFile` dataclass — a uniform descriptor returned by storage operations:
   - `id`, `study_id`, `role`, `kind`, `rel_path`, `size`, `checksum_sha256`, `blob_hash`, `content_type`, `created_at`, `meta`.
-- `AbstractPersistentStorage` — the interface your app depends on (not the implementation):
+- `AbstractPersistentStorage` — the interface our app depends on (not the implementation):
   - **Study lifecycle**: `create_study`, `ensure_study`, `save_metadata`, `get_metadata`.
   - **Resumable upload**: `begin_upload` → `upload_chunk` → `finalize_upload`.
   - **Server‑side store**: `store_from_local_path` (for pipeline outputs already on disk).
@@ -142,7 +142,7 @@ Resumable upload state.
   - **Maintenance**: `delete_file`, `garbage_collect`, `dispose`.
 
 **Why this matters**
-- The rest of your code (FastAPI endpoints, Celery tasks, MONAI pipelines) only import this interface and a concrete implementation.  
+- The rest of our code (FastAPI endpoints, Celery tasks, MONAI pipelines) only import this interface and a concrete implementation.  
 - Later, there can be added `S3PersistentStorage` or `MinIOPersistentStorage` without changing callers.
 
 ---
@@ -201,7 +201,7 @@ Resumable upload state.
 - **Large‑file friendly** (chunking, streaming, no memory spikes).
 - **Integrity & dedupe** with CAS.
 - **Atomic** finalize = no partial/corrupted files in study folders.
-- **NIfTI‑aware** (optional header capture) to make downstream steps easier.
+- **NIfTI‑aware** (header capture) to make downstream steps easier.
 
 ---
 
@@ -245,7 +245,7 @@ Resumable upload state.
 1. **Parse inputs**: `STUDY_ID` (arg1) and `FILE` (arg2 or default).
 2. **Compute file size** in bytes (macOS or Linux syntax).
 3. **Optionally compute SHA‑256** (via `shasum` or `sha256sum`).
-4. **Build JSON** with `jq` (safe!). Includes expected size and optionally checksum.
+4. **Build JSON** with `jq`. Includes expected size and optionally checksum.
 5. **BEGIN** upload: `POST /uploads:begin` → get `upload_id`.
 6. **Send chunks**:
    - Loop over file using `dd` with `bs=$CHUNK_SIZE` and `skip=$i`.
