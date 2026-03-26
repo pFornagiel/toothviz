@@ -12,9 +12,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Iterable, List, Optional, Tuple, Literal
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-
 try:
     from filelock import FileLock
 except Exception:
@@ -22,7 +19,8 @@ except Exception:
 
 
 from .abstract import AbstractPersistentStorage, StoredFile, Role
-from .models import Base, Study, Blob, FileRecord, UploadSession
+from db import Base, Study, Blob, FileRecord, UploadSession
+from db.database import engine, SessionLocal
 
 
 class LocalPersistentStorage(AbstractPersistentStorage):
@@ -41,14 +39,9 @@ class LocalPersistentStorage(AbstractPersistentStorage):
         (self.root / "studies").mkdir(parents=True, exist_ok=True)
         (self.root / "uploads").mkdir(parents=True, exist_ok=True)
 
-        self.engine = create_engine(sqlite_url, future=True)
-        with self.engine.connect() as conn:
-            if self.engine.url.get_backend_name().startswith("sqlite"):
-                conn.exec_driver_sql("PRAGMA journal_mode=WAL;")
-                conn.exec_driver_sql("PRAGMA synchronous=NORMAL;")
-                conn.exec_driver_sql("PRAGMA foreign_keys=ON;")
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.engine = engine
+        self.Session = SessionLocal
+        Base.metadata.create_all(engine) #temporarily here
 
 
 

@@ -1,14 +1,43 @@
 from __future__ import annotations
-from datetime import datetime
+
+from enum import Enum
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Text, ForeignKey, JSON, Index, UniqueConstraint
+    Column, String, DateTime, Enum as SQLEnum, create_engine, Integer, Text, ForeignKey, JSON, Index, UniqueConstraint
 )
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
+import uuid
+from datetime import datetime
 
 Base = declarative_base()
 
 
+class TaskStatus(str, Enum):
+    """Task lifecycle states."""
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class Task(Base):
+    """ML inference task record."""
+    __tablename__ = "tasks"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    study_id = Column(String, nullable=False, index=True)
+    file_id = Column(String, nullable=False)  # NIfTI file_id from storage
+    status = Column(SQLEnum(TaskStatus), nullable=False, default=TaskStatus.PENDING, index=True)
+    result_file_id = Column(String, nullable=True)  # File ID of segmentation result
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ============================================================================
+# Storage Models (File Storage Backend)
+# ============================================================================
+
 class Study(Base):
+    """Medical study container."""
     __tablename__ = "studies"
 
     id = Column(String, primary_key=True)
@@ -20,7 +49,8 @@ class Study(Base):
     files = relationship("FileRecord", back_populates="study", cascade="all, delete-orphan")
 
 
-class Blob(Base): #CAS - content addressed storage
+class Blob(Base):
+    """Content-addressed storage (CAS) - immutable blob store."""
     __tablename__ = "blobs"
 
     hash = Column(String(64), primary_key=True)
@@ -29,6 +59,7 @@ class Blob(Base): #CAS - content addressed storage
 
 
 class FileRecord(Base):
+    """Metadata and link for stored files."""
     __tablename__ = "files"
 
     id = Column(String, primary_key=True)
@@ -51,6 +82,7 @@ UniqueConstraint(FileRecord.study_id, FileRecord.rel_path, name="uq_study_relpat
 
 
 class UploadSession(Base):
+    """In-progress upload tracking."""
     __tablename__ = "uploads"
 
     id = Column(String, primary_key=True)
