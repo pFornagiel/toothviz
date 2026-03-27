@@ -6,6 +6,7 @@ PROJECT_ROOT = SRC_DIR.parent
 
 DATA_DIR = PROJECT_ROOT / "data"
 LOG_DIR = PROJECT_ROOT / "logs"
+MODEL_PATH = PROJECT_ROOT / "assets" / "models" / "railnet_dental.onnx"
 
 # Ensure directories exist
 DATA_DIR.mkdir(parents=True, exist_ok=True)

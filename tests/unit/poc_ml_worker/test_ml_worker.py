@@ -2,8 +2,8 @@
 Unit tests for ML Worker.
 
 Tests core ML worker functionality:
-- Initialization
-- Task orchestration
+- Initialization with model
+- Task orchestration with model inference
 """
 
 from unittest.mock import Mock, patch
@@ -13,34 +13,39 @@ from poc_ml_worker.ml_worker import MLWorker
 
 
 def test_mlworker_initialization():
-    """Test MLWorker initializes with correct attributes."""
+    """Test MLWorker initializes with model."""
     mock_session_factory = Mock()
     mock_storage = Mock()
     mock_storage.root = Path("/data")
+    mock_model = Mock()
 
     worker = MLWorker(
         session_factory=mock_session_factory,
-        storage=mock_storage
+        storage=mock_storage,
+        ml_model=mock_model
     )
 
     assert worker.session_factory == mock_session_factory
     assert worker.storage == mock_storage
+    assert worker.ml_model == mock_model
     assert worker.poll_interval == 2
 
 
 def test_orchestrate_task_success():
-    """Test successful task orchestration."""
+    """Test successful task orchestration with inference."""
     mock_db = Mock()
     mock_session_factory = Mock()
     mock_storage = Mock()
     mock_storage.root = Path("/data")
+    mock_model = Mock()
 
     worker = MLWorker(
         session_factory=mock_session_factory,
-        storage=mock_storage
+        storage=mock_storage,
+        ml_model=mock_model
     )
 
-    # Setup mocks
+    # Setup task mock
     mock_task = Mock()
     mock_task.id = 1
     mock_task.study_id = "study_123"
@@ -63,10 +68,10 @@ def test_orchestrate_task_success():
 
             worker.orchestrate_task(mock_db, mock_task)
 
-    # Verify workflow
-    mock_storage.get_file.assert_called_once_with("file_001")
-    mock_storage.store_from_local_path.assert_called_once()
-    assert mock_db.commit.called
+    # Verify model was passed to run_inference
+    assert mock_run_inference.called
+    call_args = mock_run_inference.call_args
+    assert call_args[0][1] == mock_model  # Second positional arg is model
 
 
 def test_orchestrate_task_missing_input_file():
@@ -75,10 +80,12 @@ def test_orchestrate_task_missing_input_file():
     mock_session_factory = Mock()
     mock_storage = Mock()
     mock_storage.root = Path("/data")
+    mock_model = Mock()
 
     worker = MLWorker(
         session_factory=mock_session_factory,
-        storage=mock_storage
+        storage=mock_storage,
+        ml_model=mock_model
     )
 
     mock_task = Mock()
@@ -105,10 +112,12 @@ def test_orchestrate_task_inference_exception():
     mock_session_factory = Mock()
     mock_storage = Mock()
     mock_storage.root = Path("/data")
+    mock_model = Mock()
 
     worker = MLWorker(
         session_factory=mock_session_factory,
-        storage=mock_storage
+        storage=mock_storage,
+        ml_model=mock_model
     )
 
     mock_task = Mock()

@@ -9,20 +9,22 @@ from db.database import SessionLocal
 
 from poc_file_storage.storage.local import LocalPersistentStorage
 from core.logger import setup_logging
-from core.config import DATA_DIR
+from core.config import DATA_DIR, MODEL_PATH
 
 from db.crud.tasks import update_task, get_pending_task
 from poc_ml_worker.engine import run_inference 
+from poc_ml_worker.model_loader import load_onnx_model
 
 logger = logging.getLogger(__name__)
 
 class MLWorker:
     """Main ML inference worker."""
     
-    def __init__(self, session_factory, storage: LocalPersistentStorage):
+    def __init__(self, session_factory, storage: LocalPersistentStorage, ml_model):
         self.session_factory = session_factory
         self.storage = storage
         self.poll_interval = 2 
+        self.ml_model = ml_model
         logger.info(f"MLWorker initialized with data_dir={self.storage.root}")
     
     def run(self) -> None:
@@ -78,7 +80,7 @@ class MLWorker:
             
             logger.info(f"Input file path: {input_path}")
             
-            with run_inference(input_path) as output_path:
+            with run_inference(input_path, self.ml_model) as output_path:
                 logger.info(f"Storing result to persistent storage...")
                 
                 result_file = self.storage.store_from_local_path(
@@ -115,10 +117,12 @@ if __name__ == "__main__":
     
     try:
         shared_storage = LocalPersistentStorage(root=DATA_DIR)
-        
+        ml_model = load_onnx_model(MODEL_PATH)
+
         worker = MLWorker(
             session_factory=SessionLocal, 
-            storage=shared_storage
+            storage=shared_storage,
+            ml_model=ml_model
         )
         worker.run()
         
