@@ -9,4 +9,9 @@ Current folder structure:
     - `links` - links to sources reviewed, which seem to be worth reading about
     - `internal_meetings` - notes from meetings
     - `other` - other things, which do not fit elsewhere
-- `poc-file-storage` - file storage `proof-of-concept`, draft of app persistence system
+- `src` - source code of entire application
+    - `core` - general configuration
+    - `poc_file_storage` - file storage `proof-of-concept`, draft of app persistence system
+    - `poc_ml_worker` - Machine Learning model inference system
+    - `db` - database related files, entity models 
+- `tests` - unit and integration tests
