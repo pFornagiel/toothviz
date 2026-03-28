@@ -1,0 +1,70 @@
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+
+# -------------------------
+# Project-specific
+# -------------------------
+
+# Local storage directory for blobs + studies
+data/
+
+# Local SQLite database file
+storage.sqlite3
+storage.sqlite3-shm
+storage.sqlite3-wal
+
+# Local logs (if you add any later)
+logs/
+
+# Temporary upload directories (if created outside data/)
+uploads/
+
+# Test artifacts
+*.tmp
+*.part
+*.chunk
+
+# -------------------------
+# OS / Editor
+# -------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# VSCode
+.vscode/
+
+# PyCharm / JetBrains
+.idea/
+
+# -------------------------
+# Docker
+# -------------------------
+# Docker build cache / metadata
+**/.docker-cache
+**/.dockerignore.swp
+
+# Don't ignore Dockerfile / compose, only artifacts
+!Dockerfile
+!docker-compose.yml
