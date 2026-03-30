@@ -54,7 +54,7 @@ src/backend/
 ### Step 2: `storage/engine.py`
 
 **New file.** Defines the `StorageEngine` python `Protocol` containing abstract methods for binary I/O operations:
-`initialize_upload`, `write_chunk`, `list_uploaded_chunks`, `commit_upload_to_cas`, `commit_file_to_cas`, `link_file_to_study`, `remove_study_data`, `get_job_workspace_dir`.
+`initialize_upload`, `write_chunk`, `list_uploaded_chunks`, `abort_upload`, `commit_upload_to_cas`, `commit_file_to_cas`, `link_file_to_study`, `remove_study_data`, `delete_blob`, `get_job_workspace_dir`, `sweep_orphaned_blobs`.
 
 ---
 
@@ -62,7 +62,7 @@ src/backend/
 
 **New file.** Implements `LocalStorageEngine` which fulfills the `StorageEngine` protocol.
 
-**Port from:** `local.py` methods (CAS commit stitching, moving blobs, creating hardlinks, creating chunk files).
+**Port from:** `local.py` methods (CAS commit stitching, moving blobs, creating hardlinks, creating chunk files). Also implements `abort_upload` to forcefully wipe a session's `parts/` directory, and `sweep_orphaned_blobs` to scan `data/blobs/` for `st_nlink == 1` and remove them.
 
 **Test:** Unit test local filesystem manipulations (create chunks, commit to cas, verify hardlink creation).
 
@@ -109,6 +109,9 @@ class StorageService:
         self, src_path, study_id, job_id, filename, kind, purpose
     ) -> FileRecord:
         """Calls engine.commit_file_to_cas() and engine.link_file_to_study(), then creates FileRecord(role=derived)."""
+
+    def sweep_orphans(self) -> int:
+        """Delegates to engine.sweep_orphaned_blobs() to perform the OS sweep."""
 ```
 
 **`purpose` supersede:** When a non-null `purpose` (e.g., `viewer_volume` or `viewer_overlay`) is passed, both `store_original` and `store_derived` must atomically null out any prior record for the same study with that exact purpose before inserting the new `FileRecord`. This enforces last-write-wins semantics for all viewer purposes.
@@ -125,6 +128,7 @@ and `store_from_local_path()`, now split cleanly by call site.
 - `begin_session()` → calls `UploadSessionRepo.create()` + `mkdir parts dir`
 - `write_chunk()` → calls `upload_session.write_chunk()` + validates session state via repo
 - `get_status()` → calls `upload_session.list_uploaded_chunks()`
+- `abort_session(upload_id)` → sets state to `aborted`, calls `storage_service.engine.abort_upload(upload_id)`
 - `finalize(upload_id, pipelines)` → purpose resolution by kind:
   - `nifti_raw` → `purpose=viewer_volume`
   - `nifti_mask` → `purpose=viewer_overlay` (StorageService supersedes any prior overlay)
@@ -147,7 +151,8 @@ and `store_from_local_path()`, now split cleanly by call site.
   2. Call `job_pipeline_service.cancel(job.id)` if found
   3. Mark `FileRecord`s deleted in DB
   4. Unlink `data/studies/{study_id}/` hardlinks
-  5. Purge directory (blobs handled by GC separately)
+  5. Purge directory entirely
+  6. **Inline CAS GC**: Check if any deleted `FileRecord`'s `blob_hash` is solely used by this study. If count is 0, call `storage_service.engine.delete_blob(blob_hash)` to instantly reclaim space without breaking abstraction.
 
 ---
 
@@ -173,7 +178,7 @@ and `store_from_local_path()`, now split cleanly by call site.
 
 | Router | New endpoints |
 |---|---|
-| `uploads.py` | Add `GET /status` endpoint |
+| `uploads.py` | Add `GET /status` endpoint; add `DELETE /{upload_id}` to call `abort_session()` |
 | `files.py` | **New**. `GET /studies/{study_id}/files?purpose=viewer_volume,viewer_overlay` (optional filter, `IN` query via `FileRepo`); `GET /{file_id}/content` → `FileResponse` |
 | `studies.py` | **New**. Full CRUD. `list` endpoint supports `?external_id=` filter |
 | `ws.py` | **New**. WebSocket pipeline progress → `/ws/pipeline/{job_id}` |
@@ -394,7 +399,12 @@ class JobPipelineService:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)
-    # APScheduler for upload TTL cleanup
+    
+    # Wipe on Startup: abort abandoned active UploadSessions
+    # ... loop over DB and upload_service.abort_session() ...
+    
+    # CAS OS Sweep Failsafe
+    storage_service.sweep_orphans()
 
     worker_pool = WorkerPool(
         max_workers=1,
@@ -429,9 +439,11 @@ No `mp.Queue`, no drain coroutine.
 
 ## Phase 4: Hardening (Steps 17–19)
 
-### Step 17: Upload TTL + Cleanup
+### Step 17: Local Cleanup (Replaces TTL)
 
-Add background task to expire `active` sessions older than 24h, delete their parts dirs.
+Implement the two lifespan hooks in `app.py`:
+1. Loop over hanging `active` UploadSessions and abort them.
+2. Background OS sweep for blobs with `st_nlink == 1`.
 
 ### Step 18: Error Handling
 
@@ -441,7 +453,6 @@ Create `exceptions.py` with proper HTTP exception classes. Replace bare `except 
 
 Move all magic numbers to `config.py`:
 - Default chunk size (16MB)
-- Upload TTL (24h)
 - Data root path
 - DB URL
 - Model path
@@ -489,7 +500,7 @@ graph TD
     S15 --> S16[Step 16: JobPipelineService + app.py]
     S13 --> S16
     S6 --> S16
-    S16 --> S17[Step 17: TTL]
+    S16 --> S17[Step 17: Local Cleanup]
     S16 --> S18[Step 18: errors]
     S17 --> S19[Step 19: config]
     S18 --> S19

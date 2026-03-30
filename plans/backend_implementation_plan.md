@@ -140,12 +140,18 @@ class StorageEngine(Protocol):
     def get_chunk_size(self, upload_id: str, index: int) -> int | None: ...
     def list_uploaded_chunks(self, upload_id: str) -> list[int]: ...
     
+    def abort_upload(self, upload_id: str) -> None: ...
     def commit_upload_to_cas(self, upload_id: str, expected_sha256: str | None, expected_size: int | None) -> tuple[str, int]: ...
     def commit_file_to_cas(self, src_path: Path) -> tuple[str, int]: ...
     
     def link_file_to_study(self, study_id: str, role: str, filename: str, blob_hash: str) -> Path | str: ...
     def remove_study_data(self, study_id: str) -> None: ...
+    def delete_blob(self, blob_hash: str) -> None: ...
     def get_job_workspace_dir(self, job_id: str) -> Path: ...
+    def sweep_orphaned_blobs(self) -> int: ...
+
+> [!TIP]
+> **Why strict abstraction?** By locking all filesystem modules (`os`, `shutil`) entirely inside `LocalStorageEngine` behind methods like `delete_blob` and `sweep_orphaned_blobs`, the application's Service layer handles 100% of the cross-table SQL counting logic, while remaining completely ignorant of local folders. If you ever swap to an `S3StorageEngine`, its `sweep_orphaned_blobs()` can just be a `pass`, and `delete_blob()` calls `s3.delete_object()`. The backend business logic stays 100% untouched.
 ```
 
 ### `LocalStorageEngine` (`local_engine.py`)
@@ -179,6 +185,9 @@ class StorageService:
         filename: str, kind: str, purpose: str | None,
     ) -> FileRecord:
         """Calls engine.commit_file_to_cas(), engine.link_file_to_study() + creates FileRecord."""
+
+    def sweep_orphans(self) -> int:
+        """Calls engine.sweep_orphaned_blobs(). Executes the st_nlink == 1 background sweep."""
 ```
 
 `store_original` is called by `UploadService.finalize()`.
@@ -203,6 +212,9 @@ Validates session is `active`. Calls `engine.get_chunk_size()` for idempotency. 
 
 **`get_status(upload_id) → UploadStatusResponse`**
 Returns uploaded chunk indices (via `engine.list_uploaded_chunks()`), total uploaded bytes, and session state.
+
+**`abort_session(upload_id) → None`**
+Marks DB state as `aborted` and delegates to `storage_service.engine.abort_upload(upload_id)` to instantly free temporary parts space.
 
 **`finalize(upload_id, pipelines) -> {file_id, job_id | None}`**
 1. Calls `storage_service.store_original(...)` — stitches, verifies, commits to CAS, creates `FileRecord`
@@ -296,7 +308,8 @@ Study CRUD. Delete must cancel any active pipeline job before removing files.
 2. Call `job_pipeline_service.cancel(job.id)` if found
 3. Mark `FileRecord`s deleted in DB
 4. Unlink `data/studies/{study_id}/` hardlinks
-5. Purge directory (blobs handled by GC separately)
+5. Purge directory
+6. **Inline CAS GC**: Count remaining DB references to each deleted `blob_hash`. If zero, cleanly call `storage_service.engine.delete_blob(hash)` to safely invoke physical storage removal from behind the abstraction wall.
 
 ---
 
@@ -452,6 +465,7 @@ Routers are thin. One service call per endpoint. No logic. All responses are Pyd
 - `PUT /storage/uploads/{upload_id}/chunk?index={i}` → `UploadService.write_chunk()`
 - `GET /storage/uploads/{upload_id}/status` → `UploadService.get_status()`
 - `POST /storage/uploads/{upload_id}:finalize` → `UploadService.finalize()`
+- `DELETE /storage/uploads/{upload_id}` → `UploadService.abort_session()` (Cancel UI hook)
 
 ### `files.py`
 - `GET /storage/studies/{study_id}/files` — list with optional `?purpose=viewer_volume,viewer_overlay` filter
@@ -468,7 +482,11 @@ Routers are thin. One service call per endpoint. No logic. All responses are Pyd
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)       # dev; use Alembic in prod
-    # APScheduler for upload TTL cleanup
+    
+    # Wipe on Startup: loop over active UploadSessions and upload_service.abort_session(id)
+    
+    # CAS OS Sweep Failsafe: invoke the engine sweep
+    storage_service.sweep_orphans()
 
     worker_pool = WorkerPool(
         max_workers=1,
@@ -522,7 +540,7 @@ No `mp.Queue`. No drain coroutine.
 14. services/job_pipeline_service.py
 15. routers/ws.py
 16. app.py lifespan wiring
-17. Upload TTL cleanup (APScheduler background task)
+17. Local-First Cleanup (Wipe on Startup + OS Sweep Failsafe in app.py)
 18. exceptions.py + config.py consolidation
 ```
 

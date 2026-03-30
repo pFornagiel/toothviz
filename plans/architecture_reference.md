@@ -36,7 +36,7 @@ graph LR
 backend/
 ├── main.py                    # uvicorn entrypoint
 ├── app.py                     # FastAPI factory + lifespan
-├── config.py                  # All settings (paths, chunk size, TTL)
+├── config.py                  # All settings (paths, chunk size)
 ├── schemas.py                 # Pydantic request/response models
 ├── exceptions.py              # Custom HTTP exceptions
 │
@@ -142,7 +142,7 @@ data/
 | `expected_sha256` | str? | |
 | `chunk_size` | int | Negotiated chunk size |
 | `state` | str | `active` / `finalized` / `aborted` / `expired` |
-| `created_at` | datetime | For TTL |
+| `created_at` | datetime | |
 
 ### `PipelineJob`
 
@@ -227,11 +227,14 @@ class StorageEngine(Protocol):
     def get_chunk_size(self, upload_id: str, index: int) -> int | None: ...
     def list_uploaded_chunks(self, upload_id: str) -> list[int]: ...
     
+    def abort_upload(self, upload_id: str) -> None: ...
     def commit_upload_to_cas(self, upload_id: str, expected_sha256: str | None, expected_size: int | None) -> tuple[str, int]: ...
     def commit_file_to_cas(self, src_path: Path) -> tuple[str, int]: ...
     
     def link_file_to_study(self, study_id: str, role: str, filename: str, blob_hash: str) -> Path | str: ...
     def remove_study_data(self, study_id: str) -> None: ...
+    def delete_blob(self, blob_hash: str) -> None: ...
+    def sweep_orphaned_blobs(self) -> int: ...
     def get_job_workspace_dir(self, job_id: str) -> Path: ...
 ```
 
@@ -263,6 +266,8 @@ class StorageService:
     def store_derived(
         self, src_path, study_id, job_id, filename, kind, purpose
     ) -> FileRecord: ...
+
+    def sweep_orphans(self) -> int: ...
 ```
 
 `store_original` is called by `UploadService.finalize()`.
@@ -302,6 +307,7 @@ Key behaviors:
 - `begin_session` → creates `UploadSession` row + parts dir, returns negotiated `chunk_size`
 - `write_chunk` → validates session is `active`, checks idempotency by on-disk chunk size
 - `get_status` → returns uploaded chunk indices and session state for resume
+- `abort_session` → explicitly invoked by UI `DELETE` request; calls `engine.abort_upload()` to reclaim temp space
 - `finalize(upload_id, pipelines)` → delegates to `StorageService.store_original()`, then `JobPipelineService.dispatch(file_record, pipelines)`
   - For `kind=nifti_raw`: sets `purpose=viewer_volume` on the `FileRecord` before dispatching
   - For `kind=nifti_mask`: sets `purpose=viewer_overlay` on the `FileRecord` before dispatching; `StorageService` supersedes any prior overlay for the same study
@@ -388,7 +394,7 @@ class JobPipelineService:
 ### StudyService
 
 - `list()` / `create()` / `rename()` / `delete()`
-- Delete cascades: cancel any active `PipelineJob`, remove FileRecords from DB, unlink study dir hardlinks, purge study dir
+- Delete cascades: cancel active `PipelineJob`, remove FileRecords from DB; `StorageEngine` purges study directory; inline DB-reference counting identifies unneeded `blob_hash`es and calls `StorageEngine.delete_blob(hash)` to scrub them without Service-layer OS violations.
 
 ---
 
@@ -520,6 +526,7 @@ Module-level async function `run_pipeline(job_id, steps, ctx, storage_service)`.
 | `PUT` | `/storage/uploads/{upload_id}/chunk?index={i}` | `UploadService.write_chunk()` |
 | `GET` | `/storage/uploads/{upload_id}/status` | `UploadService.get_status()` |
 | `POST` | `/storage/uploads/{upload_id}:finalize` | `UploadService.finalize()` |
+| `DELETE` | `/storage/uploads/{upload_id}` | `UploadService.abort_session()` (explicit abort) |
 
 ### Files
 
@@ -543,8 +550,9 @@ The `?purpose=` query param accepts a comma-separated list of purpose values. `F
 
 **Startup (lifespan):**
 1. `Base.metadata.create_all(engine)` (dev) or Alembic (prod)
-2. Start APScheduler (TTL cleanup)
-3. Create `WorkerPool(max_workers=1, initializer=_init_segmentation, initargs=(model_path,))`
+2. Wipe on Startup: find and abort any lingering `active` UploadSessions
+3. CAS OS Sweep Failsafe: sweep `data/blobs/` for orphans (`st_nlink == 1`)
+4. Create `WorkerPool(max_workers=1, initializer=_init_segmentation, initargs=(model_path,))`
 4. Create `StorageService(data_root, SessionLocal)`
 5. Create `WSBroadcaster()`
 6. Create `JobPipelineService(worker_pool, SessionLocal, storage_service, broadcaster)`, store as `app.state.job_pipeline_service`
@@ -556,7 +564,11 @@ The `?purpose=` query param accepts a comma-separated list of purpose values. `F
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)   # dev; use Alembic in prod
-    # APScheduler for upload TTL cleanup
+    
+    # Wipe on Startup: abort abandoned active UploadSessions
+    
+    # CAS OS Sweep Failsafe: invoke the engine sweep for st_nlink == 1
+    storage_service.sweep_orphans()
 
     worker_pool = WorkerPool(
         max_workers=1,
@@ -736,7 +748,9 @@ The client does **not** need to know whether the study originated from DICOM or 
 | **CAS by SHA-256** | Dedup, integrity verification, immutable blobs |
 | **SQLite WAL** | Good concurrency for single-node; easy migration to PostgreSQL later |
 | **`os.replace()` for atomicity** | POSIX atomic rename prevents partial writes appearing as valid blobs |
-| **No blob deletion on study delete** | Other studies may reference same blob; GC handles orphans separately |
+| **Upload Cleanup (Local-First)** | Local apps bypass the 24h resumability guarantee. Abandoned chunks are wiped instantly on backend boot (FastAPI lifespan) or via frontend `DELETE` to conserve local space. `APScheduler` is omitted. |
+| **Storage Abstraction Supremacy** | `StorageEngine` acts as an absolute physical boundary. Operations like `app.py` dispatching `sweep_orphans()` and `StudyService` counting unreferenced `blob_hash`es trigger abstract methods (`sweep_orphaned_blobs` and `delete_blob(hash)`). This guarantees future migration to cloud buckets remains completely transparent to the internal backend business logic. |
+| **Inline Blob GC + OS Sweep** | Instant local space recovery is critical. `StudyService.delete` checks DB references and delegates physical deletion `delete_blob()` instantly. An OS-level `st_nlink==1` sweep on startup acts as a hidden failsafe inside `LocalStorageEngine`. |
 | **`purpose` tag on FileRecord** | Decouples viewer file resolution from file format (`kind`). Frontend always queries `?purpose=viewer_volume,viewer_overlay` regardless of upload source. |
 | **`pipelines` in `FinalizeRequest`, not `BeginUploadRequest`** | User intent is expressed at the commit boundary (finalize), matching the UX event that triggers it. No DB column on `UploadSession` needed for pipeline intent. |
 | **Two-phase `dispatch` (auto-steps + user-steps)** | DICOM→NIfTI is structurally prepended by `file_record.kind`; user-controllable steps follow. Ordering is guaranteed by list concatenation — impossible to accidentally put DICOM conversion after segmentation. |
