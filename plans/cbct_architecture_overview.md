@@ -133,7 +133,7 @@ Medical imaging files can range from hundreds of megabytes to several gigabytes.
 
 ### **Step 1: Begin**
 
-The frontend calls `POST /storage/studies/{study_id}/uploads:begin`, providing the expected file size, SHA-256 hash, role (original), and kind (nifti\_raw, nifti\_mask, or dicom\_zip). The backend creates an UploadSession record, allocates a temporary parts directory, and returns an upload\_id and the negotiated chunk\_size.
+The frontend calls `POST /storage/studies/{study_id}/uploads:begin`, providing the file kind (nifti\_raw, nifti\_mask, or dicom\_zip). The backend creates an UploadSession record, allocates a temporary parts directory, and returns an upload\_id and the negotiated chunk\_size. The role is automatically assigned by the backend.
 
 ### **Step 2: Chunk**
 
@@ -142,7 +142,7 @@ The frontend uses the browser File API's `slice()` method to read sequential byt
 
 ### **Step 3: Finalize**
 
-The frontend calls POST /storage/uploads/{upload\_id}:finalize, optionally including a list of pipeline identifiers (e.g., segment\_nifti). The backend stitches all chunk files in order into a single file, computes its SHA-256 hash and total size, and checks both against the values declared in the begin step. A mismatch raises a 422 error and the upload is rejected. On success, the backend commits the file to CAS (see Section 4.2) and dispatches any requested pipeline (see Section 4.3).
+The frontend calls POST /storage/uploads/{upload\_id}:finalize, providing the expected file size, SHA-256 hash, and optionally a list of pipeline identifiers (e.g., segment\_nifti). The backend stitches all chunk files in order into a single file, computes its SHA-256 hash and total size, and checks both against the values declared in the payload. A mismatch raises a 422 error and the upload is rejected. On success, the backend commits the file to CAS (see Section 4.2) and dispatches any requested pipeline (see Section 4.3).
 
 | Note | If the upload session expires (TTL cleanup) or is aborted, the parts directory is removed and the session record is marked aborted. The client must start a new session to retry. |
 | :---- | :---- |
@@ -173,7 +173,7 @@ A pipeline **step** represents a single, independent unit of work. Steps are com
 
 By relying solely on the `ctx` object, steps simply act on whatever input they are handed. A step does not need to know where it sits in the pipeline — it blindly processes its input and returns an output.
 
-## **4.5 Pipeline Execution**
+## **4.5 Pipeline Sequence**
 
 The pipeline runner executes steps sequentially. After each step completes, the output blob hash and file ID from that step's result become the input for the next step. This chaining allows, for example, a DICOM conversion step to feed its NIfTI output directly into a segmentation step.
 
@@ -222,7 +222,7 @@ When the client disconnects, the WebSocket handler unregisters the socket from t
 | File deduplication | CAS commit skips the blob move if the hash path already exists. Re-uploading an identical file costs only the upload bandwidth, not additional disk space. |
 | Memory safety | ONNX inference and DICOM conversion run in a ProcessPoolExecutor. A crash or memory error in a worker cannot affect the FastAPI event loop. |
 | Non-blocking I/O | All subprocess calls are awaited via loop.run\_in\_executor(). The FastAPI event loop is never blocked by compute work. |
-| Overlay uniqueness | Only one FileRecord with purpose=viewer\_overlay may be active per study. StorageService atomically nulls any prior overlay in the same transaction as inserting the new one. |
+| Viewer uniqueness | Only one FileRecord with a specific purpose (viewer\_volume or viewer\_overlay) may be active per study. StorageService atomically nulls any prior record with the identical purpose in the same transaction as inserting the new one. |
 | Clean study deletion | StudyService.delete() cancels any active PipelineJob before removing database records and filesystem hardlinks. |
 | Worker pool extensibility | WorkerPool is a generic ProcessPoolExecutor wrapper. A second pool with a different initializer (e.g., a GPU pipeline) can be created in app.py and injected into specific step classes without touching JobPipelineService. |
 
@@ -332,7 +332,7 @@ When the client disconnects, the WebSocket handler unregisters the socket from t
 `backend/`  
 `├── main.py                    # uvicorn entrypoint`  
 `├── app.py                     # FastAPI factory + lifespan`  
-`├── config.py                  # All settings (paths, chunk size, TTL)`  
+`├── config.py                  # All settings (paths, chunk size, TTL, model path)`  
 `├── schemas.py                 # Pydantic request/response models`  
 `├── exceptions.py              # Custom HTTP exceptions`  
 `│`  
