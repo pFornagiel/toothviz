@@ -50,9 +50,8 @@ backend/
 │       └── pipeline_job_repo.py
 │
 └── storage/
-    ├── cas.py                # commit_to_cas(), commit_file_to_cas()
-    ├── upload_session.py     # Chunk I/O and resume support
-    └── paths.py              # Pure-function path computation (no I/O)
+    ├── engine.py             # StorageEngine protocol
+    └── local_engine.py       # LocalStorageEngine implementation
 ```
 
 ---
@@ -128,33 +127,32 @@ Services never return raw ORM objects — they return Pydantic schemas from `sch
 
 ---
 
-## Layer 2 — Storage (`storage/`)
+## Layer 2 — Storage Abstraction (`storage/`)
 
-### `paths.py` — pure path computation
+### `StorageEngine` Protocol (`engine.py`)
 
-All functions take `data_root: Path` as first argument. No I/O.
+Defines the interface for all binary I/O operations, decoupling file storage from database logic.
 
-- `upload_parts_dir(data_root, upload_id)` → `data/uploads/{upload_id}/parts/`
-- `cas_blob_path(data_root, sha256_hash)` → `data/blobs/sha256/{hash[:2]}/{hash}`
-- `study_raw_link(data_root, study_id, filename)` → `data/studies/{study_id}/raw/{filename}`
-- `study_derived_link(data_root, study_id, filename)` → `data/studies/{study_id}/derived/{filename}`
+```python
+class StorageEngine(Protocol):
+    def initialize_upload(self, upload_id: str) -> None: ...
+    def write_chunk(self, upload_id: str, index: int, data: bytes) -> None: ...
+    def get_chunk_size(self, upload_id: str, index: int) -> int | None: ...
+    def list_uploaded_chunks(self, upload_id: str) -> list[int]: ...
+    
+    def commit_upload_to_cas(self, upload_id: str, expected_sha256: str | None, expected_size: int | None) -> tuple[str, int]: ...
+    def commit_file_to_cas(self, src_path: Path) -> tuple[str, int]: ...
+    
+    def link_file_to_study(self, study_id: str, role: str, filename: str, blob_hash: str) -> Path | str: ...
+    def remove_study_data(self, study_id: str) -> None: ...
+    def get_job_workspace_dir(self, job_id: str) -> Path: ...
+```
 
-### `cas.py` — Content-Addressed Storage
+### `LocalStorageEngine` (`local_engine.py`)
 
-Two functions:
+Implements `StorageEngine` utilizing the local filesystem structure (`data/`).
+Handles atomic file moves via `os.replace()`, computes SHA-256 during stitching, and creates hardlinks for study directories.
 
-**`commit_to_cas(data_root, parts_dir, expected_sha256, expected_size) → (hash, size, blob_path)`**
-Stitches ordered chunk files into `concat.tmp`, computes SHA-256, validates against expectations,
-atomically renames into CAS via `os.replace()`. Skips if blob already exists (dedup).
-
-**`commit_file_to_cas(data_root, src_path) → (hash, size, blob_path)`**
-For files already on disk (worker outputs). Hashes in place, moves to CAS.
-
-### `upload_session.py` — chunk I/O
-
-- `write_chunk(parts_dir, index, data)` — writes `part_{i:08d}.chunk`, idempotent (size check)
-- `get_chunk_size(parts_dir, index) → int | None` — for idempotency check
-- `list_uploaded_chunks(parts_dir) → list[int]` — for resume status
 
 ---
 
@@ -162,29 +160,29 @@ For files already on disk (worker outputs). Hashes in place, moves to CAS.
 
 ### `StorageService`
 
-Encapsulates the "file on disk → CAS + FileRecord" operation. Used by both `UploadService`
+Combines the `StorageEngine` with Database logic. Used by `UploadService`
 (for original uploads) and pipeline step classes (for derived outputs). Holds no request state.
 
 ```python
 class StorageService:
-    def __init__(self, data_root: Path, session_factory: Callable): ...
+    def __init__(self, engine: StorageEngine, session_factory: Callable): ...
 
     def store_original(
-        self, parts_dir: Path, study_id: str,
+        self, upload_id: str, study_id: str,
         filename: str, kind: str, purpose: str | None,
         expected_sha256: str | None, expected_size: int | None,
     ) -> FileRecord:
-        """CAS commit from upload parts + create FileRecord(role=original)."""
+        """Calls engine.commit_upload_to_cas(), engine.link_file_to_study() + creates FileRecord."""
 
     def store_derived(
         self, src_path: Path, study_id: str, job_id: str,
         filename: str, kind: str, purpose: str | None,
     ) -> FileRecord:
-        """CAS commit from local path + create FileRecord(role=derived)."""
+        """Calls engine.commit_file_to_cas(), engine.link_file_to_study() + creates FileRecord."""
 ```
 
 `store_original` is called by `UploadService.finalize()`.
-`store_derived` is called by `DicomToNiftiStep` and `SegmentNiftiStep` via `ctx.storage`.
+`store_derived` is called by `run_pipeline` in `JobPipelineService` at the end of a successful job. Step classes do not call this directly.
 
 **`purpose` supersede:** When a non-null `purpose` (`viewer_volume` or `viewer_overlay`) is passed to either `store_original` or `store_derived`, the method must first null out any existing record for the same study with that identical purpose:
 ```sql
@@ -198,13 +196,13 @@ This is executed within the same DB transaction as the new `FileRecord` insert, 
 Owns the three-step upload state machine. Injected with `StorageService` and `JobPipelineService`.
 
 **`begin_session(study_id, payload) → {upload_id, chunk_size}`**
-Validates study exists, creates `UploadSession(state=active)`, creates parts dir, returns negotiated `chunk_size`.
+Validates study exists, creates `UploadSession(state=active)`, calls `engine.initialize_upload()`, returns negotiated `chunk_size`.
 
 **`write_chunk(upload_id, index, data) → None`**
-Validates session is `active`. Idempotency: if chunk exists with same size → 200 OK; different size → 409 Conflict. Otherwise writes chunk file.
+Validates session is `active`. Calls `engine.get_chunk_size()` for idempotency. Calls `engine.write_chunk()`.
 
 **`get_status(upload_id) → UploadStatusResponse`**
-Returns uploaded chunk indices, total uploaded bytes, and session state.
+Returns uploaded chunk indices (via `engine.list_uploaded_chunks()`), total uploaded bytes, and session state.
 
 **`finalize(upload_id, pipelines) -> {file_id, job_id | None}`**
 1. Calls `storage_service.store_original(...)` — stitches, verifies, commits to CAS, creates `FileRecord`
@@ -222,11 +220,13 @@ Returns uploaded chunk indices, total uploaded bytes, and session state.
 
 The single point of entry for all background job execution. Step routing is split into two independent phases:
 - **Phase 1 — auto-steps**: derived from `file_record.kind` only, never user-controllable (`DicomToNiftiStep` when `kind="dicom_zip"`).
-- **Phase 2 — user steps**: derived from the `pipelines` argument forwarded from `FinalizeRequest.pipelines` (e.g., `"segment_nifti"` → `SegmentNiftiStep`).
+- **Phase 2 — user steps**: registry-driven loop over the `pipelines` argument. Each `name` is looked up in `self._step_registry` (a `dict[str, StepFactory]` injected at construction); the corresponding factory is called with the item’s `config` dict to produce a step instance. Step names are pre-validated to a `Literal` type by the Pydantic schema, so `dispatch()` can safely index the registry without additional guarding.
 
 If both phases yield no steps, `dispatch` returns `None` and no `PipelineJob` is created.
 
 ```python
+StepFactory = Callable[[dict], PipelineStep]
+
 class JobPipelineService:
     def __init__(
         self,
@@ -234,6 +234,7 @@ class JobPipelineService:
         session_factory: Callable,
         storage_service: StorageService,
         broadcaster: WSBroadcaster,
+        step_registry: dict[str, StepFactory],  # injected from app.py
     ): ...
 
     def dispatch(
@@ -248,11 +249,11 @@ class JobPipelineService:
         if file_record.kind == "dicom_zip":
             auto_steps.append(DicomToNiftiStep())
 
-        # Phase 2: user-requested steps — derived from finalize payload
-        requested = {p["name"] for p in pipelines}
+        # Phase 2: user-requested steps — registry-driven loop
         user_steps: list[PipelineStep] = []
-        if "segment_nifti" in requested:
-            user_steps.append(SegmentNiftiStep())
+        for item in pipelines:
+            factory = self._step_registry[item["name"]]  # names are Literal-validated upstream
+            user_steps.append(factory(item.get("config", {})))
 
         steps = auto_steps + user_steps
         if not steps:
@@ -266,9 +267,8 @@ class JobPipelineService:
         ctx = StepContext(
             job_id=job.id,
             study_id=file_record.study_id,
-            source_blob_hash=file_record.blob_hash,
-            source_file_id=file_record.id,
-            storage=self._storage_service,
+            current_input_path=cas_blob_path(config.DATA_ROOT, file_record.blob_hash),
+            work_dir=job_workspace_dir(config.DATA_ROOT, job.id),
             broadcaster=self._broadcaster,
             _worker_pool=self._worker_pool,
         )
@@ -336,20 +336,24 @@ class WorkerPool:
 class StepContext:
     job_id: str
     study_id: str
-    source_blob_hash: str      # current step's input
-    source_file_id: str
-    storage: StorageService    # injected — handles CAS + FileRecord
+    current_input_path: Path
+    work_dir: Path
     broadcaster: WSBroadcaster
     _worker_pool: WorkerPool = field(repr=False)
 
     async def run_subprocess(self, fn: Callable, *args) -> Any:
-        """Offloads fn(*args) to process pool. Returns result."""
         return await self._worker_pool.run(fn, *args)
 
 @dataclass
+class OutputArtifact:
+    path: Path
+    kind: str
+    purpose: str | None
+
+@dataclass
 class StepResult:
-    output_blob_hash: str
-    output_file_id: str
+    next_input_path: Path
+    artifacts: list[OutputArtifact]
 
 class PipelineStep(Protocol):
     name: str
@@ -358,7 +362,7 @@ class PipelineStep(Protocol):
 
 ### Step Classes
 
-Each step: resolves input path → `await ctx.run_subprocess(fn, path)` → `ctx.storage.store_derived(output)` → broadcast → return `StepResult`.
+Each step: inputs `ctx.current_input_path` → outputs to `ctx.work_dir` → `await ctx.run_subprocess(fn, in_path, out_path)` → broadcast → return `StepResult(next_input_path, artifacts)`.
 
 **`DicomToNiftiStep`**: runs `convert_dicom(zip_path)` in subprocess, stores result as `kind=nifti_derived, purpose=viewer_volume`.
 
@@ -384,28 +388,46 @@ the next step's input. Handles `CancelledError`, exception, and success paths. U
 `PipelineJob.status` and `Study.status` at each lifecycle point.
 
 ```python
-async def run_pipeline(job_id: str, steps: list[PipelineStep], ctx: StepContext):
-    with ctx.storage.session_factory() as db:
+async def run_pipeline(job_id: str, steps: list[PipelineStep], ctx: StepContext, storage_service: StorageService):
+    ctx.work_dir.mkdir(parents=True, exist_ok=True)
+    with storage_service.session_factory() as db:
         PipelineJobRepo(db).set_status(job_id, "running")
     try:
+        collected_artifacts: dict[str, OutputArtifact] = {}
+        
         for step in steps:
             result = await step.run(ctx)
-            ctx = replace(ctx,
-                source_blob_hash=result.output_blob_hash,
-                source_file_id=result.output_file_id,
+            ctx = replace(ctx, current_input_path=result.next_input_path)
+            
+            for artifact in result.artifacts:
+                # Deduplicate by purpose. Fallback to kind if purpose is null
+                key = artifact.purpose if artifact.purpose else artifact.kind
+                collected_artifacts[key] = artifact
+
+        for artifact in collected_artifacts.values():
+            storage_service.store_derived(
+                src_path=artifact.path,
+                study_id=ctx.study_id,
+                job_id=job_id,
+                filename=artifact.path.name,
+                kind=artifact.kind,
+                purpose=artifact.purpose
             )
-        with ctx.storage.session_factory() as db:
+
+        with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")
             StudyRepo(db).set_status(ctx.study_id, "ready")
         await ctx.broadcaster.broadcast(job_id, {"status": "completed"})
     except asyncio.CancelledError:
-        with ctx.storage.session_factory() as db:
+        with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "cancelled")
         raise
     except Exception as exc:
-        with ctx.storage.session_factory() as db:
+        with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "failed", error=str(exc))
         await ctx.broadcaster.broadcast(job_id, {"status": "failed", "error": str(exc)})
+    finally:
+        shutil.rmtree(ctx.work_dir, ignore_errors=True)
 ```
 
 ### `WSBroadcaster` (`workers/ws_broadcaster.py`)
@@ -453,9 +475,20 @@ async def lifespan(app: FastAPI):
         initializer=_init_segmentation,
         initargs=(str(config.MODEL_PATH),),
     )
-    storage_service = StorageService(config.DATA_ROOT, SessionLocal)
+    storage_engine = LocalStorageEngine(config.DATA_ROOT)
+    storage_service = StorageService(storage_engine, SessionLocal)
     broadcaster = WSBroadcaster()
-    job_pipeline_service = JobPipelineService(worker_pool, SessionLocal, storage_service, broadcaster)
+
+    # Step registry: maps pipeline name → factory callable.
+    # Adding a new user-requested step only requires a new entry here.
+    step_registry: dict[str, StepFactory] = {
+        "segment_nifti": lambda cfg: SegmentNiftiStep(config=cfg),
+    }
+
+    job_pipeline_service = JobPipelineService(
+        worker_pool, SessionLocal, storage_service, broadcaster,
+        step_registry=step_registry,
+    )
 
     app.state.job_pipeline_service = job_pipeline_service
     app.state.storage_service = storage_service
@@ -474,8 +507,8 @@ No `mp.Queue`. No drain coroutine.
 
 ```
 1.  db/models.py + db/session.py
-2.  storage/paths.py + storage/cas.py
-3.  storage/upload_session.py
+2.  storage/engine.py (Protocol)
+3.  storage/local_engine.py (Implementation)
 4.  db/repos/  (all three)
 5.  services/storage_service.py
 6.  services/upload_service.py

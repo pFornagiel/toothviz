@@ -73,9 +73,8 @@ backend/
 │       └── pipeline_job_repo.py
 │
 └── storage/
-    ├── cas.py                 # CAS commit logic (commit_to_cas, commit_file_to_cas)
-    ├── upload_session.py      # Chunk I/O
-    └── paths.py               # Pure path computation
+    ├── engine.py              # StorageEngine protocol
+    └── local_engine.py        # LocalStorageEngine implementation
 ```
 
 ### Runtime Data Layout
@@ -152,7 +151,7 @@ data/
 | `id` | UUID (str) | PK, returned to client as `job_id` |
 | `study_id` | UUID (str) | FK → Study |
 | `source_file_id` | UUID (str) | FK → FileRecord that triggers the job |
-| `steps` | JSON | Array of `{name, config}` — audit log only |
+| `steps` | JSON | Array of step name strings — audit log only |
 | `status` | str | `queued` / `running` / `completed` / `failed` / `cancelled` |
 | `created_at` | datetime | |
 | `started_at` | datetime? | |
@@ -196,6 +195,8 @@ data/
 
 These are the string identifiers sent by the frontend in `FinalizeRequest.pipelines`. They represent **optional, user-driven** pipeline steps. They are distinct from **auto-driven** steps (e.g., DICOM→NIfTI conversion), which are always determined by `file_record.kind` and never appear in this list.
 
+Valid names are enforced by `PipelineRequestItem.name: Literal["segment_nifti"]` in `schemas.py`. An unknown name causes a 422 validation error before `dispatch()` is ever called.
+
 | Name | Step class | Description | Triggered by |
 |---|---|---|---|
 | `segment_nifti` | `SegmentNiftiStep` | ONNX segmentation inference on a NIfTI file | User selects automated segmentation in UI |
@@ -213,42 +214,33 @@ These are the string identifiers sent by the frontend in `FinalizeRequest.pipeli
 
 ---
 
-## Layer 2: Storage (Pure Logic)
+## Layer 2: Storage Abstraction (`storage/`)
 
-### `paths.py` — Zero I/O
+### `StorageEngine` Protocol (`storage/engine.py`)
+
+Defines the abstract interface for binary I/O operations. This decouples file manipulation from database logic.
 
 ```python
-def upload_parts_dir(data_root: Path, upload_id: str) -> Path
-def cas_blob_path(data_root: Path, sha256_hash: str) -> Path
-def study_raw_link(data_root: Path, study_id: str, filename: str) -> Path
-def study_derived_link(data_root: Path, study_id: str, filename: str) -> Path
+class StorageEngine(Protocol):
+    def initialize_upload(self, upload_id: str) -> None: ...
+    def write_chunk(self, upload_id: str, index: int, data: bytes) -> None: ...
+    def get_chunk_size(self, upload_id: str, index: int) -> int | None: ...
+    def list_uploaded_chunks(self, upload_id: str) -> list[int]: ...
+    
+    def commit_upload_to_cas(self, upload_id: str, expected_sha256: str | None, expected_size: int | None) -> tuple[str, int]: ...
+    def commit_file_to_cas(self, src_path: Path) -> tuple[str, int]: ...
+    
+    def link_file_to_study(self, study_id: str, role: str, filename: str, blob_hash: str) -> Path | str: ...
+    def remove_study_data(self, study_id: str) -> None: ...
+    def get_job_workspace_dir(self, job_id: str) -> Path: ...
 ```
 
-All functions are pure; they take `data_root: Path` as first argument.
+### `LocalStorageEngine` (`storage/local_engine.py`)
 
-### `cas.py` — CAS Commit
-
-Two functions:
-
-**`commit_to_cas(data_root, parts_dir, expected_sha256, expected_size) → (hash, size, blob_path)`**
-
-Flow:
-1. Stitch all `part_*.chunk` into `concat.tmp`
-2. Compute SHA-256 during stitching (single pass)
-3. Validate hash + size against expectations
-4. `os.replace()` → `blobs/sha256/xx/hash` (atomic on POSIX)
-5. Skip if blob exists (dedup)
-6. Return `(hash, size, blob_path)`
-
-**`commit_file_to_cas(data_root, src_path) → (hash, size, blob_path)`**
-
-For files already on disk (worker outputs). Hashes in place, moves to CAS.
-
-### `upload_session.py` — Chunk I/O
-
-- `write_chunk(parts_dir, index, data)` — write `part_{i:08d}.chunk`, idempotent
-- `get_chunk_size(parts_dir, index)` → `int?` — for idempotency check
-- `list_uploaded_chunks(parts_dir)` → `list[int]` — for resume status
+Implements `StorageEngine` using the local filesystem.
+- Manages `data/blobs/`, `data/studies/`, and `data/uploads/` on disk.
+- `commit_upload_to_cas`: Stitches parts, computers SHA-256, atomic `os.replace` into CAS.
+- `link_file_to_study`: Creates hardlinks in `data/studies/{study_id}/{role}/{filename}`.
 
 ---
 
@@ -256,16 +248,16 @@ For files already on disk (worker outputs). Hashes in place, moves to CAS.
 
 ### StorageService
 
-Thin stateless service wrapping the "file on disk → CAS + FileRecord" operation.
+Stateless service that combines Database logic (`FileRecord` management) with the injected `StorageEngine`.
 Used by both `UploadService` (for originals) and pipeline step classes (for derived files).
-Instantiated once at startup with `data_root` and `session_factory`.
+Instantiated once at startup with `engine` and `session_factory`.
 
 ```python
 class StorageService:
-    def __init__(self, data_root: Path, session_factory: Callable): ...
+    def __init__(self, engine: StorageEngine, session_factory: Callable): ...
 
     def store_original(
-        self, parts_dir, study_id, filename, kind, purpose, expected_sha256, expected_size
+        self, upload_id, study_id, filename, kind, purpose, expected_sha256, expected_size
     ) -> FileRecord: ...
 
     def store_derived(
@@ -274,8 +266,7 @@ class StorageService:
 ```
 
 `store_original` is called by `UploadService.finalize()`.
-`store_derived` is called by `DicomToNiftiStep` and `SegmentNiftiStep` via `ctx.storage`.
-Step classes have no direct knowledge of sessions or CAS internals.
+`store_derived` is called by the `JobPipelineService` (specifically the async orchestrator `run_pipeline`) at the end of a successful job. Step classes have no direct knowledge of sessions, CAS internals, or the `StorageService`.
 
 **`purpose` supersede:** Both `store_original` (e.g., for `nifti_raw` or `nifti_mask`) and `store_derived` (for downstream outputs) must, before inserting the new `FileRecord`, execute:
 ```sql
@@ -301,8 +292,8 @@ sequenceDiagram
     end
 
     Router->>UploadService: finalize(upload_id, pipelines)
-    UploadService->>StorageService: store_original(parts_dir, kind, ...)
-    Note over StorageService: CAS commit + FileRecord created
+    UploadService->>StorageService: store_original(upload_id, kind, ...)
+    Note over StorageService: calls Engine for CAS commit + FileRecord created
     UploadService->>JobPipelineService: dispatch(file_record, pipelines)
     UploadService-->>Router: {file_id, job_id | null}
 ```
@@ -336,6 +327,7 @@ class JobPipelineService:
         session_factory: Callable,
         storage_service: StorageService,
         broadcaster: WSBroadcaster,
+        step_registry: dict[str, StepFactory],  # name → factory; injected from app.py
     ): ...
 
     def dispatch(
@@ -350,11 +342,12 @@ class JobPipelineService:
         if file_record.kind == "dicom_zip":
             auto_steps.append(DicomToNiftiStep())
 
-        # Phase 2: user-requested steps — derived from finalize payload
-        requested = {p["name"] for p in pipelines}
+        # Phase 2: user-requested steps — registry-driven loop
+        # Names are already validated to Literal values by PipelineRequestItem.name
         user_steps: list[PipelineStep] = []
-        if "segment_nifti" in requested:
-            user_steps.append(SegmentNiftiStep())
+        for item in pipelines:
+            factory = self._step_registry[item["name"]]  # KeyError = programming bug, not user error
+            user_steps.append(factory(item.get("config", {})))
 
         steps = auto_steps + user_steps
         if not steps:
@@ -368,9 +361,8 @@ class JobPipelineService:
         ctx = StepContext(
             job_id=job.id,
             study_id=file_record.study_id,
-            source_blob_hash=file_record.blob_hash,
-            source_file_id=file_record.id,
-            storage=self._storage_service,
+            current_input_path=storage_engine.get_cas_blob_path(file_record.blob_hash),
+            work_dir=storage_engine.get_job_workspace_dir(job.id),
             broadcaster=self._broadcaster,
             _worker_pool=self._worker_pool,
         )
@@ -438,9 +430,8 @@ This allows `app.py` to configure the initializer at startup without baking it i
 class StepContext:
     job_id: str
     study_id: str
-    source_blob_hash: str      # current step's input
-    source_file_id: str
-    storage: StorageService    # injected — handles CAS + FileRecord
+    current_input_path: Path   # points to CAS blob or previous step's tmp output
+    work_dir: Path             # ephemeral dir: data/tmp/jobs/{job_id}/
     broadcaster: WSBroadcaster
     _worker_pool: WorkerPool = field(repr=False)
 
@@ -453,38 +444,50 @@ class StepContext:
 
 ```python
 @dataclass
+class OutputArtifact:
+    path: Path
+    kind: str
+    purpose: str | None
+
+@dataclass
 class StepResult:
-    output_blob_hash: str
-    output_file_id: str
+    next_input_path: Path
+    artifacts: list[OutputArtifact]
 
 class PipelineStep(Protocol):
     name: str
     async def run(self, ctx: StepContext) -> StepResult: ...
+
+# Factory type: receives the validated config dict, returns a step instance.
+# Used by the STEP_REGISTRY in app.py.
+StepFactory = Callable[[dict], PipelineStep]
 ```
 
 ### Step Classes (`workers/steps/`)
 
-Each step class implements `async def run(ctx: StepContext) -> StepResult`:
-1. Resolve input CAS path from `ctx.source_blob_hash`
-2. Call `await ctx.run_subprocess(fn, str(input_path))` — offloads to worker pool
-3. Commit output to CAS via `ctx.storage.store_derived()`
-4. Broadcast step completion via `ctx.broadcaster`
-5. Return `StepResult(output_blob_hash, output_file_id)`
+Each step class is a `@dataclass` implementing `PipelineStep`. Step classes accept an optional `config: dict` field (default `{}`) so they can be parameterized by the registry factory. Behavior falls back to hardcoded defaults when config is empty.
 
-**`DicomToNiftiStep`** — runs `convert_dicom(zip_path)` in subprocess, stores result as `kind=nifti_derived, purpose=viewer_volume`.
+Each step's `run` method:
+1. Generates an output path inside `ctx.work_dir`.
+2. Calls `await ctx.run_subprocess(fn, str(ctx.current_input_path), str(output_path))` — offloads to worker pool.
+3. Broadcasts step completion via `ctx.broadcaster`.
+4. Returns a `StepResult` with the new forward path and any `OutputArtifact`s it wishes to securely persist.
 
-**`SegmentNiftiStep`** — runs `run_segmentation(nifti_path)` in subprocess, stores result as `kind=segmentation_mask, purpose=viewer_overlay`.
+**`DicomToNiftiStep`** — Runs `convert_dicom(zip_path, out_dir)` in subprocess. Returns `next_input_path=nifti_path`, `artifacts=[OutputArtifact(nifti_path, "nifti_derived", "viewer_volume")]`.
 
-**Key invariant:** subprocess functions (`workers/subprocesses/dicom_fn.py`, `workers/subprocesses/segmentation_fn.py`) receive and return **plain path strings only**. No ORM objects, sessions, or service instances ever cross the process boundary.
+**`SegmentNiftiStep`** — Runs `run_segmentation(nifti_path, out_dir)` in subprocess. Returns `next_input_path=ctx.current_input_path` (passes volume forward unchanged), `artifacts=[OutputArtifact(mask_path, "segmentation_mask", "viewer_overlay")]`.
+
+**Key invariant:** subprocess functions (`workers/subprocesses/dicom_fn.py`, `workers/subprocesses/segmentation_fn.py`) receive and return **plain path strings only**. No ORM objects, sessions, or service instances ever cross the process boundary. Steps do **not** write to the database or storage service whatsoever.
 
 ### Pipeline Runner (`workers/pipeline_runner.py`)
 
-Module-level async function `run_pipeline(job_id, steps, ctx)`. Runs steps sequentially in the event loop:
-1. Mark `PipelineJob.status = running`
-2. For each step: `result = await step.run(ctx)`, then update `ctx` with result's `blob_hash` / `file_id`
-3. On success: mark job `completed`, set `Study.status = ready`, broadcast completion
-4. On `CancelledError`: mark job `cancelled`
-5. On other exception: mark job `failed`, broadcast error
+Module-level async function `run_pipeline(job_id, steps, ctx, storage_service)`. Runs steps sequentially in the event loop:
+1. Create `work_dir` at `data/tmp/jobs/{job_id}/`.
+2. Mark `PipelineJob.status = running`.
+3. Loop over each step. Collect result `OutputArtifact`s in a dictionary mapping `purpose` to `artifact` (enforcing last-write-wins). Update `ctx.current_input_path` to `result.next_input_path`.
+4. On success: loop through aggregated artifacts and call `storage_service.store_derived()` exactly once per successful artifact. Set `Study.status = ready`, broadcast completion, mark job `completed`.
+5. On Error: mark job failed/cancelled, broadcast error.
+6. Finally block: `shutil.rmtree(work_dir)` to physically wipe all temporary outputs.
 
 ### WebSocket Broadcaster (`workers/ws_broadcaster.py`)
 
@@ -560,9 +563,20 @@ async def lifespan(app: FastAPI):
         initializer=_init_segmentation,
         initargs=(str(config.MODEL_PATH),),
     )
-    storage_service = StorageService(config.DATA_ROOT, SessionLocal)
+    storage_engine = LocalStorageEngine(config.DATA_ROOT)
+    storage_service = StorageService(storage_engine, SessionLocal)
     broadcaster = WSBroadcaster()
-    job_pipeline_service = JobPipelineService(worker_pool, SessionLocal, storage_service, broadcaster)
+
+    # Step registry: maps pipeline name → factory callable.
+    # Adding a new user-requested step only requires adding an entry here.
+    step_registry: dict[str, StepFactory] = {
+        "segment_nifti": lambda cfg: SegmentNiftiStep(config=cfg),
+    }
+
+    job_pipeline_service = JobPipelineService(
+        worker_pool, SessionLocal, storage_service, broadcaster,
+        step_registry=step_registry,
+    )
 
     app.state.job_pipeline_service = job_pipeline_service
     app.state.storage_service = storage_service
@@ -614,13 +628,15 @@ sequenceDiagram
     
     Client->>API: WS /ws/pipeline/{job_id}
     
-    JobPipeline->>SegWorker: run(nifti_path) [subprocess]
+    JobPipeline->>JobPipeline: create tmp/jobs/{job_id}/
+    JobPipeline->>SegWorker: run(nifti_path, tmp_dir) [subprocess]
     SegWorker->>SegWorker: ONNX inference
-    SegWorker-->>JobPipeline: mask_path
-    JobPipeline->>StorageSvc: store_derived(mask_path)
+    SegWorker-->>JobPipeline: tmp_mask_path
+    JobPipeline->>StorageSvc: store_derived(tmp_mask_path) [after all steps]
     StorageSvc->>CAS: commit_file_to_cas()
     StorageSvc->>DB: INSERT FileRecord(derived)
-    JobPipeline->>Broadcaster: {status: completed, file_id}
+    JobPipeline->>JobPipeline: cleanup tmp/jobs/{job_id}/
+    JobPipeline->>Broadcaster: {status: completed}
     Broadcaster->>Client: WS message
 ```
 
@@ -629,9 +645,11 @@ sequenceDiagram
 Same as Flow A, but:
 1. `finalize` payload includes `pipelines=[{"name": "segment_nifti"}]` (user requested segmentation) **and** `kind="dicom_zip"`
 2. `dispatch` Phase 1 prepends `DicomToNiftiStep`; Phase 2 appends `SegmentNiftiStep` → `steps = [DicomToNiftiStep(), SegmentNiftiStep()]`
-3. `DicomToNiftiStep` runs first → produces NIfTI → stored via `StorageService.store_derived()` as `kind=nifti_derived, purpose=viewer_volume`
-4. Original DICOM zip `FileRecord` keeps `purpose=null` (never sent to viewer)
-5. `SegmentNiftiStep` runs second on the derived NIfTI's blob hash → output stored as `purpose=viewer_overlay`
+3. Job creates `tmp/jobs/{job_id}/` workspace.
+4. `DicomToNiftiStep` runs first → produces NIfTI in `tmp` → yields `Artifact(purpose=viewer_volume)`.
+5. Original DICOM zip `FileRecord` keeps `purpose=null` (never sent to viewer).
+6. `SegmentNiftiStep` runs second on the `tmp` NIfTI → produces mask in `tmp` → yields `Artifact(purpose=viewer_overlay)`.
+7. Pipeline completes, orchestrator collects both artifacts, calls `store_derived()` twice. Workspace is deleted.
 
 > [!NOTE]
 > If the user uploads DICOM but requests no segmentation (`pipelines=[]`), Phase 1 still produces `[DicomToNiftiStep()]`. The DICOM→NIfTI conversion is automatic and non-negotiable.
@@ -705,8 +723,12 @@ The client does **not** need to know whether the study originated from DICOM or 
 | **Async pipeline runner, not subprocess orchestrator** | Only compute kernels cross process boundary; DB writes, CAS commits, WS broadcast stay in the event loop — no serialization problems |
 | **`WorkerPool` as a generic wrapper** | Decouples `ProcessPoolExecutor` lifecycle and initializer from `JobPipelineService` and step classes. Multiple `WorkerPool` instances can coexist if needed (e.g., separate CPU vs GPU pools) |
 | **`JobPipelineService` as single dispatch point** | Owns step routing, `PipelineJob` creation, and `asyncio.Task` handle registry; enables clean cancellation on study delete |
-| **`StorageService` shared by `UploadService` and step classes** | Single implementation of "commit to CAS + create FileRecord"; step classes have no knowledge of sessions or CAS internals |
+| **Artifact Collector Strategy** | Steps never touch `StorageService`. They emit `OutputArtifact`s pointing into a temporary workspace. The orchestrator collects, deduplicates by purpose, and commits them securely at the very end. Eliminates intermediate DB bloat and double-writes to CAS. |
+| **`StorageService` shared** | Single implementation of "commit to CAS + create FileRecord". Called strictly by `UploadService.finalize()` and `JobPipelineService` (end-of-pipeline). |
 | **`session_factory` in `StepContext`, not a session** | Each step creates its own short-lived session scope; no session held across awaits |
+| **Step registry (`STEP_REGISTRY`) injected into `JobPipelineService`** | Phase 2 (user-steps) uses a `dict[str, StepFactory]` built in `app.py` and injected at construction. Adding a new user-requested step requires only a registry entry — `dispatch()` itself never changes. Auto-steps (Phase 1) are deliberately excluded from the registry; they are always file-kind-driven and non-negotiable. |
+| **`PipelineRequestItem.name: Literal[...]`** | Step name validation happens at the Pydantic schema boundary (422 error) rather than inside `dispatch()`. This means `dispatch()` can safely assume all names are known and use `self._step_registry[name]` without additional guarding. |
+| **`config: dict` on step classes** | User-supplied config is passed through the registry factory to the step instance, making future per-step parameterization (e.g., segmentation threshold) a zero-friction addition. Empty `{}` is the default — no behavioral change from the previous no-arg construction. |
 | **Subprocess fns receive/return strings only** | Guarantees picklability; no ORM or service instances ever cross the fork boundary |
 | **No `mp.Queue` or drain coroutine** | `WSBroadcaster.broadcast()` called directly from the async runner — simpler, no hidden third process |
 | **`PipelineStep` (protocol) vs `PipelineJob` (DB record)** | "Step" = one atomic compute unit; "Job" = one full execution run (persisted). Clear semantic boundary. |
