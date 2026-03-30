@@ -19,6 +19,8 @@ src/backend/
 ├── routers/
 ├── services/
 ├── workers/
+│   ├── steps/
+│   └── subprocesses/
 ├── db/
 │   └── repos/
 └── storage/
@@ -38,10 +40,10 @@ src/backend/
 | Action | Details |
 |---|---|
 | Port `session.py` | Copy `engine`, `SessionLocal`, WAL pragmas from `database.py`. Use `config.STORAGE_DB_URL` instead of hardcoded path. |
-| Port `Study`, `Blob`, `FileRecord` | Direct copy from POC `models.py` |
+| Port `Study`, `Blob`, `FileRecord` | Direct copy from POC `models.py`. Ensure `Study.external_id` has `unique=True`. |
 | **Add `purpose` to `FileRecord`** | New nullable `str` column. Values: `null` / `viewer_volume` / `viewer_overlay`. See Canonical Enums in `architecture_reference.md` |
-| **Expand `kind` values in `FileRecord`** | Use: `dicom_zip` / `nifti_raw` / `nifti_derived` / `segmentation_mask` (replaces old generic `nifti` / `segmentation`) |
-| Port `UploadSession` | Add missing `chunk_size` column (int, nullable) |
+| **Expand `kind` values in `FileRecord`** | Use: `dicom_zip` / `nifti_raw` / `nifti_mask` / `nifti_derived` / `segmentation_mask`. `nifti_mask` = user-uploaded pre-computed mask (`role=original`); `segmentation_mask` = pipeline-derived (`role=derived`) |
+| Port `UploadSession` | Add missing `chunk_size` column (int, nullable). `kind` accepts: `dicom_zip` / `nifti_raw` / `nifti_mask` |
 | **Replace** `Task` with `PipelineJob` | New model: add `source_file_id`, `steps` (JSON), `started_at`, `finished_at`, `error` columns |
 | Remove `checksum_sha256` from `FileRecord` | Redundant with `blob_hash`; OR keep for backwards compat but document as alias |
 
@@ -123,51 +125,77 @@ def list_uploaded_chunks(parts_dir: Path) -> list[int]
 
 ## Phase 2: Services & API (Steps 6–10)
 
-### Step 6: `services/upload_service.py`
+### Step 6: `services/storage_service.py`
+
+**New file.** Encapsulates the "file on disk → CAS + FileRecord" operation. Used by both
+`UploadService` (for originals) and pipeline step classes (for derived outputs).
+
+```python
+class StorageService:
+    def __init__(self, data_root: Path, session_factory: Callable): ...
+
+    def store_original(
+        self, parts_dir, study_id, filename, kind, purpose,
+        expected_sha256, expected_size
+    ) -> FileRecord:
+        """CAS commit from upload parts + create FileRecord(role=original)."""
+
+    def store_derived(
+        self, src_path, study_id, job_id, filename, kind, purpose
+    ) -> FileRecord:
+        """CAS commit from local path + create FileRecord(role=derived)."""
+```
+
+**`purpose` supersede:** When a non-null `purpose` (e.g., `viewer_volume` or `viewer_overlay`) is passed, both `store_original` and `store_derived` must atomically null out any prior record for the same study with that exact purpose before inserting the new `FileRecord`. This enforces last-write-wins semantics for all viewer purposes.
+
+**Port from:** the CAS + FileRecord creation logic in `LocalPersistentStorage.finalize_upload()`
+and `store_from_local_path()`, now split cleanly by call site.
+
+---
+
+### Step 7: `services/upload_service.py`
 
 **Port from:** `LocalPersistentStorage` methods `begin_upload`, `upload_chunk`, `finalize_upload`.
 
-Decompose the god-object:
 - `begin_session()` → calls `UploadSessionRepo.create()` + `mkdir parts dir`
 - `write_chunk()` → calls `upload_session.write_chunk()` + validates session state via repo
 - `get_status()` → calls `upload_session.list_uploaded_chunks()`
-- `finalize()` → calls `cas.commit_to_cas()` + `FileRepo.create()` + `UploadSessionRepo.update_state()` + `PipelineService.dispatch_if_needed()`
+- `finalize(upload_id, pipelines)` → purpose resolution by kind:
+  - `nifti_raw` → `purpose=viewer_volume`
+  - `nifti_mask` → `purpose=viewer_overlay` (StorageService supersedes any prior overlay)
+  - `dicom_zip` → `purpose=null`
+  Then calls `storage_service.store_original()` + `UploadSessionRepo.update_state()` + `job_pipeline_service.dispatch(file_record, pipelines)`. Returns `{file_id, job_id | None}`.
 
 **Key difference from POC:** No `meta.json` on disk. All state in DB.
 
 ---
 
-### Step 7: `services/storage_service.py`
+### Step 8: `services/study_service.py`
 
-**Port from:** `LocalPersistentStorage.store_from_local_path()`.
+**Port from:** `LocalPersistentStorage.create_study()`, `ensure_study()`, `save_metadata()`, `get_metadata()`, `delete_file()`, `garbage_collect()`.
 
-Single method `store_derived_file(study_id, job_id, local_path, kind, purpose=None)` — used by workers.
-
-- `kind` and `purpose` come from the pipeline step config JSON; the worker passes them through without interpreting them.
-- Creates `FileRecord(role="derived", kind=kind, purpose=purpose)`.
-
----
-
-### Step 8: `services/study_service.py` + `services/pipeline_service.py`
-
-**StudyService** — Port from `LocalPersistentStorage.create_study()`, `ensure_study()`, `save_metadata()`, `get_metadata()`, `delete_file()`, `garbage_collect()`.
-
-**PipelineService** — Mostly new:
-- `dispatch_if_needed(file_record, requested_steps)` — check kind, build steps JSON, create job, enqueue
-  - If `kind == "dicom_zip"` → prepend `{"name": "dicom_to_nifti", "output_kind": "nifti_derived", "output_purpose": "viewer_volume"}` step
-  - If `kind == "nifti_raw"` → first step is `{"name": "save_uploaded_nifti", "output_kind": "nifti_raw", "output_purpose": "viewer_volume"}` (sets purpose on upload)
-  - Segmentation step always appended as `{"name": "segment_nifti", "output_kind": "segmentation_mask", "output_purpose": "viewer_overlay"}`
-- `get_job_status(task_id)` — repo pass-through
+- `create(external_id?, meta?)` → DB insert + `mkdir raw/ derived/`
+- `list(external_id_filter?)` → `StudyRepo.list(external_id=...)`
+- `rename(study_id, name)` → update `meta` JSON
+- `delete(study_id)`:
+  1. Find active `PipelineJob` for this study
+  2. Call `job_pipeline_service.cancel(job.id)` if found
+  3. Mark `FileRecord`s deleted in DB
+  4. Unlink `data/studies/{study_id}/` hardlinks
+  5. Purge directory (blobs handled by GC separately)
 
 ---
 
 ### Step 9: `schemas.py`
 
 **New file.** Define Pydantic models for:
-- `BeginUploadRequest` / `BeginUploadResponse`
+- `BeginUploadRequest` — `kind: Literal["dicom_zip", "nifti_raw", "nifti_mask"]`. Accepted kinds: `dicom_zip` (DICOM ZIP), `nifti_raw` (base scan NIfTI), `nifti_mask` (pre-computed mask NIfTI).
+- `BeginUploadResponse`
 - `ChunkUploadResponse`
 - `UploadStatusResponse`
-- `FinalizeResponse`
+- `PipelineRequestItem` — `{name: str, config: dict = {}}`. One element per user-requested pipeline step.
+- `FinalizeRequest` — `{expected_sha256?, expected_size?, pipelines: list[PipelineRequestItem] = []}`. The `pipelines` field carries user intent; it is **never** used to select auto-driven steps (those are determined by `file_record.kind` in `JobPipelineService`).
+- `FinalizeResponse` — `{file_id, job_id | None}`. `job_id=null` when no steps were dispatched.
 - `StudyResponse` / `CreateStudyRequest`
 - `FileRecordResponse`
 - `PipelineJobResponse`
@@ -182,125 +210,252 @@ Single method `store_derived_file(study_id, job_id, local_path, kind, purpose=No
 |---|---|
 | `uploads.py` | Add `GET /status` endpoint |
 | `files.py` | **New**. `GET /studies/{study_id}/files?purpose=viewer_volume,viewer_overlay` (optional filter, `IN` query via `FileRepo`); `GET /{file_id}/content` → `FileResponse` |
-| `studies.py` | **New**. Full CRUD |
-| `ws.py` | **New**. WebSocket pipeline progress |
+| `studies.py` | **New**. Full CRUD. `list` endpoint supports `?external_id=` filter |
+| `ws.py` | **New**. WebSocket pipeline progress → `/ws/pipeline/{job_id}` |
 
 **Key:** Routers call services only. No business logic. Return Pydantic schemas.
 
 ---
 
-## Phase 3: Workers & Real-time (Steps 11–14)
+## Phase 3: Workers & Real-time (Steps 11–16)
 
-### Step 11: `workers/scheduler.py`
+### Step 11: `workers/worker_pool.py`
 
-**New.** Async-friendly wrapper around `concurrent.futures.ProcessPoolExecutor`.
-
-#### Chosen approach: `ProcessPoolExecutor` + `loop.run_in_executor`
+**New file.** Generic `ProcessPoolExecutor` wrapper. Has no knowledge of any specific model
+or compute function — the initializer is injected at startup by `app.py`.
 
 ```python
-from concurrent.futures import ProcessPoolExecutor
-import asyncio, logging
-
-logger = logging.getLogger(__name__)
-
-class Scheduler:
-    def __init__(self, max_workers: int = 1, initializer=None, initargs=()):
+class WorkerPool:
+    def __init__(
+        self,
+        max_workers: int = 1,
+        initializer: Callable | None = None,
+        initargs: tuple = (),
+    ):
         self._pool = ProcessPoolExecutor(
             max_workers=max_workers,
-            initializer=initializer,   # ← load ONNX model ONCE per worker process
+            initializer=initializer,
             initargs=initargs,
         )
 
-    async def enqueue(self, fn, *args):
-        """Offload fn(*args) to the process pool without blocking the event loop."""
+    async def run(self, fn: Callable, *args) -> Any:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._pool, fn, *args)
 
-    def shutdown(self):
-        self._pool.shutdown(wait=True)
+    def shutdown(self, wait: bool = False) -> None:
+        self._pool.shutdown(wait=wait)
 ```
-
-#### Why not joblib / other alternatives
-
-| Option | Decision | Reason |
-|---|---|---|
-| `ProcessPoolExecutor` (stdlib) | ✅ **Use this** | Zero deps; `run_in_executor` gives native `async/await`; `initializer=` solves ONNX load cost |
-| `loky` (engine under joblib) | ⚠️ Optional upgrade | Auto-respawns dead workers; tiny dep (`pip install loky`); drop-in replacement |
-| `joblib.Parallel` | ❌ Skip | Batch/blocking tool — no per-job `Future`, no `await`, incompatible with WS push |
-| Huey-SQLite / SAQ | ❌ Skip | Overkill; more dep surface than needed for a single-slot queue |
-| Celery / Redis | ❌ Out of scope | Explicitly excluded |
-
-#### Critical implementation detail — ONNX pickling
-
-`ort.InferenceSession` is **not picklable** and cannot cross the process boundary directly.
-Use `initializer=` to load the model **once per worker process** into a module-level global:
-
-```python
-# workers/segmentation_worker.py
-_model = None
-
-def _init_worker(model_path: str):
-    global _model
-    _model = load_onnx_model(model_path)
-
-def run_segmentation(input_path: str, task_id: str) -> str:
-    # uses module-level _model — no pickle overhead
-    ...
-
-# In app startup:
-scheduler = Scheduler(
-    max_workers=1,
-    initializer=_init_worker,
-    initargs=(str(MODEL_PATH),),
-)
-```
-
-#### Pre-requisite refactor before implementing this step
-
-The current `MLWorker.orchestrate_task` is an **instance method** — methods are not picklable across process boundaries. The inference logic must be extracted into a **top-level module function** (`run_segmentation` above) before `enqueue` will work.
-
-### Step 12: `workers/ws_broadcaster.py`
-
-**New.** WebSocket registry:
-- `register(task_id, ws)` / `unregister(task_id, ws)`
-- `broadcast(task_id, payload)`
-
-### Step 13: `app.py` — Wire startup
-
-**New.** FastAPI lifespan:
-- Startup: create tables, start scheduler, create `mp.Queue`, launch drain coroutine
-- Shutdown: stop drain, shutdown scheduler
-
-### Step 14: Workers (DICOM + Segmentation)
-
-**Port `segmentation_worker.py` from:** `poc_ml_worker/engine.py` + `ml_worker.py` — extract inference logic, adapt to use `StorageService.store_derived_file(kind=step["output_kind"], purpose=step["output_purpose"])` + `mp.Queue` for progress.
-
-**`dicom_worker.py`** — New. Follow the spec in `notes/arch/dicom_handling.md`.
-
-Both workers follow the same pattern for output persistence:
-1. Read `output_kind` and `output_purpose` from the step config dict passed at dispatch time
-2. Call `StorageService.store_derived_file(..., kind=output_kind, purpose=output_purpose)`
-3. Worker code contains **zero viewer logic** — it only moves data through the step config it was given
 
 ---
 
-## Phase 4: Hardening (Steps 15–17)
+### Step 12: `workers/steps/base.py` + `workers/pipeline_runner.py`
 
-### Step 15: Upload TTL + Cleanup
+#### `workers/steps/base.py` — shared contracts
+
+```python
+@dataclass
+class StepContext:
+    job_id: str
+    study_id: str
+    source_blob_hash: str
+    source_file_id: str
+    storage: StorageService    # handles CAS + FileRecord
+    broadcaster: WSBroadcaster
+    _worker_pool: WorkerPool = field(repr=False)
+
+    async def run_subprocess(self, fn: Callable, *args) -> Any:
+        return await self._worker_pool.run(fn, *args)
+
+@dataclass
+class StepResult:
+    output_blob_hash: str
+    output_file_id: str
+
+class PipelineStep(Protocol):
+    name: str
+    async def run(self, ctx: StepContext) -> StepResult: ...
+```
+
+#### `workers/pipeline_runner.py` — pipeline orchestrator
+
+```python
+async def run_pipeline(job_id: str, steps: list[PipelineStep], ctx: StepContext):
+    with ctx.storage.session_factory() as db:
+        PipelineJobRepo(db).set_status(job_id, "running")
+    try:
+        for step in steps:
+            result = await step.run(ctx)
+            ctx = replace(ctx,
+                source_blob_hash=result.output_blob_hash,
+                source_file_id=result.output_file_id,
+            )
+        with ctx.storage.session_factory() as db:
+            PipelineJobRepo(db).set_status(job_id, "completed")
+            StudyRepo(db).set_status(ctx.study_id, "ready")
+        await ctx.broadcaster.broadcast(job_id, {"status": "completed"})
+    except asyncio.CancelledError:
+        with ctx.storage.session_factory() as db:
+            PipelineJobRepo(db).set_status(job_id, "cancelled")
+        raise
+    except Exception as exc:
+        with ctx.storage.session_factory() as db:
+            PipelineJobRepo(db).set_status(job_id, "failed", error=str(exc))
+        await ctx.broadcaster.broadcast(job_id, {"status": "failed", "error": str(exc)})
+```
+
+#### ONNX model — `initializer=` pattern still applies
+
+`ort.InferenceSession` is not picklable. Load it once per worker process via
+`WorkerPool(initializer=_init_segmentation, initargs=(model_path,))`.
+The `run_segmentation` function (in `workers/segmentation_fn.py`) uses a module-level global `_model`.
+The `WorkerPool` class itself does **not** import or reference `_init_segmentation`.
+
+---
+
+### Step 13: `workers/ws_broadcaster.py`
+
+**New.** WebSocket registry:
+- `register(job_id, ws)` / `unregister(job_id, ws)`
+- `broadcast(job_id, payload)`
+
+---
+
+### Step 14: Subprocess compute functions
+
+#### `workers/subprocesses/dicom_fn.py`
+
+```python
+def convert_dicom(input_zip_path: str) -> str:
+    """Pure compute: unzip DICOM, convert to NIfTI. Returns output path string."""
+    ...
+```
+
+#### `workers/subprocesses/segmentation_fn.py`
+
+```python
+_model = None
+
+def _init_segmentation(model_path: str):
+    global _model
+    _model = load_onnx_model(model_path)
+
+def run_segmentation(input_nifti_path: str) -> str:
+    """Pure compute: runs ONNX inference. Returns output mask path string."""
+    ...
+```
+
+**Port from:** `poc_ml_worker/engine.py` — extract only the inference kernel. Discard all storage, queue, and orchestration code from the POC.
+
+---
+
+### Step 15: `workers/steps/dicom_to_nifti.py` + `workers/steps/segment_nifti.py`
+
+Each step class:
+1. Resolves input path from `ctx.source_blob_hash` via `cas_blob_path()`
+2. Calls `await ctx.run_subprocess(fn, str(input_path))` — offloads pure compute to pool
+3. Calls `ctx.storage.store_derived(output_path, ...)` — CAS commit + FileRecord
+4. Broadcasts step progress via `ctx.broadcaster`
+5. Returns `StepResult`
+
+Step classes contain **zero viewer logic** — `kind` and `purpose` are hardcoded constants of each step type (not read from config).
+
+---
+
+### Step 16: `services/job_pipeline_service.py` + `app.py` startup
+
+#### `services/job_pipeline_service.py` — JobPipelineService
+
+Step routing uses two independent phases:
+- **Phase 1 — auto-steps**: always runs before user steps; determined by `file_record.kind` (e.g., `DicomToNiftiStep` for `dicom_zip`). Never user-configurable.
+- **Phase 2 — user steps**: determined by the `pipelines` argument from `FinalizeRequest.pipelines` (e.g., `"segment_nifti"` → `SegmentNiftiStep`).
+
+Returns `None` (no job created) if both phases produce an empty list.
+
+```python
+class JobPipelineService:
+    def __init__(self, worker_pool, session_factory, storage_service, broadcaster): ...
+
+    def dispatch(
+        self,
+        file_record: FileRecord,
+        pipelines: list[dict],  # from FinalizeRequest.pipelines
+        db,
+    ) -> str | None:
+        # Phase 1: auto-steps — file-kind driven, always first
+        auto_steps: list[PipelineStep] = []
+        if file_record.kind == "dicom_zip":
+            auto_steps.append(DicomToNiftiStep())
+
+        # Phase 2: user-requested steps
+        requested = {p["name"] for p in pipelines}
+        user_steps: list[PipelineStep] = []
+        if "segment_nifti" in requested:
+            user_steps.append(SegmentNiftiStep())
+
+        steps = auto_steps + user_steps
+        if not steps:
+            return None
+
+        job = PipelineJobRepo(db).create(...)
+        ctx = StepContext(job_id=job.id, ..., storage=self._storage_service, ...)
+        handle = asyncio.create_task(run_pipeline(job.id, steps, ctx))
+        self._running[job.id] = handle
+        handle.add_done_callback(lambda _: self._running.pop(job.id, None))
+        return job.id
+
+    def cancel(self, job_id: str) -> bool: ...
+
+    async def shutdown(self): ...
+```
+
+#### `app.py` — Wire startup
+
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(engine)
+    # APScheduler for upload TTL cleanup
+
+    worker_pool = WorkerPool(
+        max_workers=1,
+        initializer=_init_segmentation,
+        initargs=(str(config.MODEL_PATH),),
+    )
+    storage_service = StorageService(config.DATA_ROOT, SessionLocal)
+    broadcaster = WSBroadcaster()
+    job_pipeline_service = JobPipelineService(worker_pool, SessionLocal, storage_service, broadcaster)
+
+    app.state.job_pipeline_service = job_pipeline_service
+    app.state.storage_service = storage_service
+    app.state.broadcaster = broadcaster
+
+    yield
+
+    await job_pipeline_service.shutdown()
+```
+
+No `mp.Queue`, no drain coroutine.
+
+---
+
+## Phase 4: Hardening (Steps 17–19)
+
+### Step 17: Upload TTL + Cleanup
 
 Add background task to expire `active` sessions older than 24h, delete their parts dirs.
 
-### Step 16: Error Handling
+### Step 18: Error Handling
 
 Create `exceptions.py` with proper HTTP exception classes. Replace bare `except Exception` in routers with specific exception handlers.
 
-### Step 17: Config Consolidation
+### Step 19: Config Consolidation
 
 Move all magic numbers to `config.py`:
 - Default chunk size (16MB)
 - Upload TTL (24h)
 - Data root path
 - DB URL
+- Model path
 
 ---
 
@@ -330,23 +485,26 @@ graph TD
     S1 --> S5[Step 5: repos/]
     S2 --> S3
     S2 --> S4
-    S3 --> S6[Step 6: UploadService]
-    S4 --> S6
+    S3 --> S6[Step 6: StorageService]
     S5 --> S6
-    S3 --> S7[Step 7: StorageService]
+    S6 --> S7[Step 7: UploadService]
+    S4 --> S7
     S5 --> S7
-    S5 --> S8[Step 8: StudyService + PipelineService]
-    S6 --> S9[Step 9: schemas.py]
-    S7 --> S9
+    S5 --> S8[Step 8: StudyService]
+    S3 --> S8
+    S7 --> S9[Step 9: schemas.py]
     S8 --> S9
     S9 --> S10[Step 10: routers/]
-    S10 --> S11[Step 11: scheduler]
-    S10 --> S12[Step 12: broadcaster]
-    S11 --> S13[Step 13: app.py]
-    S12 --> S13
-    S13 --> S14[Step 14: workers]
-    S14 --> S15[Step 15: TTL]
-    S14 --> S16[Step 16: errors]
-    S15 --> S17[Step 17: config]
-    S16 --> S17
+    S10 --> S11[Step 11: WorkerPool]
+    S11 --> S12[Step 12: steps/base.py + pipeline_runner]
+    S10 --> S13[Step 13: WSBroadcaster]
+    S12 --> S14[Step 14: subprocess fns]
+    S14 --> S15[Step 15: step classes]
+    S15 --> S16[Step 16: JobPipelineService + app.py]
+    S13 --> S16
+    S6 --> S16
+    S16 --> S17[Step 17: TTL]
+    S16 --> S18[Step 18: errors]
+    S17 --> S19[Step 19: config]
+    S18 --> S19
 ```
