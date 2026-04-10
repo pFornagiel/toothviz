@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import Callable
 
 from sqlalchemy.orm import Session
@@ -14,8 +13,6 @@ from backend.workers.steps.base import PipelineStep, StepContext, StepFactory
 from backend.workers.steps.dicom_to_nifti import DicomToNiftiStep
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
-
-logger = logging.getLogger(__name__)
 
 
 class JobPipelineService:
