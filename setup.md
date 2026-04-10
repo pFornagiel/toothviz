@@ -23,7 +23,7 @@ uvicorn backend.main:app --reload --port 8000
 - API: [http://127.0.0.1:8000](http://127.0.0.1:8000)
 - OpenAPI docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-SQLite and CAS data live under `packages/application/data/` (see `packages/application/backend/config.py`). The segmentation pipeline expects an ONNX model at `packages/models/railnet_dental.onnx` (create or symlink that file if inference is enabled).
+SQLite and CAS data live under `packages/application/data/` (see `packages/application/backend/config.py`). The segmentation pipeline expects an ONNX model at `packages/models/railnet_dental.onnx`
 
 ### 2. Frontend (Vite + React)
 
