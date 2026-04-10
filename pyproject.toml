@@ -12,7 +12,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     "scipy>=1.17.1",
     "sqlalchemy>=2.0.48",
-    "uvicorn>=0.42.0",
+    "uvicorn[standard]>=0.42.0",
 ]
 
 [tool.setuptools.packages.find]
