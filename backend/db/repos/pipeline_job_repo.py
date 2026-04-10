@@ -46,6 +46,11 @@ class PipelineJobRepo:
             .first()
         )
 
+    def delete_by_study(self, study_id: str) -> None:
+        """Delete all PipelineJob records for a study."""
+        self._db.query(PipelineJob).filter(PipelineJob.study_id == study_id).delete()
+        self._db.flush()
+
     def set_status(
         self,
         job_id: str,

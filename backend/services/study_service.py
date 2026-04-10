@@ -51,6 +51,8 @@ class StudyService:
                 if job:
                     self._pipeline.cancel(job.id)
 
+            PipelineJobRepo(db).delete_by_study(study_id)
+
             file_repo = FileRepo(db)
             blob_hashes = file_repo.delete_by_study(study_id)
 
