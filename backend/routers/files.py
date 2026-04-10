@@ -17,8 +17,7 @@ def list_files(
     study_id: str,
     purpose: str | None = Query(None),
 ):
-    if purpose:
-        purpose_filter = [p.strip() for p in purpose.split(",")]
+    purpose_filter = [p.strip() for p in purpose.split(",")] if purpose else None
 
     storage_svc = request.app.state.storage_service
     with storage_svc.session_factory() as db:
