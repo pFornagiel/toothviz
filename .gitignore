@@ -68,3 +68,6 @@ Thumbs.db
 # Don't ignore Dockerfile / compose, only artifacts
 !Dockerfile
 !docker-compose.yml
+
+#Frontend
+node_modules
