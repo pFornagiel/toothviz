@@ -1,25 +1,34 @@
-"""Pure compute: DICOM ZIP → NIfTI conversion.
+"""Pure compute: DICOM (ZIP or single .dcm) → NIfTI conversion.
 
 Runs in a subprocess via WorkerPool. Receives and returns plain strings only.
 """
 from __future__ import annotations
 
+import shutil
 import zipfile
 from pathlib import Path
 
 
-def convert_dicom(input_zip_path: str, out_dir: str) -> str:
-    """Extract a DICOM series ZIP and convert to a NIfTI file.
+def convert_dicom(input_path: str, out_dir: str) -> str:
+    """Convert a DICOM input to a NIfTI file.
 
-    Returns the path (str) of the output NIfTI.
+    Accepts either a ZIP archive containing a DICOM series or a single .dcm
+    file.  Returns the path (str) of the output NIfTI.
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
     dicom_dir = out / "dicom_extracted"
     dicom_dir.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(input_zip_path, "r") as zf:
-        zf.extractall(str(dicom_dir))
+
+    if zipfile.is_zipfile(input_path):
+        with zipfile.ZipFile(input_path, "r") as zf:
+            zf.extractall(str(dicom_dir))
+    else:
+        # Single DICOM file — copy it into the extraction directory so the
+        # conversion step below sees a consistent layout.
+        src = Path(input_path)
+        shutil.copy2(src, dicom_dir / src.name)
 
     output_path = out / "converted.nii.gz"
 
