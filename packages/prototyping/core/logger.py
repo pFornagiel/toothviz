@@ -1,11 +1,10 @@
-# src/core/config.py
 import logging.config
 from pathlib import Path
 
 def setup_logging(module_name: str = "app"):
-    PROJECT_ROOT = Path(__file__).parent.parent.parent
-    LOG_DIR = PROJECT_ROOT / "logs"
-    LOG_DIR.mkdir(exist_ok=True)
+    _repo_root = Path(__file__).resolve().parents[3]
+    log_dir = _repo_root / "packages" / "application" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     LOGGING_CONFIG = {
         "version": 1,
@@ -34,7 +33,7 @@ def setup_logging(module_name: str = "app"):
                 "class": "logging.handlers.RotatingFileHandler",
                 "level": "INFO",
                 "formatter": "standard",
-                "filename": str(LOG_DIR / f"{module_name}.log"),
+                "filename": str(log_dir / f"{module_name}.log"),
                 "maxBytes": 10 * 1024 * 1024,
                 "backupCount": 5,
                 "encoding": "utf8",

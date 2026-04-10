@@ -1,6 +1,7 @@
 """Integration test fixtures — full app with TestClient."""
 
 import pytest
+import pytest_asyncio
 from pathlib import Path
 from contextlib import asynccontextmanager
 from unittest.mock import MagicMock
@@ -25,8 +26,8 @@ from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
 
 
-@pytest.fixture()
-def integration_app(tmp_path):
+@pytest_asyncio.fixture()
+async def integration_app(tmp_path):
     """Build a full FastAPI app with in-memory DB and temp storage."""
     data_root = tmp_path / "data"
     data_root.mkdir()

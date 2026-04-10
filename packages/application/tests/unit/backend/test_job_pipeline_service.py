@@ -1,5 +1,5 @@
-import asyncio
 import pytest
+import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.db.models import Study, Blob, FileRecord, PipelineJob
@@ -25,8 +25,8 @@ def _setup_db(db_session, kind="nifti_raw"):
     return rec
 
 
-@pytest.fixture()
-def jps(session_factory, storage_engine, tmp_data_root):
+@pytest_asyncio.fixture()
+async def jps(session_factory, storage_engine, tmp_data_root):
     storage_service = StorageService(storage_engine, session_factory)
     broadcaster = AsyncMock(spec=WSBroadcaster)
     pool = MagicMock(spec=WorkerPool)

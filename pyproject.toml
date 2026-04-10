@@ -16,10 +16,11 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["packages/prototyping", "packages/application"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "."]
+pythonpath = ["packages/prototyping", "packages/application"]
+testpaths = ["packages/application/tests"]
 asyncio_mode = "auto"
 
 [dependency-groups]
