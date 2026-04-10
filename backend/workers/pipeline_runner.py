@@ -16,10 +16,9 @@ async def run_pipeline(
     job_id: str,
     steps: list[PipelineStep],
     ctx: StepContext,
-    storage_service,
+    storage_service: StorageService,
 ) -> None:
     """Async orchestrator — runs steps sequentially, commits artifacts at the end."""
-    storage_service: StorageService = storage_service
 
     ctx.work_dir.mkdir(parents=True, exist_ok=True)
 
