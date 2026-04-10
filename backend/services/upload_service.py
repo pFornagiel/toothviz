@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend import config
-from backend.db.models import UploadSession
 from backend.db.repos.study_repo import StudyRepo
 from backend.db.repos.upload_session_repo import UploadSessionRepo
-from backend.exceptions import ConflictError, NotFoundError, ValidationError
+from backend.exceptions import ConflictError
 from backend.services.storage_service import StorageService
 
 if TYPE_CHECKING:
@@ -125,14 +124,9 @@ class UploadService:
             )
 
             job_id: str | None = None
-            if self._pipeline is not None and pipelines:
+            if self._pipeline is not None:
                 with self._storage.session_factory() as db2:
                     job_id = self._pipeline.dispatch(file_record, pipelines, db2)
-
-            # Even if no explicit pipelines, auto-steps may still trigger a job
-            if self._pipeline is not None and job_id is None and pipelines == []:
-                with self._storage.session_factory() as db2:
-                    job_id = self._pipeline.dispatch(file_record, [], db2)
 
             UploadSessionRepo(db).update_state(upload_id, "finalized")
 
