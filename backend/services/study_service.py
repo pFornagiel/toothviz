@@ -40,10 +40,6 @@ class StudyService:
         with self._storage.session_factory() as db:
             return StudyRepo(db).list(external_id=external_id)
 
-    def get(self, study_id: str) -> Study:
-        with self._storage.session_factory() as db:
-            return StudyRepo(db).get(study_id)
-
     def rename(self, study_id: str, name: str) -> Study:
         with self._storage.session_factory() as db:
             return StudyRepo(db).rename(study_id, name)
