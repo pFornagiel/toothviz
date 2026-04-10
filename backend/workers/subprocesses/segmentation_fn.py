@@ -4,10 +4,12 @@ Runs in a subprocess via WorkerPool. Receives and returns plain strings only.
 The model is loaded once per worker process via _init_segmentation().
 """
 from __future__ import annotations
+from backend.workers.subprocesses._onnx_helpers import load_onnx_model
 
 from pathlib import Path
 
 import numpy as np
+import nibabel as nib
 
 _model = None
 
@@ -15,14 +17,13 @@ _model = None
 def _init_segmentation(model_path: str) -> None:
     """Process-level initializer — called once per worker process."""
     global _model
-    from backend.workers.subprocesses._onnx_helpers import load_onnx_model
+    
     _model = load_onnx_model(model_path)
 
 
 def run_segmentation(input_nifti_path: str, out_dir: str) -> str:
     """Run segmentation inference. Returns the mask path (str)."""
-    import nibabel as nib
-
+    
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
