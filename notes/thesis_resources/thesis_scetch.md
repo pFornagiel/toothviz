@@ -28,14 +28,138 @@ Becasue of the growing need of such medical imagining over the years, different 
 
 Above reasons motivate the development of dedicated software capable of accommodating such requirements, providing both comprehensive volumetric visualization, image segmentation and augmentation while utilising modern state-of-the-art techniques - particularly those grounded in machine learning. This thesis describes the current demand for such a solution and documents the efforts undertaken to engineer an application designed to support dentists in their daily clinical tasks, encompassing its architectural design and implementation.
 
+### Client
+
+The target group of the solution consists of orthodontic and endodontic practitioners who are not highly tech‑savvy, but have a basic knowledge of software usage and are willing to follow instructions in the case of a more demanding process, such as software installation.
+
+The client representing this user group expressed dissatisfaction with existing solutions, mainly due to the need to switch between multiple tools in order to complete the full tooth scan analysis workflow. Additionally, the visualization tools currently used were described as overly complex, containing many features that are not relevant to dental practice, which makes the processing of CBCT scans more difficult.
+
+The collaboration provided the contextual foundation for the problem definition while leaving all technical design decisions and implementation choices within the scope of this thesis.
+
+### Problem overview
+
+The problem addressed in this project is the development of an end‑to‑end, standalone application for the analysis of dental CBCT images, including their visualization and tooth segmentation, with smooth rendering and a user‑friendly, minimal interface.
+
+The main issue addressed by this work is the lack of applications that enable direct, end‑to‑end processing of CBCT images stored in the NIfTI format, without requiring additional format conversion, the use of multiple external tools, or technical expertise from the end user. An additional feature of the proposed solution is support for the DICOM format, ensuring compatibility in case of future changes in image data formats.
+
+Significant attention was paid to ease of use for dental practitioners, rather than research‑oriented tooling or cloud‑based processing. In‑depth discussions with the client indicated that smooth and responsive visualization is a key part of the application. Another important consideration, given the medical domain, is data privacy, with local execution identified as the preferred mode of operation.
+
+
+### Motivation
+
+Although many medical imaging tools and platforms are available, most existing solutions focus on processing DICOM‑format files and either general‑purpose scan visualization or research‑oriented machine‑learning purposes. As a result, none of these tools fully meet the requirements of local execution, NIfTI support, full workflow integration, and ease of use for dentists. Moreover, there is no open‑source solution dedicated specifically to dental practitioners.
+
+This work is aimed at filling the identified gap. The publicly available ToothFairy3 dataset provides a reference point for validating the proposed segmentation solution, while simultaneously serving as realistic input data. The outcome of this project is an open‑source, self‑contained application that supports the analysis of CBCT tooth images. A significant advantage of the proposed solution is that end users are not required to understand complex file formats or machine‑learning pipelines. An additional benefit is a straightforward and intuitive usage flow. 
+
+
 ### Existing solution analysis
 
 A variety of tools for medical image visualization and segmentation already exist on the market, ranging from small research libraries to fully integrated clinical platforms. This section briefly surveys the most relevant categories, highlighting their capabilities and limitations in the context of dental CBCT imaging, as well as providing an insight into what the market currently lacks.
 
-Available solutions range widely when it comes to user's expected technical proficiency, monetisation model and licensing, which makes it immpossible to determine which among is the best or most universal. It does, however, hightlight areas of improvements over the currently available approaches.
+Available solutions range widely when it comes to user's expected technical proficiency, monetisation model and licensing, which makes it immpossible to determine which among is the best or most universal. It does, however, hightlight areas of improvements over the currently available approaches. And most imporatant thing - mentioned before - is none of found existing products is end-to-end free app specially for tooth images anylysis.
 
-When it comes to code-first approaches, VolViz can serve as one of the examples, being a minimal Python library designed for rendering volumetric data within notebook-based environments such as Jupyter Notebook, JupyterLab, and Google Colab. Its work characteristics make it well-suited for research pipelines in which the data scientist operates entirely within a programmatic context. However, such solutions presuppose a working knowledge of programmatic knowledge, which makes them unfit for clinical deployment.
+#### Lightweight visualization tools
 
+First category we can point on is code-first approach. VolViz can serve as one of the examples, being a minimal Python library designed for rendering volumetric data within notebook-based environments such as Jupyter Notebook, JupyterLab, and Google Colab. Its work characteristics make it well-suited for research pipelines in which the data scientist operates entirely within a programmatic context. However, such solutions presuppose a working knowledge of programmatic knowledge, which makes them unfit for clinical deployment.
+
+Examples:
+- VolViz
+- MRI Viewer / Med3Web
+- Nora (partially lightweight, partially full app)
+
+Key notes:
+- They are viewers, not end-to-end systems.
+- They often support NIfTI, which is a plus.
+
+They lack:
+- segmentation tailored to teeth,
+- clinical workflow,
+- error tolerance for large CBCT files.
+
+Summary:
+- VolViz → developer-oriented, not dentist-friendly.
+- MRI Viewer → limited file size and stability.
+- Nora → powerful but brain-oriented, closed, not dental.
+
+Conclusion:
+- Good inspiration for visualization, not suitable for a real dental pipeline.
+
+#### Medical imaging platforms
+
+Examples:
+
+- OHIF Viewer
+- 3D Slicer
+- Dental Segmentator (Slicer extension)
+
+Notes:
+
+- OHIF → beautiful viewer, but DICOM-only, not tailored for CBCT tooth segmentation.
+- 3D Slicer → extremely capable, but:
+    - too complex for dentists,
+    - high learning curve,
+    - heavy software,
+    - not optimized for simple CBCT segmentation UX
+- Dental Segmentator → promising, but:
+    - not customizable,
+    - tied to Slicer environment,
+    - not a standalone application
+
+Conclusion:
+- Powerful, but overkill, non‑specialized for simple CBCT workflows, not local single-app solutions.
+
+#### Commercial cloud-based end-to-end solutions
+
+Examples:
+- 3D Surgical
+- Axial3D
+- Materialise Mimics Viewer
+- Relu Creator
+- CephX
+- Diagnocat
+
+
+Notes:
+
+- cloud-only → unsuitable for clinics with strict patient data policies
+- DICOM-only → NIfTI not supported
+- closed → no customization, no algorithm adjustments
+- expensive → subscription or per-case
+- designed for general or broad surgical workflows
+
+
+- Relu, CephX, Diagnocat → very strong dental functionality, but:
+    - cloud upload required,
+    - no raw AI integration,
+    - no local/offline operation.
+
+Conclusion:
+- Excellent clinically except your setting requires offline, customizable, NIfTI-native, non-cloud workflow.
+
+#### Backend toolkits and AI models
+
+Examples:
+
+- MIST
+- MedSAM2
+
+Notes:
+
+- MIST → excellent for research, not an application; lacks:
+    - viewer,
+    - UI,
+    - workflow environment,
+    - clinical UX.
+
+- MedSAM2 → cutting-edge model but:
+    - only the model,
+    - requires own backend + viewer + orchestration,
+    - computationally heavy.
+
+
+
+Conclusion:
+- Useful inside your system, but not standalone apps.
  
 
 ### Domain knowledge
