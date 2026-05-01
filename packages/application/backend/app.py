@@ -55,6 +55,10 @@ async def lifespan(app: FastAPI):
         initializer=_init_segmentation,
         initargs=(str(config.MODEL_PATH), config.ONNX_EXECUTION_PROVIDERS),
     )
+    worker_pools = {
+        "dicom": dicom_worker_pool,
+        "segmentation": segmentation_worker_pool,
+    }
 
     step_registry: dict[str, StepFactory] = {
         "segment_nifti": lambda cfg: SegmentNiftiStep(
@@ -64,8 +68,7 @@ async def lifespan(app: FastAPI):
 
     # 6. Pipeline service
     job_pipeline_service = JobPipelineService(
-        dicom_worker_pool,
-        segmentation_worker_pool,
+        worker_pools,
         SessionLocal,
         storage_service,
         broadcaster,

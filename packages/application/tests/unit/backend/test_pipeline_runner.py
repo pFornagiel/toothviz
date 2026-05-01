@@ -5,7 +5,13 @@ from backend.db.models import Study, FileRecord, PipelineJob
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.services.storage_service import StorageService
 from backend.workers.pipeline_runner import run_pipeline
-from backend.workers.steps.base import StepContext, OutputArtifact, StepResult
+from backend.workers.steps.base import (
+    StepContext,
+    OutputArtifact,
+    StepResult,
+    WORKER_POOL_DICOM,
+    WORKER_POOL_SEGMENTATION,
+)
 from backend.workers.ws_broadcaster import WSBroadcaster
 
 
@@ -50,8 +56,10 @@ def _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
         current_input_path=input_file,
         work_dir=work_dir,
         broadcaster=broadcaster,
-        _dicom_worker_pool=dicom_pool,
-        _segmentation_worker_pool=seg_pool,
+        worker_pools={
+            WORKER_POOL_DICOM: dicom_pool,
+            WORKER_POOL_SEGMENTATION: seg_pool,
+        },
     )
 
 

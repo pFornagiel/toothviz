@@ -8,6 +8,11 @@ from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
 
 
+# Registered keys for `StepContext.worker_pools` — must exist at app bootstrap.
+WORKER_POOL_DICOM = "dicom"
+WORKER_POOL_SEGMENTATION = "segmentation"
+
+
 @dataclass
 class StepContext:
     job_id: str
@@ -15,14 +20,19 @@ class StepContext:
     current_input_path: Path
     work_dir: Path
     broadcaster: WSBroadcaster
-    _dicom_worker_pool: WorkerPool = field(repr=False)
-    _segmentation_worker_pool: WorkerPool = field(repr=False)
+    worker_pools: dict[str, WorkerPool] = field(repr=False)
 
-    async def run_dicom_subprocess(self, fn: Callable, *args: Any) -> Any:
-        return await self._dicom_worker_pool.run(fn, *args)
-
-    async def run_segmentation_subprocess(self, fn: Callable, *args: Any) -> Any:
-        return await self._segmentation_worker_pool.run(fn, *args)
+    async def run_in_worker_pool(
+        self, pool_name: str, fn: Callable, *args: Any
+    ) -> Any:
+        try:
+            pool = self.worker_pools[pool_name]
+        except KeyError as exc:
+            raise KeyError(
+                f"Unknown worker pool {pool_name!r}; configured pools: "
+                f"{sorted(self.worker_pools.keys())}"
+            ) from exc
+        return await pool.run(fn, *args)
 
 
 @dataclass

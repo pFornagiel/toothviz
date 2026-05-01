@@ -56,7 +56,7 @@ async def integration_app(tmp_path):
     seg_pool = MagicMock(spec=WorkerPool)
 
     async def _stub_dicom_run(_fn, *_args, **_kwargs):
-        out_dir = Path(_args[2])
+        out_dir = Path(_args[1])
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / "converted.nii.gz"
         img = nib.Nifti1Image(
@@ -66,7 +66,7 @@ async def integration_app(tmp_path):
         return str(out_path)
 
     async def _stub_seg_run(_fn, *_args, **_kwargs):
-        out_dir = Path(_args[2])
+        out_dir = Path(_args[1])
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / "segmentation_mask.nii.gz"
         img = nib.Nifti1Image(
@@ -82,9 +82,12 @@ async def integration_app(tmp_path):
             config=SegmentNiftiStepConfig.from_mapping(cfg),
         ),
     }
+    worker_pools = {
+        "dicom": dicom_pool,
+        "segmentation": seg_pool,
+    }
     job_pipeline_service = JobPipelineService(
-        dicom_pool,
-        seg_pool,
+        worker_pools,
         session_factory,
         storage_service,
         broadcaster,

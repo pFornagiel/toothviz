@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from backend.workers.steps.base import OutputArtifact, StepContext, StepResult
+from backend.workers.steps.base import (
+    OutputArtifact,
+    StepContext,
+    StepResult,
+    WORKER_POOL_SEGMENTATION,
+)
 from backend.workers.steps.step_config import SegmentNiftiStepConfig
 from backend.workers.subprocesses.segmentation_fn import run_segmentation
 
@@ -17,7 +22,8 @@ class SegmentNiftiStep:
         out_dir = ctx.work_dir / "segmentation_output"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        mask_path_str: str = await ctx.run_segmentation_subprocess(
+        mask_path_str: str = await ctx.run_in_worker_pool(
+            WORKER_POOL_SEGMENTATION,
             run_segmentation,
             str(ctx.current_input_path),
             str(out_dir),

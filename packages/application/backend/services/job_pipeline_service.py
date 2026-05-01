@@ -51,15 +51,13 @@ class JobPipelineService:
 
     def __init__(
         self,
-        dicom_worker_pool: WorkerPool,
-        segmentation_worker_pool: WorkerPool,
+        worker_pools: dict[str, WorkerPool],
         session_factory: Callable[[], Session],
         storage_service: StorageService,
         broadcaster: WSBroadcaster,
         step_registry: dict[str, StepFactory],
     ) -> None:
-        self._dicom_worker_pool = dicom_worker_pool
-        self._segmentation_worker_pool = segmentation_worker_pool
+        self._worker_pools = worker_pools
         self._session_factory = session_factory
         self._storage_service = storage_service
         self._broadcaster = broadcaster
@@ -127,8 +125,7 @@ class JobPipelineService:
             current_input_path=current_path,
             work_dir=self._storage_service.engine.get_job_workspace_dir(job.id),
             broadcaster=self._broadcaster,
-            _dicom_worker_pool=self._dicom_worker_pool,
-            _segmentation_worker_pool=self._segmentation_worker_pool,
+            worker_pools=self._worker_pools,
         )
 
         future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
@@ -166,5 +163,5 @@ class JobPipelineService:
         """Cancel all in-flight jobs and tear down the worker pools."""
         for future in list(self._running.values()):
             future.cancel()
-        self._dicom_worker_pool.shutdown(wait=True)
-        self._segmentation_worker_pool.shutdown(wait=True)
+        for pool in self._worker_pools.values():
+            pool.shutdown(wait=True)

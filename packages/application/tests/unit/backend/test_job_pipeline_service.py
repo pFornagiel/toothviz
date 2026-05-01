@@ -38,9 +38,12 @@ async def jps(session_factory, storage_engine, tmp_data_root):
             config=SegmentNiftiStepConfig.from_mapping(cfg),
         ),
     }
+    worker_pools = {
+        "dicom": dicom_pool,
+        "segmentation": seg_pool,
+    }
     return JobPipelineService(
-        dicom_pool,
-        seg_pool,
+        worker_pools,
         session_factory,
         storage_service,
         broadcaster,
