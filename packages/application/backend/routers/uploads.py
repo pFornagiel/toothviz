@@ -28,9 +28,6 @@ def begin_upload(request: Request, study_id: str, body: BeginUploadRequest):
         study_id,
         kind=body.kind,
         filename=body.filename,
-        content_type=body.content_type,
-        expected_size=body.expected_size,
-        expected_sha256=body.expected_sha256,
     )
     return result
 
@@ -66,7 +63,6 @@ def finalize_upload(request: Request, upload_id: str, body: FinalizeRequest):
     result = _svc(request).finalize(
         upload_id,
         pipelines=pipelines,
-        expected_sha256=body.expected_sha256,
         expected_size=body.expected_size,
     )
     return result

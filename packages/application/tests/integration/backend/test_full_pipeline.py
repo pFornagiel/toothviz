@@ -39,10 +39,10 @@ def test_nifti_upload_with_precomputed_mask(client, created_study):
     _upload_file(client, study_id, kind="nifti_mask", filename="mask.nii", data=b"mask")
 
     resp = client.get(
-        f"/storage/studies/{study_id}/files?purpose=viewer_volume,viewer_overlay",
+        f"/storage/studies/{study_id}/files?viewer_purpose=viewer_volume,viewer_overlay",
     )
     files = resp.json()
-    purposes = {f["purpose"] for f in files}
+    purposes = {f["viewer_purpose"] for f in files}
     assert "viewer_volume" in purposes
     assert "viewer_overlay" in purposes
 
@@ -71,11 +71,11 @@ def test_purpose_supersede_on_re_upload(client, created_study, integration_app):
     _upload_file(client, study_id, kind="nifti_mask", filename="new_mask.nii", data=b"new")
 
     resp = client.get(
-        f"/storage/studies/{study_id}/files?purpose=viewer_overlay",
+        f"/storage/studies/{study_id}/files?viewer_purpose=viewer_overlay",
     )
     overlays = resp.json()
     assert len(overlays) == 1
-    assert overlays[0]["original_filename"] == "new_mask.nii"
+    assert overlays[0]["display_name"] == "new_mask.nii"
 
 
 def test_study_delete_cascades(client, created_study, integration_app):

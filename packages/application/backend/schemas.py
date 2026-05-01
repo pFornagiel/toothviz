@@ -6,6 +6,17 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
+def study_workflow_display_status(job_status: str) -> str:
+    """Map pipeline job status to values the frontend treats as processing/ready."""
+    if job_status in ("queued", "running"):
+        return "processing"
+    if job_status in ("completed", "ready"):
+        return "ready"
+    if job_status == "created":
+        return "created"
+    return job_status
+
+
 # ---------------------------------------------------------------------------
 # Upload
 # ---------------------------------------------------------------------------
@@ -13,9 +24,6 @@ from pydantic import BaseModel, Field
 class BeginUploadRequest(BaseModel):
     kind: Literal["dicom_zip", "nifti_raw", "nifti_mask"]
     filename: str
-    content_type: str | None = None
-    expected_size: int | None = None
-    expected_sha256: str | None = None
 
 
 class BeginUploadResponse(BaseModel):
@@ -40,7 +48,6 @@ class PipelineRequestItem(BaseModel):
 
 
 class FinalizeRequest(BaseModel):
-    expected_sha256: str | None = None
     expected_size: int | None = None
     pipelines: list[PipelineRequestItem] = Field(default_factory=list)
 
@@ -55,9 +62,7 @@ class FinalizeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class CreateStudyRequest(BaseModel):
-    external_id: str | None = None
     name: str | None = None
-    meta: dict[str, Any] | None = None
 
 
 class RenameStudyRequest(BaseModel):
@@ -67,11 +72,8 @@ class RenameStudyRequest(BaseModel):
 class StudyResponse(BaseModel):
     id: str
     name: str | None
-    external_id: str | None
-    status: str
     created_at: datetime
-    updated_at: datetime | None
-    meta: dict[str, Any]
+    status: str
 
     model_config = {"from_attributes": True}
 
@@ -83,16 +85,13 @@ class StudyResponse(BaseModel):
 class FileRecordResponse(BaseModel):
     id: str
     study_id: str
-    pipeline_job_id: str | None
     kind: str | None
-    purpose: str | None
-    original_filename: str | None
-    rel_path: str
+    viewer_purpose: str | None
+    display_name: str | None
     blob_hash: str
     size: int
-    content_type: str | None
     created_at: datetime
-    meta: dict[str, Any]
+    status: str
 
     model_config = {"from_attributes": True}
 
@@ -104,12 +103,10 @@ class FileRecordResponse(BaseModel):
 class PipelineJobResponse(BaseModel):
     id: str
     study_id: str
-    source_file_id: str
+    source_file_id: str | None
     steps: list[str]
     status: str
     created_at: datetime
-    started_at: datetime | None
-    finished_at: datetime | None
     error: str | None
 
     model_config = {"from_attributes": True}

@@ -32,19 +32,19 @@ export function VisualizationPage() {
       const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
 
       const volumes: { url: string; name: string; opacity?: number }[] = [];
-      const volume = files.find((f) => f.purpose === "viewer_volume");
-      const overlay = files.find((f) => f.purpose === "viewer_overlay");
+      const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
+      const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
 
       if (volume) {
         volumes.push({
           url: fileContentUrl(studyId, volume.id),
-          name: volume.original_filename ?? "volume.nii",
+          name: volume.display_name ?? "volume.nii",
         });
       }
       if (overlay) {
         volumes.push({
           url: fileContentUrl(studyId, overlay.id),
-          name: overlay.original_filename ?? "overlay.nii",
+          name: overlay.display_name ?? "overlay.nii",
           opacity: 0.5,
         });
       }

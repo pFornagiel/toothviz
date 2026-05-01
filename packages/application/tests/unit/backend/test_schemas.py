@@ -34,14 +34,14 @@ def test_pipeline_request_invalid_name():
 def test_finalize_request_defaults():
     req = FinalizeRequest()
     assert req.pipelines == []
-    assert req.expected_sha256 is None
+    assert req.expected_size is None
 
 
 def test_study_response_serialization():
     from datetime import datetime, timezone
     resp = StudyResponse(
-        id="s1", name="Test", external_id=None, status="created",
-        created_at=datetime.now(timezone.utc), updated_at=None, meta={},
+        id="s1", name="Test", status="ready",
+        created_at=datetime.now(timezone.utc),
     )
     data = resp.model_dump()
     assert data["id"] == "s1"

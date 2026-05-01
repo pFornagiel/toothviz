@@ -60,11 +60,11 @@ def test_list_files_purpose_filter(client, created_study):
     _upload_file(client, study_id, kind="nifti_mask", filename="mask.nii", data=b"mask")
 
     resp = client.get(
-        f"/storage/studies/{study_id}/files?purpose=viewer_volume,viewer_overlay"
+        f"/storage/studies/{study_id}/files?viewer_purpose=viewer_volume,viewer_overlay"
     )
     assert resp.status_code == 200
     files = resp.json()
-    purposes = {f["purpose"] for f in files}
+    purposes = {f["viewer_purpose"] for f in files}
     assert "viewer_volume" in purposes
     assert "viewer_overlay" in purposes
 

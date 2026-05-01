@@ -77,7 +77,6 @@ export function StudyBrowsePage() {
                 <thead className="border-b border-gray-700">
                   <tr>
                     <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">Name</th>
-                    <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">External ID</th>
                     <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">Status</th>
                     <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">Created</th>
                     <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">Actions</th>
@@ -91,7 +90,6 @@ export function StudyBrowsePage() {
                       onDoubleClick={() => handleDoubleClick(study.id)}
                     >
                       <td className="px-6 py-4 text-sm text-gray-200">{study.name ?? "—"}</td>
-                      <td className="px-6 py-4 text-sm text-gray-400">{study.external_id ?? "—"}</td>
                       <td className="px-6 py-4 text-sm">
                         <span
                           className={

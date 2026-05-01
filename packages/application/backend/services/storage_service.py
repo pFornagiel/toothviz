@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import Callable
 
 from sqlalchemy.orm import Session
 
-from backend.db.models import FileRecord
 from backend.db.repos.file_repo import FileRepo
 from backend.storage.engine import StorageEngine
 
@@ -27,29 +27,29 @@ class StorageService:
         study_id: str,
         filename: str,
         kind: str,
-        purpose: str | None,
+        viewer_purpose: str | None,
         expected_sha256: str | None,
         expected_size: int | None,
-    ) -> FileRecord:
+    ):
         blob_hash, size = self.engine.commit_upload_to_cas(
             upload_id, expected_sha256, expected_size,
         )
-        link_path = self.engine.link_original_file_to_study(
-            study_id, filename, blob_hash,
+        file_id = str(uuid.uuid4())
+        self.engine.link_study_file(
+            study_id, file_id, filename, blob_hash,
         )
-        rel_path = str(Path(link_path).relative_to(self.engine.root))
 
         with self.session_factory() as db:
             repo = FileRepo(db)
-            if purpose:
-                repo.null_purpose(study_id, purpose)
-            repo.create_blob(blob_hash, size)
+            if viewer_purpose:
+                repo.clear_viewer_purpose(study_id, viewer_purpose)
+            repo.create_blob(blob_hash)
             record = repo.create_file_record(
+                file_id=file_id,
                 study_id=study_id,
                 kind=kind,
-                purpose=purpose,
-                original_filename=filename,
-                rel_path=rel_path,
+                viewer_purpose=viewer_purpose,
+                display_name=filename,
                 blob_hash=blob_hash,
                 size=size,
             )
@@ -59,31 +59,30 @@ class StorageService:
         self,
         src_path: Path,
         study_id: str,
-        job_id: str,
         filename: str,
         kind: str,
-        purpose: str | None,
-    ) -> FileRecord:
+        viewer_purpose: str | None,
+        file_id: str | None = None,
+    ):
         blob_hash, size = self.engine.commit_file_to_cas(src_path)
-        link_path = self.engine.link_derived_file_to_study(
-            study_id, filename, blob_hash,
+        fid = file_id or str(uuid.uuid4())
+        self.engine.link_study_file(
+            study_id, fid, filename, blob_hash,
         )
-        rel_path = str(Path(link_path).relative_to(self.engine.root))
 
         with self.session_factory() as db:
             repo = FileRepo(db)
-            if purpose:
-                repo.null_purpose(study_id, purpose)
-            repo.create_blob(blob_hash, size)
+            if viewer_purpose:
+                repo.clear_viewer_purpose(study_id, viewer_purpose)
+            repo.create_blob(blob_hash)
             record = repo.create_file_record(
+                file_id=fid,
                 study_id=study_id,
                 kind=kind,
-                purpose=purpose,
-                original_filename=filename,
-                rel_path=rel_path,
+                viewer_purpose=viewer_purpose,
+                display_name=filename,
                 blob_hash=blob_hash,
                 size=size,
-                pipeline_job_id=job_id,
             )
             return record
 

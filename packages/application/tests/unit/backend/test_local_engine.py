@@ -80,30 +80,28 @@ def test_commit_deduplication(engine):
     assert len(blob_files) == 1
 
 
-def test_link_original_file_to_study(engine):
+def test_link_study_file_hardlink_or_copy(engine):
     engine.initialize_upload("u1")
     engine.write_chunk("u1", 0, b"data")
     blob_hash, _ = engine.commit_upload_to_cas("u1", None, None)
 
-    study_dir = engine.root / "studies" / "s1" / "raw"
-    study_dir.mkdir(parents=True, exist_ok=True)
-
-    link = engine.link_original_file_to_study("s1", "test.nii", blob_hash)
+    link = engine.link_study_file("s1", "f1", "test.nii", blob_hash)
     assert link.exists()
-    assert "raw" in link.parts
+    assert "files" in link.parts
+    assert "f1" in link.parts
 
     blob_path = engine.get_cas_blob_path(blob_hash)
     assert os.stat(str(link)).st_ino == os.stat(str(blob_path)).st_ino
 
 
-def test_link_derived_file_to_study(engine):
+def test_link_study_file_second_file(engine):
     engine.initialize_upload("u1")
     engine.write_chunk("u1", 0, b"out")
     blob_hash, _ = engine.commit_upload_to_cas("u1", None, None)
 
-    link = engine.link_derived_file_to_study("s1", "mask.nii", blob_hash)
+    link = engine.link_study_file("s1", "f2", "mask.nii", blob_hash)
     assert link.exists()
-    assert "derived" in link.parts
+    assert "files" in link.parts
 
     blob_path = engine.get_cas_blob_path(blob_hash)
     assert os.stat(str(link)).st_ino == os.stat(str(blob_path)).st_ino
@@ -155,9 +153,7 @@ def test_sweep_retains_linked_blobs(engine):
     engine.write_chunk("u1", 0, b"linked")
     blob_hash, _ = engine.commit_upload_to_cas("u1", None, None)
 
-    study_dir = engine.root / "studies" / "s1" / "raw"
-    study_dir.mkdir(parents=True, exist_ok=True)
-    engine.link_original_file_to_study("s1", "f.nii", blob_hash)
+    engine.link_study_file("s1", "f1", "f.nii", blob_hash)
 
     removed = engine.sweep_orphaned_blobs()
     assert removed == 0
