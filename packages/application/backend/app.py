@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     # 4. CAS OS Sweep Failsafe
     storage_service.sweep_orphans()
 
-    # 5. Worker pools (DICOM conversion does not load the ONNX model)
+    # 5. Worker pools
     dicom_worker_pool = WorkerPool(max_workers=1)
     segmentation_worker_pool = WorkerPool(
         max_workers=1,

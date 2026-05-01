@@ -36,24 +36,20 @@ def _safe_extract_zip(
                 f"({total_uncompressed} > {max_uncompressed_bytes})"
             )
 
+        to_extract: list[tuple[zipfile.ZipInfo, Path]] = []
         for info in infos:
-            if info.is_dir() or info.filename.endswith("/"):
+            if info.is_dir():
                 continue
-            member_path = Path(info.filename)
-            if member_path.is_absolute():
-                raise ValueError(f"unsafe ZIP member path: {info.filename!r}")
-            target = (dest_dir / member_path).resolve()
+            target = (dest_dir / Path(info.filename)).resolve()
             try:
                 target.relative_to(dest_dir)
             except ValueError:
                 raise ValueError(
                     f"ZIP path escapes destination: {info.filename!r}"
                 ) from None
+            to_extract.append((info, target))
 
-        for info in infos:
-            if info.is_dir() or info.filename.endswith("/"):
-                continue
-            target = (dest_dir / Path(info.filename)).resolve()
+        for info, target in to_extract:
             target.parent.mkdir(parents=True, exist_ok=True)
             with zf.open(info, "r") as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst, length=1024 * 1024)
@@ -61,7 +57,7 @@ def _safe_extract_zip(
 
 def _collect_nifti_candidates(directory: Path) -> list[Path]:
     gz = sorted(directory.rglob("*.nii.gz"))
-    plain = sorted(p for p in directory.rglob("*.nii") if p.suffix == ".nii")
+    plain = sorted(directory.rglob("*.nii"))
     return gz + plain
 
 
@@ -117,7 +113,7 @@ def convert_dicom(
         ) from exc
 
     candidates = _collect_nifti_candidates(nifti_stage)
-    if len(candidates) == 0:
+    if not candidates:
         raise RuntimeError(
             "DICOM conversion produced no NIfTI files (check the archive contents)"
         )

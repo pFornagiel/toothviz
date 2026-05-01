@@ -5,12 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = [
-    "DicomToNiftiStepConfig",
-    "SegmentNiftiStepConfig",
-]
-
-
 @dataclass(frozen=True)
 class DicomToNiftiStepConfig:
     max_zip_members: int = 10_000
@@ -21,7 +15,7 @@ class DicomToNiftiStepConfig:
         if not data:
             return cls()
         allowed = {"max_zip_members", "max_uncompressed_zip_bytes"}
-        unknown = set(data) - allowed
+        unknown = set[str](data) - allowed
         if unknown:
             raise ValueError(
                 f"Unknown dicom_to_nifti config keys: {sorted(unknown)}"

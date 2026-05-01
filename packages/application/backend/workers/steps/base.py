@@ -22,16 +22,8 @@ class StepContext:
     broadcaster: WSBroadcaster
     worker_pools: dict[str, WorkerPool] = field(repr=False)
 
-    async def run_in_worker_pool(
-        self, pool_name: str, fn: Callable, *args: Any
-    ) -> Any:
-        try:
-            pool = self.worker_pools[pool_name]
-        except KeyError as exc:
-            raise KeyError(
-                f"Unknown worker pool {pool_name!r}; configured pools: "
-                f"{sorted(self.worker_pools.keys())}"
-            ) from exc
+    async def run_in_worker_pool(self, pool_name: str, fn: Callable, *args: Any) -> Any:
+        pool = self.worker_pools[pool_name]
         return await pool.run(fn, *args)
 
 
