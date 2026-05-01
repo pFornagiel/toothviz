@@ -25,7 +25,6 @@ class FileRepo:
     def create_file_record(
         self,
         study_id: str,
-        role: str,
         kind: str | None,
         purpose: str | None,
         original_filename: str | None,
@@ -40,7 +39,6 @@ class FileRepo:
             id=str(uuid.uuid4()),
             study_id=study_id,
             pipeline_job_id=pipeline_job_id,
-            role=role,
             kind=kind,
             purpose=purpose,
             original_filename=original_filename,

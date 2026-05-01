@@ -64,7 +64,6 @@ export interface FileRecordResponse {
   id: string;
   study_id: string;
   pipeline_job_id: string | null;
-  role: string;
   kind: string | null;
   purpose: string | null;
   original_filename: string | null;

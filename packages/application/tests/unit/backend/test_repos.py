@@ -46,7 +46,7 @@ def test_upload_session_crud(db_session):
     db_session.commit()
 
     repo = UploadSessionRepo(db_session)
-    session = repo.create("s1", "file.nii", "original", "nifti_raw", chunk_size=1024)
+    session = repo.create("s1", "file.nii", "nifti_raw", chunk_size=1024)
     assert session.state == "active"
 
     fetched = repo.get(session.id)
@@ -61,8 +61,8 @@ def test_upload_session_list_by_state(db_session):
     db_session.commit()
 
     repo = UploadSessionRepo(db_session)
-    repo.create("s1", "a.nii", "original", "nifti_raw", chunk_size=1024)
-    s2 = repo.create("s1", "b.nii", "original", "nifti_raw", chunk_size=1024)
+    repo.create("s1", "a.nii", "nifti_raw", chunk_size=1024)
+    s2 = repo.create("s1", "b.nii", "nifti_raw", chunk_size=1024)
     repo.update_state(s2.id, "aborted")
 
     active = repo.list_by_state("active")
@@ -95,12 +95,12 @@ def test_file_repo_create_and_list(db_session):
     repo = FileRepo(db_session)
 
     repo.create_file_record(
-        study_id="s1", role="original", kind="nifti_raw",
+        study_id="s1", kind="nifti_raw",
         purpose="viewer_volume", original_filename="v.nii",
         rel_path="studies/s1/raw/v.nii", blob_hash="a" * 64, size=100,
     )
     repo.create_file_record(
-        study_id="s1", role="derived", kind="segmentation_mask",
+        study_id="s1", kind="segmentation_mask",
         purpose="viewer_overlay", original_filename="m.nii",
         rel_path="studies/s1/derived/m.nii", blob_hash="a" * 64, size=100,
     )
@@ -117,14 +117,14 @@ def test_file_repo_null_purpose(db_session):
     repo = FileRepo(db_session)
 
     repo.create_file_record(
-        study_id="s1", role="original", kind="nifti_raw",
+        study_id="s1", kind="nifti_raw",
         purpose="viewer_volume", original_filename="old.nii",
         rel_path="studies/s1/raw/old.nii", blob_hash="a" * 64, size=100,
     )
     repo.null_purpose("s1", "viewer_volume")
 
     repo.create_file_record(
-        study_id="s1", role="original", kind="nifti_raw",
+        study_id="s1", kind="nifti_raw",
         purpose="viewer_volume", original_filename="new.nii",
         rel_path="studies/s1/raw/new.nii", blob_hash="a" * 64, size=100,
     )
@@ -140,12 +140,12 @@ def test_file_repo_count_references(db_session):
     repo = FileRepo(db_session)
 
     repo.create_file_record(
-        study_id="s1", role="original", kind="nifti_raw",
+        study_id="s1", kind="nifti_raw",
         purpose=None, original_filename="a.nii",
         rel_path="studies/s1/raw/a.nii", blob_hash="a" * 64, size=100,
     )
     repo.create_file_record(
-        study_id="s1", role="original", kind="nifti_raw",
+        study_id="s1", kind="nifti_raw",
         purpose=None, original_filename="b.nii",
         rel_path="studies/s1/raw/b.nii", blob_hash="a" * 64, size=100,
     )
@@ -159,7 +159,7 @@ def test_pipeline_job_crud(db_session):
     db_session.add(Study(id="s1", status="created"))
     db_session.add(Blob(hash="a" * 64, size=100))
     db_session.add(FileRecord(
-        id="f1", study_id="s1", role="original", kind="nifti_raw",
+        id="f1", study_id="s1", kind="nifti_raw",
         rel_path="x", blob_hash="a" * 64, size=100,
     ))
     db_session.commit()
@@ -180,7 +180,7 @@ def test_pipeline_job_get_active_for_study(db_session):
     db_session.add(Study(id="s1", status="created"))
     db_session.add(Blob(hash="a" * 64, size=100))
     db_session.add(FileRecord(
-        id="f1", study_id="s1", role="original", kind="nifti_raw",
+        id="f1", study_id="s1", kind="nifti_raw",
         rel_path="x", blob_hash="a" * 64, size=100,
     ))
     db_session.commit()

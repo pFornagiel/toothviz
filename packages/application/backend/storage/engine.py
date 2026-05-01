@@ -28,9 +28,13 @@ class StorageEngine(Protocol):
     def get_cas_blob_path(self, blob_hash: str) -> Path: ...
     def get_job_workspace_dir(self, job_id: str) -> Path: ...
 
-    # Study filesystem management
-    def link_file_to_study(
-        self, study_id: str, role: str, filename: str, blob_hash: str
+    # Study filesystem management (raw/ vs derived/ under studies/{study_id}/)
+    def link_original_file_to_study(
+        self, study_id: str, filename: str, blob_hash: str
+    ) -> Path: ...
+
+    def link_derived_file_to_study(
+        self, study_id: str, filename: str, blob_hash: str
     ) -> Path: ...
 
     def remove_study_data(self, study_id: str) -> None: ...

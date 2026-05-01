@@ -56,7 +56,6 @@ class UploadService:
         session = UploadSessionRepo(db).create(
             study_id=study_id,
             filename=filename,
-            role="original",
             kind=kind,
             chunk_size=chunk_size,
             content_type=content_type,

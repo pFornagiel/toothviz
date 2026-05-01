@@ -16,7 +16,7 @@ def test_store_original_creates_blob_and_file_record(
         kind="nifti_raw", purpose="viewer_volume",
         expected_sha256=None, expected_size=None,
     )
-    assert record.role == "original"
+    assert "/raw/" in record.rel_path.replace("\\", "/")
     assert record.purpose == "viewer_volume"
 
     with session_factory() as db:
@@ -56,7 +56,7 @@ def test_store_derived_creates_blob_and_file_record(
 
     db_session.add(Blob(hash="b" * 64, size=50))
     db_session.add(FileRecord(
-        id="f1", study_id=study.id, role="original", kind="nifti_raw",
+        id="f1", study_id=study.id, kind="nifti_raw",
         rel_path="x", blob_hash="b" * 64, size=50,
     ))
     job = PipelineJob(id="j1", study_id=study.id, source_file_id="f1", steps=["seg"])
@@ -71,7 +71,7 @@ def test_store_derived_creates_blob_and_file_record(
         filename="mask.nii", kind="segmentation_mask",
         purpose="viewer_overlay",
     )
-    assert record.role == "derived"
+    assert "/derived/" in record.rel_path.replace("\\", "/")
     assert record.pipeline_job_id == "j1"
 
 

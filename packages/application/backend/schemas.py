@@ -84,7 +84,6 @@ class FileRecordResponse(BaseModel):
     id: str
     study_id: str
     pipeline_job_id: str | None
-    role: str
     kind: str | None
     purpose: str | None
     original_filename: str | None

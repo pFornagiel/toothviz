@@ -147,10 +147,9 @@ class LocalStorageEngine:
     # Study filesystem
     # ------------------------------------------------------------------
 
-    def link_file_to_study(
-        self, study_id: str, role: str, filename: str, blob_hash: str
+    def _link_file_to_study_dir(
+        self, study_id: str, subdir: str, filename: str, blob_hash: str
     ) -> Path:
-        subdir = "raw" if role == "original" else "derived"
         study_dir = self.root / "studies" / study_id / subdir
         study_dir.mkdir(parents=True, exist_ok=True)
 
@@ -169,6 +168,16 @@ class LocalStorageEngine:
             shutil.copy2(str(blob_path), str(link_path))
 
         return link_path
+
+    def link_original_file_to_study(
+        self, study_id: str, filename: str, blob_hash: str
+    ) -> Path:
+        return self._link_file_to_study_dir(study_id, "raw", filename, blob_hash)
+
+    def link_derived_file_to_study(
+        self, study_id: str, filename: str, blob_hash: str
+    ) -> Path:
+        return self._link_file_to_study_dir(study_id, "derived", filename, blob_hash)
 
     def remove_study_data(self, study_id: str) -> None:
         study_dir = self.root / "studies" / study_id

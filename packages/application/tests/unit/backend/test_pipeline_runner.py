@@ -20,7 +20,7 @@ def _setup_db(db_session):
     db_session.commit()
 
     db_session.add(FileRecord(
-        id="f1", study_id="s1", role="original", kind="nifti_raw",
+        id="f1", study_id="s1", kind="nifti_raw",
         rel_path="x", blob_hash="a" * 64, size=100,
     ))
     db_session.commit()

@@ -29,7 +29,7 @@ def test_file_record_purpose(db_session):
     db_session.commit()
 
     rec = FileRecord(
-        id="f1", study_id="s1", role="original", kind="nifti_raw",
+        id="f1", study_id="s1", kind="nifti_raw",
         purpose="viewer_volume", rel_path="studies/s1/raw/test.nii",
         blob_hash="a" * 64, size=100,
     )
@@ -44,7 +44,7 @@ def test_pipeline_job_steps_json(db_session):
     db_session.add(Study(id="s1", status="created"))
     db_session.add(Blob(hash="a" * 64, size=100))
     db_session.add(FileRecord(
-        id="f1", study_id="s1", role="original", kind="nifti_raw",
+        id="f1", study_id="s1", kind="nifti_raw",
         rel_path="x", blob_hash="a" * 64, size=100,
     ))
     db_session.commit()
@@ -62,7 +62,7 @@ def test_pipeline_job_steps_json(db_session):
 
 def test_foreign_keys(db_session):
     rec = FileRecord(
-        id="f1", study_id="nonexistent", role="original", kind="nifti_raw",
+        id="f1", study_id="nonexistent", kind="nifti_raw",
         rel_path="x", blob_hash="a" * 64, size=100,
     )
     db_session.add(rec)

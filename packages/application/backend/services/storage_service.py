@@ -34,8 +34,8 @@ class StorageService:
         blob_hash, size = self.engine.commit_upload_to_cas(
             upload_id, expected_sha256, expected_size,
         )
-        link_path = self.engine.link_file_to_study(
-            study_id, "original", filename, blob_hash,
+        link_path = self.engine.link_original_file_to_study(
+            study_id, filename, blob_hash,
         )
         rel_path = str(Path(link_path).relative_to(self.engine.root))
 
@@ -46,7 +46,6 @@ class StorageService:
             repo.create_blob(blob_hash, size)
             record = repo.create_file_record(
                 study_id=study_id,
-                role="original",
                 kind=kind,
                 purpose=purpose,
                 original_filename=filename,
@@ -66,8 +65,8 @@ class StorageService:
         purpose: str | None,
     ) -> FileRecord:
         blob_hash, size = self.engine.commit_file_to_cas(src_path)
-        link_path = self.engine.link_file_to_study(
-            study_id, "derived", filename, blob_hash,
+        link_path = self.engine.link_derived_file_to_study(
+            study_id, filename, blob_hash,
         )
         rel_path = str(Path(link_path).relative_to(self.engine.root))
 
@@ -78,7 +77,6 @@ class StorageService:
             repo.create_blob(blob_hash, size)
             record = repo.create_file_record(
                 study_id=study_id,
-                role="derived",
                 kind=kind,
                 purpose=purpose,
                 original_filename=filename,

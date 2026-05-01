@@ -7,7 +7,6 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
-    Index,
     Integer,
     JSON,
     String,
@@ -59,7 +58,6 @@ class FileRecord(Base):
     id = Column(String, primary_key=True, default=_new_id)
     study_id = Column(String, ForeignKey("studies.id", ondelete="CASCADE"), index=True)
     pipeline_job_id = Column(String, ForeignKey("pipeline_jobs.id"), nullable=True)
-    role = Column(String, index=True)  # original | derived
     kind = Column(String, nullable=True)
     purpose = Column(String, nullable=True, index=True)
     original_filename = Column(String, nullable=True)
@@ -73,7 +71,6 @@ class FileRecord(Base):
     study = relationship("Study", back_populates="files")
 
 
-Index("idx_file_records_role_kind", FileRecord.role, FileRecord.kind)
 UniqueConstraint(FileRecord.study_id, FileRecord.rel_path, name="uq_study_relpath")
 
 
@@ -83,7 +80,6 @@ class UploadSession(Base):
     id = Column(String, primary_key=True, default=_new_id)
     study_id = Column(String, ForeignKey("studies.id", ondelete="CASCADE"))
     filename = Column(String)
-    role = Column(String, default="original")
     kind = Column(String)
     content_type = Column(String, nullable=True)
     expected_size = Column(Integer, nullable=True)

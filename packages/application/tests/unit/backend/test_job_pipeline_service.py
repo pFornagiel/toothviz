@@ -17,7 +17,7 @@ def _setup_db(db_session, kind="nifti_raw"):
     db_session.add(Study(id="s1", status="created"))
     db_session.add(Blob(hash="a" * 64, size=100))
     rec = FileRecord(
-        id="f1", study_id="s1", role="original", kind=kind,
+        id="f1", study_id="s1", kind=kind,
         rel_path="x", blob_hash="a" * 64, size=100,
     )
     db_session.add(rec)
