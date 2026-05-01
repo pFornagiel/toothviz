@@ -19,11 +19,13 @@ from sqlalchemy.orm import declarative_base, relationship
 Base = declarative_base()
 
 
-def _utcnow() -> datetime:
+def _time_now() -> datetime:
+    """Return UTC timestamp"""
     return datetime.now(timezone.utc)
 
 
 def _new_id() -> str:
+    """Return new unique ID"""
     return str(uuid.uuid4())
 
 
@@ -34,11 +36,13 @@ class Study(Base):
     name = Column(String, nullable=True)
     external_id = Column(String, unique=True, nullable=True, index=True)
     status = Column(String, default="created")
-    created_at = Column(DateTime, default=_utcnow)
-    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    created_at = Column(DateTime, default=_time_now)
+    updated_at = Column(DateTime, default=_time_now, onupdate=_time_now)
     meta = Column(JSON, default=dict)
 
-    files = relationship("FileRecord", back_populates="study", cascade="all, delete-orphan")
+    files = relationship(
+        "FileRecord", back_populates="study", cascade="all, delete-orphan"
+    )
 
 
 class Blob(Base):
@@ -46,7 +50,7 @@ class Blob(Base):
 
     hash = Column(String(64), primary_key=True)
     size = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=_utcnow)
+    created_at = Column(DateTime, default=_time_now)
 
 
 class FileRecord(Base):
@@ -63,7 +67,7 @@ class FileRecord(Base):
     blob_hash = Column(String(64), ForeignKey("blobs.hash"), index=True)
     content_type = Column(String, nullable=True)
     size = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=_utcnow)
+    created_at = Column(DateTime, default=_time_now)
     meta = Column(JSON, default=dict)
 
     study = relationship("Study", back_populates="files")
@@ -86,8 +90,8 @@ class UploadSession(Base):
     expected_sha256 = Column(String(64), nullable=True)
     chunk_size = Column(Integer, nullable=False)
     state = Column(String, default="active", index=True)
-    created_at = Column(DateTime, default=_utcnow)
-    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    created_at = Column(DateTime, default=_time_now)
+    updated_at = Column(DateTime, default=_time_now, onupdate=_time_now)
 
 
 class PipelineJob(Base):
@@ -98,7 +102,7 @@ class PipelineJob(Base):
     source_file_id = Column(String, ForeignKey("file_records.id"))
     steps = Column(JSON, default=list)
     status = Column(String, default="queued")
-    created_at = Column(DateTime, default=_utcnow)
+    created_at = Column(DateTime, default=_time_now)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
     error = Column(Text, nullable=True)
