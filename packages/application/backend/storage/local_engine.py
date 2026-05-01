@@ -31,6 +31,13 @@ class LocalStorageEngine:
     def get_job_workspace_dir(self, job_id: str) -> Path:
         return self.root / "tmp" / "jobs" / job_id
 
+    def get_study_file_path(
+        self, study_id: str, file_id: str, display_name: str
+    ) -> Path:
+        """Absolute path: studies/{study_id}/files/{file_id}/{display_name}."""
+        safe_name = os.path.basename(display_name)
+        return self.root / "studies" / study_id / "files" / file_id / safe_name
+
     # ------------------------------------------------------------------
     # Upload lifecycle
     # ------------------------------------------------------------------
@@ -147,21 +154,17 @@ class LocalStorageEngine:
     # Study filesystem
     # ------------------------------------------------------------------
 
-    def link_file_to_study(
-        self, study_id: str, role: str, filename: str, blob_hash: str
+    def link_study_file(
+        self,
+        study_id: str,
+        file_id: str,
+        display_name: str,
+        blob_hash: str,
     ) -> Path:
-        subdir = "raw" if role == "original" else "derived"
-        study_dir = self.root / "studies" / study_id / subdir
-        study_dir.mkdir(parents=True, exist_ok=True)
-
-        safe_name = os.path.basename(filename)
-        link_path = study_dir / safe_name
-
+        link_path = self.get_study_file_path(study_id, file_id, display_name)
+        link_path.parent.mkdir(parents=True, exist_ok=True)
         if link_path.exists():
-            stem, ext = os.path.splitext(safe_name)
-            import time
-            link_path = study_dir / f"{stem}_{int(time.time())}{ext}"
-
+            link_path.unlink()
         blob_path = self.get_cas_blob_path(blob_hash)
         try:
             os.link(str(blob_path), str(link_path))

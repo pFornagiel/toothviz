@@ -1,6 +1,5 @@
 import pytest
 
-from backend.db.models import Blob
 from backend.db.repos.file_repo import FileRepo
 from backend.services.upload_service import UploadService
 
@@ -97,7 +96,7 @@ def test_finalize_nifti_raw_sets_viewer_volume(
 
     with session_factory() as db:
         rec = FileRepo(db).get(fin["file_id"])
-        assert rec.purpose == "viewer_volume"
+        assert rec.viewer_purpose == "viewer_volume"
 
 
 def test_finalize_nifti_mask_sets_viewer_overlay(
@@ -114,7 +113,7 @@ def test_finalize_nifti_mask_sets_viewer_overlay(
 
     with session_factory() as db:
         rec = FileRepo(db).get(fin["file_id"])
-        assert rec.purpose == "viewer_overlay"
+        assert rec.viewer_purpose == "viewer_overlay"
 
 
 def test_finalize_dicom_zip_sets_null_purpose(
@@ -131,4 +130,4 @@ def test_finalize_dicom_zip_sets_null_purpose(
 
     with session_factory() as db:
         rec = FileRepo(db).get(fin["file_id"])
-        assert rec.purpose is None
+        assert rec.viewer_purpose is None

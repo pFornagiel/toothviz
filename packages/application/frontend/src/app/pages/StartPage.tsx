@@ -31,7 +31,7 @@ export function StartPage() {
         return;
       }
 
-      const study = await createStudy(data.studyName, data.studyName);
+      const study = await createStudy(data.studyName);
 
       const baseKind: UploadKind =
         data.fileType === "dicom" ? "dicom_zip" : "nifti_raw";

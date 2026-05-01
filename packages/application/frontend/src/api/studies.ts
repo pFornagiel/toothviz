@@ -2,21 +2,18 @@ import { fetchJson } from "./client";
 import type { StudyResponse, FileRecordResponse } from "./types";
 
 export async function listStudies(
-  externalId?: string,
+  name?: string,
 ): Promise<StudyResponse[]> {
-  const qs = externalId
-    ? `?external_id=${encodeURIComponent(externalId)}`
-    : "";
+  const qs = name ? `?name=${encodeURIComponent(name)}` : "";
   return fetchJson<StudyResponse[]>(`/storage/studies${qs}`);
 }
 
 export async function createStudy(
-  externalId: string,
   name?: string,
 ): Promise<StudyResponse> {
   return fetchJson<StudyResponse>("/storage/studies", {
     method: "POST",
-    body: JSON.stringify({ external_id: externalId, name: name ?? externalId }),
+    body: JSON.stringify({ name: name ?? null }),
   });
 }
 
@@ -36,9 +33,11 @@ export async function deleteStudy(studyId: string): Promise<void> {
 
 export async function listFiles(
   studyId: string,
-  purpose?: string,
+  viewerPurpose?: string,
 ): Promise<FileRecordResponse[]> {
-  const qs = purpose ? `?purpose=${encodeURIComponent(purpose)}` : "";
+  const qs = viewerPurpose
+    ? `?viewer_purpose=${encodeURIComponent(viewerPurpose)}`
+    : "";
   return fetchJson<FileRecordResponse[]>(
     `/storage/studies/${studyId}/files${qs}`,
   );

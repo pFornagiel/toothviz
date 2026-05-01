@@ -6,7 +6,6 @@ import shutil
 from dataclasses import replace
 
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
-from backend.db.repos.study_repo import StudyRepo
 from backend.workers.steps.base import OutputArtifact, PipelineStep, StepContext
 from backend.services.storage_service import StorageService
 
@@ -40,15 +39,13 @@ async def run_pipeline(
             storage_service.store_derived(
                 src_path=artifact.path,
                 study_id=ctx.study_id,
-                job_id=job_id,
                 filename=artifact.path.name,
                 kind=artifact.kind,
-                purpose=artifact.purpose,
+                viewer_purpose=artifact.purpose,
             )
 
         with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")
-            StudyRepo(db).set_status(ctx.study_id, "ready")
 
         await ctx.broadcaster.broadcast(job_id, {"status": "completed"})
 

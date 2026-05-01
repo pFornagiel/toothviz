@@ -1,5 +1,3 @@
-import hashlib
-
 import pytest
 
 
@@ -59,27 +57,25 @@ def test_abort_upload(client, created_study):
     assert resp.json()["state"] == "aborted"
 
 
-def test_finalize_with_sha_verification(client, created_study):
+def test_finalize_with_expected_size(client, created_study):
     study_id = created_study["id"]
     payload = b"verified_content"
-    sha = hashlib.sha256(payload).hexdigest()
-
     upload_id, _ = _do_upload(client, study_id, chunks=[payload])
 
     resp = client.post(
         f"/storage/uploads/{upload_id}:finalize",
-        json={"expected_sha256": sha, "pipelines": []},
+        json={"expected_size": len(payload), "pipelines": []},
     )
     assert resp.status_code == 200
 
 
-def test_finalize_sha_mismatch_returns_error(client, created_study):
+def test_finalize_size_mismatch_returns_error(client, created_study):
     study_id = created_study["id"]
     upload_id, _ = _do_upload(client, study_id, chunks=[b"data"])
 
     resp = client.post(
         f"/storage/uploads/{upload_id}:finalize",
-        json={"expected_sha256": "wrong_hash", "pipelines": []},
+        json={"expected_size": 999, "pipelines": []},
     )
     assert resp.status_code == 422
 

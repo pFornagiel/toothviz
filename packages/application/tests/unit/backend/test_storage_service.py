@@ -1,10 +1,9 @@
 import pytest
 
 from backend.db.repos.file_repo import FileRepo
-from backend.db.models import Study, Blob
 
 
-def test_store_original_creates_blob_and_file_record(
+def test_store_original_creates_file_record_and_links_cas(
     storage_service, storage_engine, db_session, session_factory, make_study,
 ):
     study = make_study(name="test")
@@ -13,18 +12,23 @@ def test_store_original_creates_blob_and_file_record(
 
     record = storage_service.store_original(
         upload_id="u1", study_id=study.id, filename="test.nii",
-        kind="nifti_raw", purpose="viewer_volume",
+        kind="nifti_raw", viewer_purpose="viewer_volume",
         expected_sha256=None, expected_size=None,
     )
-    assert record.role == "original"
-    assert record.purpose == "viewer_volume"
+    path = storage_engine.get_study_file_path(
+        study.id, record.id, "test.nii",
+    )
+    assert path.is_file()
+    assert record.viewer_purpose == "viewer_volume"
 
     with session_factory() as db:
-        blob = db.get(Blob, record.blob_hash)
-        assert blob is not None
+        stored = FileRepo(db).get(record.id)
+        assert stored.blob_hash == record.blob_hash
+        cas_path = storage_engine.get_cas_blob_path(record.blob_hash)
+        assert cas_path.is_file()
 
 
-def test_store_original_purpose_supersede(
+def test_store_original_viewer_purpose_supersede(
     storage_service, storage_engine, session_factory, make_study,
 ):
     study = make_study(name="test")
@@ -43,36 +47,28 @@ def test_store_original_purpose_supersede(
 
     with session_factory() as db:
         repo = FileRepo(db)
-        volumes = repo.list_by_study(study.id, purpose_filter=["viewer_volume"])
+        volumes = repo.list_by_study(study.id, viewer_purpose_filter=["viewer_volume"])
         assert len(volumes) == 1
         assert volumes[0].id == r2.id
 
 
-def test_store_derived_creates_blob_and_file_record(
-    storage_service, storage_engine, session_factory, make_study, db_session, tmp_path,
+def test_store_derived_creates_file_record(
+    storage_service, storage_engine, session_factory, make_study, tmp_path,
 ):
-    from backend.db.models import Blob, FileRecord, PipelineJob
     study = make_study(name="test")
-
-    db_session.add(Blob(hash="b" * 64, size=50))
-    db_session.add(FileRecord(
-        id="f1", study_id=study.id, role="original", kind="nifti_raw",
-        rel_path="x", blob_hash="b" * 64, size=50,
-    ))
-    job = PipelineJob(id="j1", study_id=study.id, source_file_id="f1", steps=["seg"])
-    db_session.add(job)
-    db_session.commit()
 
     src = tmp_path / "mask.nii"
     src.write_bytes(b"mask_data")
 
     record = storage_service.store_derived(
-        src_path=src, study_id=study.id, job_id="j1",
+        src_path=src, study_id=study.id,
         filename="mask.nii", kind="segmentation_mask",
-        purpose="viewer_overlay",
+        viewer_purpose="viewer_overlay",
     )
-    assert record.role == "derived"
-    assert record.pipeline_job_id == "j1"
+    path = storage_engine.get_study_file_path(
+        study.id, record.id, "mask.nii",
+    )
+    assert path.is_file()
 
 
 def test_store_original_cas_dedup(
@@ -94,9 +90,8 @@ def test_store_original_cas_dedup(
 
     assert r1.blob_hash == r2.blob_hash
 
-    with session_factory() as db:
-        count = db.query(Blob).count()
-        assert count == 1
+    blob_path = storage_engine.get_cas_blob_path(r1.blob_hash)
+    assert blob_path.is_file()
 
 
 def test_sweep_orphans_delegates(storage_service, storage_engine):

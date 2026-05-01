@@ -28,7 +28,6 @@ export async function uploadFile(
       body: JSON.stringify({
         kind,
         filename: file.name,
-        expected_size: file.size,
       }),
     },
   );

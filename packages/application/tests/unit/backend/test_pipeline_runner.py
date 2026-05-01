@@ -1,27 +1,21 @@
-import asyncio
 import pytest
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-from dataclasses import dataclass, field
 
-from backend.db.models import Study, Blob, FileRecord, PipelineJob
+from backend.db.models import Study, FileRecord, PipelineJob
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
-from backend.db.repos.study_repo import StudyRepo
 from backend.services.storage_service import StorageService
-from backend.storage.local_engine import LocalStorageEngine
 from backend.workers.pipeline_runner import run_pipeline
 from backend.workers.steps.base import StepContext, OutputArtifact, StepResult
 from backend.workers.ws_broadcaster import WSBroadcaster
 
 
 def _setup_db(db_session):
-    db_session.add(Study(id="s1", status="processing"))
-    db_session.add(Blob(hash="a" * 64, size=100))
+    db_session.add(Study(id="s1"))
     db_session.commit()
 
     db_session.add(FileRecord(
-        id="f1", study_id="s1", role="original", kind="nifti_raw",
-        rel_path="x", blob_hash="a" * 64, size=100,
+        id="f1", study_id="s1", kind="nifti_raw",
+        display_name="input.nii", blob_hash="a" * 64, size=100,
     ))
     db_session.commit()
 
@@ -85,8 +79,6 @@ async def test_run_pipeline_success(
     with session_factory() as db:
         j = PipelineJobRepo(db).get("j1")
         assert j.status == "completed"
-        s = StudyRepo(db).get("s1")
-        assert s.status == "ready"
 
 
 @pytest.mark.asyncio

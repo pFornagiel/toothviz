@@ -23,22 +23,16 @@ class StudyService:
 
     def create(
         self,
-        external_id: str | None = None,
         name: str | None = None,
-        meta: dict | None = None,
     ) -> Study:
         with self._storage.session_factory() as db:
-            study = StudyRepo(db).create(
-                name=name, external_id=external_id, meta=meta,
-            )
-            study_dir = self._storage.engine.root / "studies" / study.id
-            (study_dir / "raw").mkdir(parents=True, exist_ok=True)
-            (study_dir / "derived").mkdir(parents=True, exist_ok=True)
+            study = StudyRepo(db).create(name=name)
+            PipelineJobRepo(db).create_for_study(study.id)
             return study
 
-    def list(self, external_id: str | None = None) -> list[Study]:
+    def list(self, name: str | None = None) -> list[Study]:
         with self._storage.session_factory() as db:
-            return StudyRepo(db).list(external_id=external_id)
+            return StudyRepo(db).list(name=name)
 
     def rename(self, study_id: str, name: str) -> Study:
         with self._storage.session_factory() as db:
@@ -46,12 +40,10 @@ class StudyService:
 
     def delete(self, study_id: str) -> None:
         with self._storage.session_factory() as db:
-            if self._pipeline is not None:
-                job = PipelineJobRepo(db).get_active_for_study(study_id)
-                if job:
-                    self._pipeline.cancel(job.id)
-
-            PipelineJobRepo(db).delete_by_study(study_id)
+            job_repo = PipelineJobRepo(db)
+            job = job_repo.get_by_study_id(study_id)
+            if self._pipeline is not None and job.status in ("queued", "running"):
+                self._pipeline.cancel(job.id)
 
             file_repo = FileRepo(db)
             blob_hashes = file_repo.delete_by_study(study_id)

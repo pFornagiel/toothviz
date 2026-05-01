@@ -27,10 +27,16 @@ class StorageEngine(Protocol):
     # Path resolution
     def get_cas_blob_path(self, blob_hash: str) -> Path: ...
     def get_job_workspace_dir(self, job_id: str) -> Path: ...
+    def get_study_file_path(
+        self, study_id: str, file_id: str, display_name: str
+    ) -> Path: ...
 
-    # Study filesystem management
-    def link_file_to_study(
-        self, study_id: str, role: str, filename: str, blob_hash: str
+    def link_study_file(
+        self,
+        study_id: str,
+        file_id: str,
+        display_name: str,
+        blob_hash: str,
     ) -> Path: ...
 
     def remove_study_data(self, study_id: str) -> None: ...

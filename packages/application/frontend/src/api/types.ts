@@ -1,17 +1,12 @@
 export interface StudyResponse {
   id: string;
   name: string | null;
-  external_id: string | null;
   status: string;
   created_at: string;
-  updated_at: string | null;
-  meta: Record<string, unknown>;
 }
 
 export interface CreateStudyRequest {
-  external_id?: string;
   name?: string;
-  meta?: Record<string, unknown>;
 }
 
 export interface RenameStudyRequest {
@@ -23,9 +18,6 @@ export type UploadKind = "dicom_zip" | "nifti_raw" | "nifti_mask";
 export interface BeginUploadRequest {
   kind: UploadKind;
   filename: string;
-  content_type?: string;
-  expected_size?: number;
-  expected_sha256?: string;
 }
 
 export interface BeginUploadResponse {
@@ -50,7 +42,6 @@ export interface PipelineRequestItem {
 }
 
 export interface FinalizeRequest {
-  expected_sha256?: string;
   expected_size?: number;
   pipelines?: PipelineRequestItem[];
 }
@@ -63,17 +54,13 @@ export interface FinalizeResponse {
 export interface FileRecordResponse {
   id: string;
   study_id: string;
-  pipeline_job_id: string | null;
-  role: string;
   kind: string | null;
-  purpose: string | null;
-  original_filename: string | null;
-  rel_path: string;
+  viewer_purpose: string | null;
+  display_name: string | null;
   blob_hash: string;
   size: number;
-  content_type: string | null;
   created_at: string;
-  meta: Record<string, unknown>;
+  status: string;
 }
 
 export interface PipelineMessage {

@@ -2,25 +2,25 @@ import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from backend.db.models import Study, Blob, FileRecord, PipelineJob
+from backend.db.models import Study, FileRecord
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.services.job_pipeline_service import JobPipelineService
 from backend.services.storage_service import StorageService
 from backend.workers.steps.base import StepFactory
-from backend.workers.steps.dicom_to_nifti import DicomToNiftiStep
 from backend.workers.steps.segment_nifti import SegmentNiftiStep
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
 
 
 def _setup_db(db_session, kind="nifti_raw"):
-    db_session.add(Study(id="s1", status="created"))
-    db_session.add(Blob(hash="a" * 64, size=100))
+    db_session.add(Study(id="s1"))
     rec = FileRecord(
-        id="f1", study_id="s1", role="original", kind=kind,
-        rel_path="x", blob_hash="a" * 64, size=100,
+        id="f1", study_id="s1", kind=kind,
+        display_name="vol.nii", blob_hash="a" * 64, size=100,
     )
     db_session.add(rec)
+    db_session.commit()
+    PipelineJobRepo(db_session).create_for_study("s1")
     db_session.commit()
     return rec
 
@@ -43,10 +43,10 @@ async def jps(session_factory, storage_engine, tmp_data_root):
 async def test_dispatch_dicom_zip_prepends_auto_step(db_session, jps):
     rec = _setup_db(db_session, kind="dicom_zip")
 
-    with patch("backend.services.job_pipeline_service.asyncio") as mock_asyncio:
-        mock_task = MagicMock()
-        mock_asyncio.create_task.return_value = mock_task
-        mock_task.add_done_callback = MagicMock()
+    with patch("backend.services.job_pipeline_service.asyncio.run_coroutine_threadsafe") as mock_rcf:
+        fut = MagicMock()
+        fut.add_done_callback = MagicMock()
+        mock_rcf.return_value = fut
 
         job_id = jps.dispatch(rec, [], db_session)
 
@@ -59,10 +59,10 @@ async def test_dispatch_dicom_zip_prepends_auto_step(db_session, jps):
 async def test_dispatch_nifti_raw_with_segment(db_session, jps):
     rec = _setup_db(db_session, kind="nifti_raw")
 
-    with patch("backend.services.job_pipeline_service.asyncio") as mock_asyncio:
-        mock_task = MagicMock()
-        mock_asyncio.create_task.return_value = mock_task
-        mock_task.add_done_callback = MagicMock()
+    with patch("backend.services.job_pipeline_service.asyncio.run_coroutine_threadsafe") as mock_rcf:
+        fut = MagicMock()
+        fut.add_done_callback = MagicMock()
+        mock_rcf.return_value = fut
 
         job_id = jps.dispatch(
             rec,
@@ -79,10 +79,10 @@ async def test_dispatch_nifti_raw_with_segment(db_session, jps):
 async def test_dispatch_dicom_with_segment(db_session, jps):
     rec = _setup_db(db_session, kind="dicom_zip")
 
-    with patch("backend.services.job_pipeline_service.asyncio") as mock_asyncio:
-        mock_task = MagicMock()
-        mock_asyncio.create_task.return_value = mock_task
-        mock_task.add_done_callback = MagicMock()
+    with patch("backend.services.job_pipeline_service.asyncio.run_coroutine_threadsafe") as mock_rcf:
+        fut = MagicMock()
+        fut.add_done_callback = MagicMock()
+        mock_rcf.return_value = fut
 
         job_id = jps.dispatch(
             rec,
