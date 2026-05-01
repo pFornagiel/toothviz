@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from backend.db.models import Study, Blob, FileRecord
+from backend.db.models import Study, FileRecord
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.services.job_pipeline_service import JobPipelineService
 from backend.services.storage_service import StorageService
@@ -14,7 +14,6 @@ from backend.workers.ws_broadcaster import WSBroadcaster
 
 def _setup_db(db_session, kind="nifti_raw"):
     db_session.add(Study(id="s1"))
-    db_session.add(Blob(hash="a" * 64))
     rec = FileRecord(
         id="f1", study_id="s1", kind=kind,
         display_name="vol.nii", blob_hash="a" * 64, size=100,

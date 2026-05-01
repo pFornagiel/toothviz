@@ -1,26 +1,15 @@
 from __future__ import annotations
 
-import uuid
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.db.models import Blob, FileRecord
+from backend.db.models import FileRecord
 from backend.exceptions import NotFoundError
 
 
 class FileRepo:
     def __init__(self, db: Session) -> None:
         self._db = db
-
-    def create_blob(self, hash: str) -> Blob:
-        existing = self._db.get(Blob, hash)
-        if existing is not None:
-            return existing
-        blob = Blob(hash=hash)
-        self._db.add(blob)
-        self._db.commit()
-        self._db.refresh(blob)
-        return blob
 
     def create_file_record(
         self,

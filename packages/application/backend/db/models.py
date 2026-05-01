@@ -47,12 +47,6 @@ class Study(Base):
     )
 
 
-class Blob(Base):
-    __tablename__ = "blobs"
-
-    hash = Column(String(64), primary_key=True)
-
-
 class FileRecord(Base):
     __tablename__ = "file_records"
 
@@ -61,7 +55,7 @@ class FileRecord(Base):
     kind = Column(String, nullable=True)
     viewer_purpose = Column(String, nullable=True)
     display_name = Column(String, nullable=True)
-    blob_hash = Column(String(64), ForeignKey("blobs.hash"), index=True)
+    blob_hash = Column(String(64), index=True)
     size = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=_time_now)
 

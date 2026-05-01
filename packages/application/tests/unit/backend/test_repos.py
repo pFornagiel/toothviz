@@ -1,6 +1,6 @@
 import pytest
 
-from backend.db.models import Study, Blob, FileRecord
+from backend.db.models import Study, FileRecord
 from backend.db.repos.study_repo import StudyRepo
 from backend.db.repos.upload_session_repo import UploadSessionRepo
 from backend.db.repos.file_repo import FileRepo
@@ -74,24 +74,13 @@ def test_upload_session_list_by_state(db_session):
 
 # -- FileRepo --
 
-def _setup_study_and_blob(db_session):
+def _setup_study_with_files(db_session):
     db_session.add(Study(id="s1"))
-    db_session.add(Blob(hash="a" * 64))
     db_session.commit()
 
 
-def test_file_repo_create_blob_upsert(db_session):
-    repo = FileRepo(db_session)
-    b1 = repo.create_blob("a" * 64)
-    b2 = repo.create_blob("a" * 64)
-    assert b1.hash == b2.hash
-
-    count = db_session.query(Blob).count()
-    assert count == 1
-
-
 def test_file_repo_create_and_list(db_session):
-    _setup_study_and_blob(db_session)
+    _setup_study_with_files(db_session)
     repo = FileRepo(db_session)
 
     repo.create_file_record(
@@ -115,7 +104,7 @@ def test_file_repo_create_and_list(db_session):
 
 
 def test_file_repo_clear_viewer_purpose(db_session):
-    _setup_study_and_blob(db_session)
+    _setup_study_with_files(db_session)
     repo = FileRepo(db_session)
 
     repo.create_file_record(
@@ -140,7 +129,7 @@ def test_file_repo_clear_viewer_purpose(db_session):
 
 
 def test_file_repo_count_references(db_session):
-    _setup_study_and_blob(db_session)
+    _setup_study_with_files(db_session)
     repo = FileRepo(db_session)
 
     repo.create_file_record(
@@ -163,7 +152,6 @@ def test_file_repo_count_references(db_session):
 
 def test_pipeline_job_crud(db_session):
     db_session.add(Study(id="s1"))
-    db_session.add(Blob(hash="a" * 64))
     db_session.add(FileRecord(
         id="f1", study_id="s1", kind="nifti_raw",
         display_name="x.nii", blob_hash="a" * 64, size=100,
@@ -185,7 +173,6 @@ def test_pipeline_job_crud(db_session):
 
 def test_pipeline_job_get_active_for_study(db_session):
     db_session.add(Study(id="s1"))
-    db_session.add(Blob(hash="a" * 64))
     db_session.add(FileRecord(
         id="f1", study_id="s1", kind="nifti_raw",
         display_name="x.nii", blob_hash="a" * 64, size=100,

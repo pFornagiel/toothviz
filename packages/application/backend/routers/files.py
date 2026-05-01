@@ -5,7 +5,8 @@ from fastapi.responses import FileResponse
 
 from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
-from backend.schemas import FileRecordResponse, study_workflow_display_status
+from backend.schemas import FileRecordResponse
+from backend.utils.status import study_workflow_display_status
 
 router = APIRouter(prefix="/storage/studies", tags=["files"])
 

@@ -29,15 +29,15 @@ class StudyRepo:
         return study
 
     def get_with_pipeline_job(self, study_id: str) -> Study:
-        study = (
+        study_with_job = (
             self._db.query(Study)
             .options(selectinload(Study.pipeline_job))
             .filter(Study.id == study_id)
             .one_or_none()
         )
-        if study is None:
+        if study_with_job is None:
             raise NotFoundError(f"study not found: {study_id}")
-        return study
+        return study_with_job
 
     def list(self, name: str | None = None) -> list[Study]:
         q = self._db.query(Study).options(selectinload(Study.pipeline_job))

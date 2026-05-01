@@ -2,13 +2,13 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from backend.db.models import (
-    Base, Study, Blob, FileRecord, UploadSession, PipelineJob,
+    Base, Study, FileRecord, UploadSession, PipelineJob,
 )
 
 
 def test_create_all_tables(db_engine):
     table_names = set(Base.metadata.tables.keys())
-    expected = {"studies", "blobs", "file_records", "upload_sessions", "pipeline_jobs"}
+    expected = {"studies", "file_records", "upload_sessions", "pipeline_jobs"}
     assert expected == table_names
 
 
@@ -23,7 +23,6 @@ def test_study_columns(db_session):
 
 def test_file_record_viewer_purpose(db_session):
     db_session.add(Study(id="s1"))
-    db_session.add(Blob(hash="a" * 64))
     db_session.commit()
 
     rec = FileRecord(
@@ -40,7 +39,6 @@ def test_file_record_viewer_purpose(db_session):
 
 def test_pipeline_job_steps_json(db_session):
     db_session.add(Study(id="s1"))
-    db_session.add(Blob(hash="a" * 64))
     db_session.add(FileRecord(
         id="f1", study_id="s1", kind="nifti_raw",
         display_name="x.nii", blob_hash="a" * 64, size=100,

@@ -3,11 +3,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from backend.db.repos.study_repo import StudyRepo
+from backend.utils.status import study_workflow_display_status
 from backend.schemas import (
     CreateStudyRequest,
     RenameStudyRequest,
     StudyResponse,
-    study_workflow_display_status,
 )
 
 router = APIRouter(prefix="/storage/studies", tags=["studies"])

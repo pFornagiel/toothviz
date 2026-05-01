@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from backend.db.models import Study, Blob, FileRecord, PipelineJob
+from backend.db.models import Study, FileRecord, PipelineJob
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.services.storage_service import StorageService
 from backend.workers.pipeline_runner import run_pipeline
@@ -11,7 +11,6 @@ from backend.workers.ws_broadcaster import WSBroadcaster
 
 def _setup_db(db_session):
     db_session.add(Study(id="s1"))
-    db_session.add(Blob(hash="a" * 64))
     db_session.commit()
 
     db_session.add(FileRecord(

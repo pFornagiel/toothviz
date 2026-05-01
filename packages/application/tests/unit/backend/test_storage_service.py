@@ -1,10 +1,9 @@
 import pytest
 
-from backend.db.models import Blob
 from backend.db.repos.file_repo import FileRepo
 
 
-def test_store_original_creates_blob_and_file_record(
+def test_store_original_creates_file_record_and_links_cas(
     storage_service, storage_engine, db_session, session_factory, make_study,
 ):
     study = make_study(name="test")
@@ -23,8 +22,10 @@ def test_store_original_creates_blob_and_file_record(
     assert record.viewer_purpose == "viewer_volume"
 
     with session_factory() as db:
-        blob = db.get(Blob, record.blob_hash)
-        assert blob is not None
+        stored = FileRepo(db).get(record.id)
+        assert stored.blob_hash == record.blob_hash
+        cas_path = storage_engine.get_cas_blob_path(record.blob_hash)
+        assert cas_path.is_file()
 
 
 def test_store_original_viewer_purpose_supersede(
@@ -51,7 +52,7 @@ def test_store_original_viewer_purpose_supersede(
         assert volumes[0].id == r2.id
 
 
-def test_store_derived_creates_blob_and_file_record(
+def test_store_derived_creates_file_record(
     storage_service, storage_engine, session_factory, make_study, tmp_path,
 ):
     study = make_study(name="test")
@@ -89,9 +90,8 @@ def test_store_original_cas_dedup(
 
     assert r1.blob_hash == r2.blob_hash
 
-    with session_factory() as db:
-        count = db.query(Blob).count()
-        assert count == 1
+    blob_path = storage_engine.get_cas_blob_path(r1.blob_hash)
+    assert blob_path.is_file()
 
 
 def test_sweep_orphans_delegates(storage_service, storage_engine):

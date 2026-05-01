@@ -43,7 +43,6 @@ class StorageService:
             repo = FileRepo(db)
             if viewer_purpose:
                 repo.clear_viewer_purpose(study_id, viewer_purpose)
-            repo.create_blob(blob_hash)
             record = repo.create_file_record(
                 file_id=file_id,
                 study_id=study_id,
@@ -74,7 +73,6 @@ class StorageService:
             repo = FileRepo(db)
             if viewer_purpose:
                 repo.clear_viewer_purpose(study_id, viewer_purpose)
-            repo.create_blob(blob_hash)
             record = repo.create_file_record(
                 file_id=fid,
                 study_id=study_id,

@@ -2,7 +2,6 @@
 
 import pytest
 
-from backend.db.models import Blob
 from backend.db.repos.file_repo import FileRepo
 
 
@@ -60,8 +59,8 @@ def test_cas_dedup(client, created_study, integration_app):
         f2 = FileRepo(db).get(r2["file_id"])
         assert f1.blob_hash == f2.blob_hash
 
-        blob_count = db.query(Blob).count()
-        assert blob_count == 1
+        cas_path = svc.engine.get_cas_blob_path(f1.blob_hash)
+        assert cas_path.is_file()
 
 
 def test_purpose_supersede_on_re_upload(client, created_study, integration_app):

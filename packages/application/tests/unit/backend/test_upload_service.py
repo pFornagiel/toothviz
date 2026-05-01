@@ -1,6 +1,5 @@
 import pytest
 
-from backend.db.models import Blob
 from backend.db.repos.file_repo import FileRepo
 from backend.services.upload_service import UploadService
 

@@ -58,8 +58,14 @@ class JobPipelineService:
         self._broadcaster = broadcaster
         self._step_registry = step_registry
 
+        # Captured here (inside the async lifespan context) so that dispatch(),
+        # which runs on a worker thread, can hand coroutines back to this loop.
         self._loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
 
+        # Maps job_id -> concurrent.futures.Future wrapping the pipeline task.
+        # concurrent.futures.Future is used (rather than asyncio.Task) because
+        # it is thread-safe: cancel() and add_done_callback() can be called
+        # from any thread.
         self._running: dict[str, concurrent.futures.Future[None]] = {}
 
     def dispatch(
@@ -68,11 +74,18 @@ class JobPipelineService:
         pipelines: list[dict],
         db: Session,
     ) -> str | None:
-        """Build step chain, update the study's singleton PipelineJob, schedule work."""
+        """Build step chain, update the study's singleton PipelineJob, and schedule execution.
+
+        This method is synchronous because it is called from UploadService,
+        which is itself invoked via FastAPI's sync-route thread-pool. Async
+        work is handed off via ``run_coroutine_threadsafe`` (see class docstring).
+        """
+        # Phase 1: auto-steps derived from file type.
         auto_steps: list[PipelineStep] = []
         if file_record.kind == "dicom_zip":
             auto_steps.append(DicomToNiftiStep())
 
+        # Phase 2: user-requested steps from the pipelines payload.
         user_steps: list[PipelineStep] = []
         for item in pipelines:
             factory = self._step_registry[item["name"]]
@@ -103,6 +116,11 @@ class JobPipelineService:
             _worker_pool=self._worker_pool,
         )
 
+        # run_coroutine_threadsafe is required because:
+        # 1) dispatch() runs on a thread-pool worker, outside the event loop.
+        # 2) run_pipeline is async; calling it directly from sync code is invalid.
+        # 3) asyncio.create_task is not thread-safe from a non-loop thread.
+        # 4) this call safely submits to self._loop and returns immediately.
         future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
             run_pipeline(job.id, steps, ctx, self._storage_service),
             self._loop,
@@ -110,13 +128,19 @@ class JobPipelineService:
 
         self._running[job.id] = future
 
+        # Remove bookkeeping entry once the pipeline ends (success/failure/cancel).
         future.add_done_callback(lambda _f: self._running.pop(job.id, None))
 
         logger.debug("Dispatched pipeline job %s with %d step(s)", job.id, len(steps))
         return job.id
 
     def cancel(self, job_id: str) -> bool:
-        """Request cancellation of a running pipeline job."""
+        """Request cancellation of a running pipeline job.
+
+        Cancelling the concurrent.futures.Future propagates an
+        asyncio.CancelledError into the coroutine on the event loop, which
+        run_pipeline catches to mark the job as cancelled.
+        """
         future = self._running.get(job_id)
         if future is None:
             return False
