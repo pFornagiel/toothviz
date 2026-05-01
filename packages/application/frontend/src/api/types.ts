@@ -64,7 +64,9 @@ export interface FileRecordResponse {
 }
 
 export interface PipelineMessage {
-  status?: "running" | "completed" | "failed";
+  event?: string;
+  job_id?: string;
+  status?: "running" | "completed" | "failed" | "cancelled";
   step?: string;
   progress?: number;
   error?: string;

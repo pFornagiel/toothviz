@@ -18,6 +18,7 @@ from backend.services.upload_service import UploadService
 from backend.storage.local_engine import LocalStorageEngine
 from backend.workers.steps.base import StepFactory
 from backend.workers.steps.segment_nifti import SegmentNiftiStep
+from backend.workers.steps.step_config import SegmentNiftiStepConfig
 from backend.workers.subprocesses.segmentation_fn import _init_segmentation
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
@@ -47,20 +48,24 @@ async def lifespan(app: FastAPI):
     # 4. CAS OS Sweep Failsafe
     storage_service.sweep_orphans()
 
-    # 5. Worker pool + step registry
-    worker_pool = WorkerPool(
+    # 5. Worker pools (DICOM conversion does not load the ONNX model)
+    dicom_worker_pool = WorkerPool(max_workers=1)
+    segmentation_worker_pool = WorkerPool(
         max_workers=1,
         initializer=_init_segmentation,
-        initargs=(str(config.MODEL_PATH),),
+        initargs=(str(config.MODEL_PATH), config.ONNX_EXECUTION_PROVIDERS),
     )
-    
+
     step_registry: dict[str, StepFactory] = {
-        "segment_nifti": lambda cfg: SegmentNiftiStep(config=cfg),
+        "segment_nifti": lambda cfg: SegmentNiftiStep(
+            config=SegmentNiftiStepConfig.from_mapping(cfg),
+        ),
     }
 
     # 6. Pipeline service
     job_pipeline_service = JobPipelineService(
-        worker_pool,
+        dicom_worker_pool,
+        segmentation_worker_pool,
         SessionLocal,
         storage_service,
         broadcaster,

@@ -15,10 +15,14 @@ class StepContext:
     current_input_path: Path
     work_dir: Path
     broadcaster: WSBroadcaster
-    _worker_pool: WorkerPool = field(repr=False)
+    _dicom_worker_pool: WorkerPool = field(repr=False)
+    _segmentation_worker_pool: WorkerPool = field(repr=False)
 
-    async def run_subprocess(self, fn: Callable, *args: Any) -> Any:
-        return await self._worker_pool.run(fn, *args)
+    async def run_dicom_subprocess(self, fn: Callable, *args: Any) -> Any:
+        return await self._dicom_worker_pool.run(fn, *args)
+
+    async def run_segmentation_subprocess(self, fn: Callable, *args: Any) -> Any:
+        return await self._segmentation_worker_pool.run(fn, *args)
 
 
 @dataclass

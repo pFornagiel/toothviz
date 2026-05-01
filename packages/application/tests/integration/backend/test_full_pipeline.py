@@ -1,5 +1,8 @@
 """Phase 4 gate: end-to-end pipeline tests with mocked subprocess fns."""
 
+import io
+import zipfile
+
 import pytest
 
 from backend.db.repos.file_repo import FileRepo
@@ -87,3 +90,21 @@ def test_study_delete_cascades(client, created_study, integration_app):
     svc = integration_app.state.storage_service
     study_dir = svc.engine.root / "studies" / study_id
     assert not study_dir.exists()
+
+
+def test_dicom_zip_finalize_with_segmentation_returns_job_id(client, created_study):
+    study_id = created_study["id"]
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("slice.dcm", b"fake")
+    data = buf.getvalue()
+
+    result = _upload_file(
+        client,
+        study_id,
+        kind="dicom_zip",
+        filename="series.zip",
+        data=data,
+        pipelines=[{"name": "segment_nifti", "config": {}}],
+    )
+    assert result.get("job_id") is not None

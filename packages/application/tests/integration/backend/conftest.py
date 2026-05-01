@@ -3,9 +3,10 @@
 import pytest
 import pytest_asyncio
 from pathlib import Path
-from contextlib import asynccontextmanager
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
+import nibabel as nib
+import numpy as np
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
@@ -22,6 +23,7 @@ from backend.services.upload_service import UploadService
 from backend.storage.local_engine import LocalStorageEngine
 from backend.workers.steps.base import StepFactory
 from backend.workers.steps.segment_nifti import SegmentNiftiStep
+from backend.workers.steps.step_config import SegmentNiftiStepConfig
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
 
@@ -48,13 +50,44 @@ async def integration_app(tmp_path):
     storage_service = StorageService(storage_engine, session_factory)
     broadcaster = WSBroadcaster()
 
-    # No real worker pool in integration tests
-    pool = MagicMock(spec=WorkerPool)
+    # No real process pool in integration tests — return valid NIfTI stubs if a
+    # pipeline runs so ``run_pipeline`` can complete ``store_derived``.
+    dicom_pool = MagicMock(spec=WorkerPool)
+    seg_pool = MagicMock(spec=WorkerPool)
+
+    async def _stub_dicom_run(_fn, *_args, **_kwargs):
+        out_dir = Path(_args[2])
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / "converted.nii.gz"
+        img = nib.Nifti1Image(
+            np.zeros((4, 4, 4), dtype=np.float32), np.eye(4)
+        )
+        nib.save(img, str(out_path))
+        return str(out_path)
+
+    async def _stub_seg_run(_fn, *_args, **_kwargs):
+        out_dir = Path(_args[2])
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / "segmentation_mask.nii.gz"
+        img = nib.Nifti1Image(
+            np.zeros((4, 4, 4), dtype=np.uint8), np.eye(4)
+        )
+        nib.save(img, str(out_path))
+        return str(out_path)
+
+    dicom_pool.run = AsyncMock(side_effect=_stub_dicom_run)
+    seg_pool.run = AsyncMock(side_effect=_stub_seg_run)
     step_registry: dict[str, StepFactory] = {
-        "segment_nifti": lambda cfg: SegmentNiftiStep(config=cfg),
+        "segment_nifti": lambda cfg: SegmentNiftiStep(
+            config=SegmentNiftiStepConfig.from_mapping(cfg),
+        ),
     }
     job_pipeline_service = JobPipelineService(
-        pool, session_factory, storage_service, broadcaster,
+        dicom_pool,
+        seg_pool,
+        session_factory,
+        storage_service,
+        broadcaster,
         step_registry=step_registry,
     )
 
