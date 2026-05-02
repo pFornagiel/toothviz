@@ -6,7 +6,9 @@
 tooth/
 |-- README.md
 |-- setup.md
+|-- current_repository_structure.md
 |-- pyproject.toml
+|-- uv.lock
 |-- notes/
 |-- plans/
 |-- packages/
@@ -28,7 +30,9 @@ tooth/
 |---|---|
 | `README.md` | Short thesis/project summary and high-level folder description. |
 | `setup.md` | Practical run instructions for backend, frontend, and tests. |
-| `pyproject.toml` | Python project metadata, runtime dependencies, pytest config, and package discovery. |
+| `current_repository_structure.md` | This document: repository layout, backend architecture, and data flows. |
+| `pyproject.toml` | Python project metadata, runtime and dev dependency version bounds, pytest config, and package discovery. |
+| `uv.lock` | Locked dependency versions when using `uv` (optional reproducible installs). |
 | `notes/` | Research notes, thesis material, links, and internal meeting notes. Mostly project knowledge, not runtime code. |
 | `packages/application/` | Main proof-of-concept application: FastAPI backend, Vite/React frontend, runtime data, tests, and sample files. |
 | `packages/models/` | ML model assets, currently including `railnet_dental.onnx`. |
@@ -46,7 +50,11 @@ Runtime dependencies currently include:
 | `sqlalchemy` | ORM and SQLite database access. |
 | `pydantic` | Request and response schemas. |
 | `python-multipart` | Request body support for API usage. |
-| `nibabel`, `scipy`, `onnxruntime` | NIfTI processing and ONNX segmentation pipeline support. |
+| `nibabel`, `scipy`, `onnxruntime` | NIfTI I/O, array utilities, and ONNX inference. |
+| `dicom2nifti` | DICOM series → NIfTI conversion inside the DICOM worker subprocess. |
+| `dicom-anonymizer` | Optional DICOM tag anonymization (used by the `AnonymiseDicomStep` module; see pipeline section). |
+
+Dev dependency group (see `[dependency-groups]` in `pyproject.toml`) includes `pytest`, `pytest-asyncio`, and `httpx` for tests and HTTP clients.
 
 The package discovery path includes both `packages/prototyping` and `packages/application`, while pytest is scoped to `packages/application/tests`.
 
@@ -88,14 +96,31 @@ packages/application/backend/
 |-- services/
 |-- storage/
 |-- utils/
+|   |-- dicom_zip.py
+|   `-- status.py
 `-- workers/
+    |-- pipeline_runner.py
+    |-- worker_pool.py
+    |-- ws_broadcaster.py
+    |-- steps/
+    |   |-- base.py
+    |   |-- dicom_to_nifti.py
+    |   |-- dicom_anonymise.py
+    |   |-- segment_nifti.py
+    |   `-- configs/
+    |       |-- dicom_to_nifti.py
+    |       `-- segment_nifti.py
+    `-- subprocesses/
+        |-- _onnx_helpers.py
+        |-- dicom_fn.py
+        `-- segmentation_fn.py
 ```
 
 | Path | Purpose |
 |---|---|
-| `app.py` | FastAPI app factory and lifespan wiring. Creates DB tables, storage, services, worker pool, and routers. |
+| `app.py` | FastAPI app factory and lifespan wiring. Creates data root, DB tables, storage, named worker pools (`dicom`, `segmentation`), `JobPipelineService`, and routers. |
 | `main.py` | Uvicorn entry point that exposes the FastAPI app. |
-| `config.py` | Central paths and constants: chunk size, data root, SQLite URL, model path, CAS prefix length. |
+| `config.py` | Central paths and constants: chunk size, data root, SQLite URL, model path, ONNX execution providers, CAS prefix length. |
 | `exceptions.py` | Application error classes mapped to HTTP status codes. |
 | `schemas.py` | Pydantic API request and response models. |
 | `db/models.py` | SQLAlchemy models for studies, file records, upload sessions, and pipeline jobs. |
@@ -104,8 +129,9 @@ packages/application/backend/
 | `routers/` | FastAPI route modules for studies, uploads, files, and WebSocket pipeline updates. |
 | `services/` | Business logic layer used by routers. |
 | `storage/` | Storage protocol and local filesystem implementation. |
+| `utils/dicom_zip.py` | Safe extraction of DICOM ZIPs (size/member limits, path traversal checks), helpers to materialize DICOM input from ZIP or single `.dcm`, and optional directory→ZIP bundling. |
 | `utils/status.py` | Shared status mapping used by API responses. |
-| `workers/` | Pipeline runner, process pool, WebSocket broadcaster, pipeline steps, and subprocess compute functions. |
+| `workers/` | Pipeline runner, process pools, WebSocket broadcaster, pipeline steps (and per-step `configs/`), and subprocess compute functions. |
 
 ## 5. Backend Startup and Dependency Wiring
 
@@ -113,19 +139,19 @@ Startup is defined in `backend/app.py` through the FastAPI lifespan context.
 
 The current startup sequence is:
 
-1. Create all SQLAlchemy tables with `Base.metadata.create_all(engine)`.
+1. Ensure `config.DATA_ROOT` exists, then create all SQLAlchemy tables with `Base.metadata.create_all(engine)`.
 2. Build `LocalStorageEngine` using `config.DATA_ROOT`.
 3. Wrap it in `StorageService`.
 4. Create a `WSBroadcaster`.
 5. Abort lingering `UploadSession` rows that are still `active` from a previous run.
 6. Run a CAS orphan sweep as a startup failsafe.
-7. Start a `WorkerPool` with one process and initialize the ONNX segmentation model inside that process.
-8. Build the pipeline step registry. At the moment, the user-facing pipeline registry exposes `segment_nifti`.
-9. Create `JobPipelineService`, `StudyService`, and `UploadService`.
+7. Start two `WorkerPool` instances (each `max_workers=1` by default): one plain pool for DICOM→NIfTI (`"dicom"`), and one whose worker processes run `_init_segmentation(model_path, execution_providers)` for ONNX (`"segmentation"`), using `config.MODEL_PATH` and `config.ONNX_EXECUTION_PROVIDERS`.
+8. Build the pipeline step registry. The HTTP-facing registry currently exposes `segment_nifti`, constructed with `SegmentNiftiStepConfig.from_mapping(...)`.
+9. Create `JobPipelineService` with the `worker_pools` mapping, `StudyService`, and `UploadService`.
 10. Attach the services and broadcaster to `app.state`.
 11. Register routers for studies, uploads, files, and WebSockets.
 
-On shutdown, `JobPipelineService.shutdown()` cancels in-flight jobs and shuts down the process pool.
+On shutdown, `JobPipelineService.shutdown()` cancels in-flight jobs and shuts down **all** worker pools.
 
 ## 6. Configuration
 
@@ -137,6 +163,7 @@ On shutdown, `JobPipelineService.shutdown()` cancels in-flight jobs and shuts do
 | `DATA_ROOT` | `packages/application/data`. |
 | `STORAGE_DB_URL` | SQLite database at `packages/application/data/cbct.db`. |
 | `MODEL_PATH` | `packages/models/railnet_dental.onnx`. |
+| `ONNX_EXECUTION_PROVIDERS` | Tuple passed to ONNX Runtime (default `("CPUExecutionProvider",)`). |
 | `CAS_BLOB_HASH_LENGTH` | `2`, so CAS blobs are partitioned by the first two hash characters. |
 
 ## 7. Database Models
@@ -423,8 +450,8 @@ run_pipeline(...)
     |
     | sets job -> running
     | runs steps sequentially
-    | collects OutputArtifact objects by purpose
-    | stores derived artifacts through StorageService
+    | collects OutputArtifact objects by viewer purpose (each purpose at most once)
+    | stores derived artifacts through StorageService only after all steps succeed
     | sets job -> completed / failed / cancelled
     v
 FileRecord rows + CAS blobs + WebSocket messages
@@ -432,7 +459,7 @@ FileRecord rows + CAS blobs + WebSocket messages
 
 ### Threading model
 
-FastAPI sync route handlers run in a worker thread, while `run_pipeline(...)` is async and must execute on the app event loop. `JobPipelineService` captures the event loop during FastAPI lifespan startup and uses `asyncio.run_coroutine_threadsafe(...)` to schedule pipeline work from sync service code.
+FastAPI sync route handlers run in a worker thread, while `run_pipeline(...)` is async and must execute on the app event loop. `JobPipelineService` captures the event loop during FastAPI lifespan startup and uses `asyncio.run_coroutine_threadsafe(...)` to schedule pipeline work from sync service code. It holds a `dict[str, WorkerPool]` so DICOM conversion and ONNX segmentation do not share one process pool.
 
 The returned `concurrent.futures.Future` is stored in `_running` by `job_id`, which allows cancellation from service code.
 
@@ -458,9 +485,9 @@ If no steps are produced, dispatch returns `None` and the upload flow marks the 
 | `current_input_path` | Current input file path for the next step. |
 | `work_dir` | Temporary job workspace under `data/tmp/jobs/{job_id}`. |
 | `broadcaster` | WebSocket broadcaster for job updates. |
-| `_worker_pool` | Process pool wrapper used to run CPU/ML work out-of-process. |
+| `worker_pools` | Map of pool name → `WorkerPool` (`"dicom"` for DICOM conversion, `"segmentation"` for ONNX). |
 
-`StepContext.run_subprocess(...)` delegates compute functions to `WorkerPool.run(...)`.
+`StepContext.run_in_worker_pool(pool_name, fn, *args)` schedules `fn` on the named pool's executor (see `WORKER_POOL_DICOM` / `WORKER_POOL_SEGMENTATION` in `workers/steps/base.py`). Missing pool names raise a `KeyError` with a clear message.
 
 ### Pipeline steps
 
@@ -468,16 +495,21 @@ If no steps are produced, dispatch returns `None` and the upload flow marks the 
 |---|---|---|---|
 | `DicomToNiftiStep` | `workers/steps/dicom_to_nifti.py` | DICOM ZIP or single `.dcm` path | `converted.nii.gz`, `kind="nifti_derived"`, `purpose="viewer_volume"` |
 | `SegmentNiftiStep` | `workers/steps/segment_nifti.py` | NIfTI path | `segmentation_mask.nii.gz`, `kind="segmentation_mask"`, `purpose="viewer_overlay"` |
+| `AnonymiseDicomStep` | `workers/steps/dicom_anonymise.py` | ZIP, DICOM tree, or single `.dcm` | None by default (forwards anonymized path or bundle ZIP as `next_input_path` only). |
 
-`run_pipeline(...)` stores only one artifact per purpose. If multiple steps emit the same purpose, the later artifact overwrites the earlier artifact in the in-memory collection before storage.
+`DicomToNiftiStep` uses `DicomToNiftiStepConfig` (ZIP member cap and max uncompressed bytes, aligned with `utils/dicom_zip` defaults). `SegmentNiftiStep` uses `SegmentNiftiStepConfig` (`threshold`, `pad_multiple`; validated in `from_mapping` when passed from the API).
+
+`AnonymiseDicomStep` is implemented for pipeline composition but is **not** registered in `app.py`'s `step_registry` today, so it is not reachable from the public finalize `pipelines` payload until wired through configuration.
+
+`run_pipeline(...)` stores at most **one** `OutputArtifact` per viewer `purpose`. If a later step emits the same purpose as an earlier step, the orchestrator raises `ValueError` (duplicate purpose) instead of overwriting.
 
 ### Subprocess functions
 
 | Function | File | Behavior |
 |---|---|---|
-| `convert_dicom(...)` | `workers/subprocesses/dicom_fn.py` | Extracts ZIP or copies a single DICOM file, then currently writes a placeholder/zero-array NIfTI through nibabel fallback behavior. |
-| `_init_segmentation(...)` | `workers/subprocesses/segmentation_fn.py` | Loads the ONNX model once per worker process. |
-| `run_segmentation(...)` | `workers/subprocesses/segmentation_fn.py` | Loads a NIfTI, pads input to a multiple of 16, runs ONNX inference, thresholds output at `0.5`, unpads, and saves a mask NIfTI. |
+| `convert_dicom(...)` | `workers/subprocesses/dicom_fn.py` | Materializes DICOM from ZIP or single file via `populate_dir_from_zip_or_file` (limits from step config), runs `dicom2nifti.convert_directory`, collects `*.nii` / `*.nii.gz` outputs, selects the **primary** volume (largest 3D voxel count) when several exist, writes `converted.nii.gz`, and validates by loading with nibabel. Raises `RuntimeError` with actionable text when conversion fails or yields no volume. |
+| `_init_segmentation(...)` | `workers/subprocesses/segmentation_fn.py` | Loads the ONNX model once per worker process using `execution_providers` from config. |
+| `run_segmentation(...)` | `workers/subprocesses/segmentation_fn.py` | Loads a NIfTI, requires a **3D** volume (with a squeeze for singleton 4D trailing dim), pads to a configurable multiple (default 16), runs ONNX inference, thresholds by configurable threshold (default `0.5`), unpads, and saves `segmentation_mask.nii.gz` with `uint8` storage dtype. |
 
 ### Pipeline statuses
 
@@ -692,9 +724,12 @@ Backend unit tests cover:
 | Local storage engine | Chunk writes, CAS commit, checksum/size validation, deduplication, hardlinks, job workspaces, and orphan sweeping. |
 | Storage service | Original and derived file storage and viewer purpose superseding. |
 | Upload service | Begin/write/finalize/abort behavior and pipeline dispatch decisions. |
-| Job pipeline service | Step construction, dispatch, cancellation bookkeeping. |
-| Pipeline runner | Status transitions, derived artifact storage, cancellation, failure handling. |
-| Pipeline steps | Step result contracts and subprocess delegation. |
+| Job pipeline service | Step construction, dispatch, cancellation bookkeeping, named worker pools. |
+| Pipeline runner | Status transitions, derived artifact storage (after full success), duplicate-purpose guard, cancellation, failure handling, workspace cleanup. |
+| Pipeline steps | Step result contracts and worker-pool delegation. |
+| Step configs | `DicomToNiftiStepConfig` / `SegmentNiftiStepConfig` parsing and validation. |
+| DICOM subprocess | `convert_dicom` / multi-NIfTI selection (see `test_dicom_fn.py`). |
+| Segmentation subprocess | `run_segmentation` shape and output handling (see `test_segmentation_fn.py`). |
 | WebSocket broadcaster | Registration, broadcast, cleanup of failed sockets. |
 
 ### Backend integration tests
@@ -705,7 +740,7 @@ Integration tests exercise HTTP/API-level flows:
 |---|---|
 | Upload flow | Begin, chunk upload, status, finalize, abort. |
 | Study lifecycle | Create, list, rename, delete. |
-| Full pipeline behavior | NIfTI upload, precomputed mask upload, viewer purpose filtering, CAS deduplication, active-purpose superseding, and study delete cleanup. |
+| Full pipeline behavior | NIfTI upload, precomputed mask upload, viewer purpose filtering, CAS deduplication, active-purpose superseding, study delete cleanup (`integration/backend/test_full_pipeline.py`); integration `conftest` constructs `JobPipelineService` with separate mocked DICOM and segmentation pools matching production wiring. |
 
 ## 20. End-to-End Data Flows
 
@@ -728,7 +763,7 @@ Integration tests exercise HTTP/API-level flows:
 4. `PipelineJob.source_file_id` points to that raw file.
 5. `JobPipelineService` dispatches `segment_nifti`.
 6. `run_pipeline(...)` sets job status to `running`.
-7. `SegmentNiftiStep` runs ONNX segmentation in the process pool.
+7. `SegmentNiftiStep` runs ONNX segmentation in the **segmentation** worker pool.
 8. The produced mask is committed to CAS via `store_derived(...)`.
 9. A `FileRecord` is created with `kind="segmentation_mask"` and `viewer_purpose="viewer_overlay"`.
 10. Job status becomes `completed`, which maps to display status `ready`.
@@ -772,7 +807,8 @@ Integration tests exercise HTTP/API-level flows:
 - CAS blobs are immutable by content hash. `FileRecord` rows provide study ownership, display name, purpose, and API visibility.
 - The frontend's duplicate study-name check is a UI-level guard only. The database allows duplicate names.
 - Pipeline WebSocket messages are transient. Current durable state is stored on `PipelineJob`, not in a separate event log.
-- DICOM conversion currently has placeholder/fallback behavior rather than a full production DICOM-to-NIfTI conversion stack.
+- DICOM conversion uses `dicom2nifti` in a dedicated subprocess pool; multi-series ZIPs may yield several NIfTI files—the worker selects the largest volumetric candidate. Non-stackable or scout-only series may still produce **no** NIfTI (surfaced as a `RuntimeError` in the worker).
+- `AnonymiseDicomStep` and `dicom-anonymizer` are available in the codebase for future pipeline wiring; they are not exposed in the FastAPI `step_registry` yet.
 - CAS orphan sweeping based on hardlink count works best when study files are hardlinks. If the engine had to copy because hardlinks failed, DB-reference cleanup during study deletion is the more reliable cleanup path.
 
 ## 22. Quick Run Reference
