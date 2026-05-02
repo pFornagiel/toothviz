@@ -9,7 +9,7 @@ from backend.services.job_pipeline_service import JobPipelineService
 from backend.services.storage_service import StorageService
 from backend.workers.steps.base import StepFactory
 from backend.workers.steps.segment_nifti import SegmentNiftiStep
-from backend.workers.steps.step_config import SegmentNiftiStepConfig
+from backend.workers.steps.configs import SegmentNiftiStepConfig
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
 

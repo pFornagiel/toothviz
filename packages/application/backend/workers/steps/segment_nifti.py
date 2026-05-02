@@ -9,7 +9,7 @@ from backend.workers.steps.base import (
     StepResult,
     WORKER_POOL_SEGMENTATION,
 )
-from backend.workers.steps.step_config import SegmentNiftiStepConfig
+from backend.workers.steps.configs import SegmentNiftiStepConfig
 from backend.workers.subprocesses.segmentation_fn import run_segmentation
 
 

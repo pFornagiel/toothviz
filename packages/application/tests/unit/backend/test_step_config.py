@@ -1,6 +1,6 @@
 import pytest
 
-from backend.workers.steps.step_config import (
+from backend.workers.steps.configs import (
     DicomToNiftiStepConfig,
     SegmentNiftiStepConfig,
 )

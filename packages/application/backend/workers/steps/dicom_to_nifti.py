@@ -9,7 +9,7 @@ from backend.workers.steps.base import (
     StepResult,
     WORKER_POOL_DICOM,
 )
-from backend.workers.steps.step_config import DicomToNiftiStepConfig
+from backend.workers.steps.configs import DicomToNiftiStepConfig
 from backend.workers.subprocesses.dicom_fn import convert_dicom
 
 
