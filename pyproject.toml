@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "dicom-anonymizer>=1.0.13,<2",
     "dicom2nifti>=2.6.2",
     "fastapi>=0.135.2",
     "nibabel>=5.4.2",

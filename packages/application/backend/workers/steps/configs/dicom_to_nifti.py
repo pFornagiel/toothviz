@@ -5,11 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from backend.utils.dicom_zip import (
+    DEFAULT_MAX_UNCOMPRESSED_ZIP_BYTES,
+    DEFAULT_MAX_ZIP_MEMBERS,
+)
+
 
 @dataclass(frozen=True)
 class DicomToNiftiStepConfig:
-    max_zip_members: int = 10_000
-    max_uncompressed_zip_bytes: int = 500 * 1024 * 1024
+    max_zip_members: int = DEFAULT_MAX_ZIP_MEMBERS
+    max_uncompressed_zip_bytes: int = DEFAULT_MAX_UNCOMPRESSED_ZIP_BYTES
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> DicomToNiftiStepConfig:

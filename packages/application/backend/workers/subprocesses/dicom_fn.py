@@ -6,62 +6,12 @@ Runs in a subprocess via WorkerPool. Receives and returns plain strings only.
 from __future__ import annotations
 
 import shutil
-import zipfile
 from pathlib import Path
 
 import dicom2nifti
 import nibabel as nib
 
-
-def _safe_extract_zip(
-    zip_path: Path,
-    dest_dir: Path,
-    max_members: int,
-    max_uncompressed_bytes: int,
-) -> None:
-    """Extract a ZIP into ``dest_dir`` with size and path-safety checks.
-
-    Rejects archives with too many entries, too much total size, 
-    or any member whose resolved path would leave
-    ``dest_dir``. Directories in the archive are skipped; files are
-    written.
-
-    Raises:
-        ValueError: Limits exceeded or an unsafe member path.
-    """
-    dest_dir = dest_dir.resolve()
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
-    with zipfile.ZipFile(zip_path) as zf:
-        infos = zf.infolist()
-        if len(infos) > max_members:
-            raise ValueError(
-                f"ZIP contains too many members ({len(infos)} > {max_members})"
-            )
-        total_uncompressed = sum(i.file_size for i in infos if not i.is_dir())
-        if total_uncompressed > max_uncompressed_bytes:
-            raise ValueError(
-                "ZIP uncompressed size exceeds configured limit "
-                f"({total_uncompressed} > {max_uncompressed_bytes})"
-            )
-
-        to_extract: list[tuple[zipfile.ZipInfo, Path]] = []
-        for info in infos:
-            if info.is_dir():
-                continue
-            target = (dest_dir / Path(info.filename)).resolve()
-            try:
-                target.relative_to(dest_dir)
-            except ValueError:
-                raise ValueError(
-                    f"ZIP path escapes destination: {info.filename!r}"
-                ) from None
-            to_extract.append((info, target))
-
-        for info, target in to_extract:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with zf.open(info, "r") as src, open(target, "wb") as dst:
-                shutil.copyfileobj(src, dst, length=1024 * 1024)
+from backend.utils.dicom_zip import populate_dir_from_zip_or_file
 
 
 def _collect_nifti_candidates(directory: Path) -> list[Path]:
@@ -90,18 +40,12 @@ def convert_dicom(
     dicom_dir.mkdir(parents=True, exist_ok=True)
 
     src_input = Path(input_path)
-    if not src_input.is_file():
-        raise FileNotFoundError(f"DICOM input not found: {input_path}")
-
-    if zipfile.is_zipfile(input_path):
-        _safe_extract_zip(
-            src_input,
-            dicom_dir,
-            max_members=max_zip_members,
-            max_uncompressed_bytes=max_uncompressed_zip_bytes,
-        )
-    else:
-        shutil.copy2(src_input, dicom_dir / src_input.name)
+    populate_dir_from_zip_or_file(
+        src_input,
+        dicom_dir,
+        max_members=max_zip_members,
+        max_uncompressed_bytes=max_uncompressed_zip_bytes,
+    )
 
     nifti_dir = out / "nifti_from_dicom"
     if nifti_dir.exists():
