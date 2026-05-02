@@ -71,28 +71,32 @@ def test_convert_dicom_success_writes_single_nifti(tmp_path):
     assert loaded.shape == (3, 4, 5)
 
 
-def test_convert_dicom_requires_unique_output_volume(tmp_path):
+def test_convert_dicom_multi_series_picks_largest_volume(tmp_path):
+    """CBCT zips often yield several NIfTIs; we keep the spatially largest."""
     zip_path = tmp_path / "in.zip"
     out = tmp_path / "out"
 
     def _fake_convert(dicom_in: str, nifti_out: str, **kwargs):
         dest = Path(nifti_out)
         dest.mkdir(parents=True, exist_ok=True)
-        for name in ("a.nii.gz", "b.nii.gz"):
-            img = nib.Nifti1Image(np.zeros((2, 2, 2), np.float32), np.eye(4))
-            nib.save(img, str(dest / name))
+        small = nib.Nifti1Image(np.zeros((2, 2, 2), np.float32), np.eye(4))
+        large = nib.Nifti1Image(np.zeros((3, 4, 5), np.float32), np.eye(4))
+        nib.save(small, str(dest / "a.nii.gz"))
+        nib.save(large, str(dest / "b.nii.gz"))
 
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("a.dcm", b"x")
 
     with patch.object(dicom_fn.dicom2nifti, "convert_directory", _fake_convert):
-        with pytest.raises(RuntimeError, match="Ambiguous"):
-            dicom_fn.convert_dicom(
-                str(zip_path),
-                str(out),
-                max_zip_members=100,
-                max_uncompressed_zip_bytes=10_000_000,
-            )
+        result = dicom_fn.convert_dicom(
+            str(zip_path),
+            str(out),
+            max_zip_members=100,
+            max_uncompressed_zip_bytes=10_000_000,
+        )
+
+    loaded = nib.load(result)
+    assert loaded.shape == (3, 4, 5)
 
 
 def test_convert_dicom_converts_loose_file(tmp_path):
