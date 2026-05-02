@@ -20,7 +20,7 @@ async def run_pipeline(
 ) -> None:
     """Async orchestrator — runs steps sequentially, commits artifacts at the end.
 
-    **Atomic semantics:** derived files are stored only after every step succeeds.
+    Derived files are stored only after every step succeeds.
     If any step fails, no artifacts from this run are persisted (the job is
     marked ``failed`` and the workspace is removed in ``finally``).
     """
