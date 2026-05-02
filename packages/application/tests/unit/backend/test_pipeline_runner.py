@@ -5,7 +5,13 @@ from backend.db.models import Study, FileRecord, PipelineJob
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.services.storage_service import StorageService
 from backend.workers.pipeline_runner import run_pipeline
-from backend.workers.steps.base import StepContext, OutputArtifact, StepResult
+from backend.workers.steps.base import (
+    StepContext,
+    OutputArtifact,
+    StepResult,
+    WORKER_POOL_DICOM,
+    WORKER_POOL_SEGMENTATION,
+)
 from backend.workers.ws_broadcaster import WSBroadcaster
 
 
@@ -43,6 +49,20 @@ class MockStep:
         )
 
 
+def _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool):
+    return StepContext(
+        job_id="j1",
+        study_id="s1",
+        current_input_path=input_file,
+        work_dir=work_dir,
+        broadcaster=broadcaster,
+        worker_pools={
+            WORKER_POOL_DICOM: dicom_pool,
+            WORKER_POOL_SEGMENTATION: seg_pool,
+        },
+    )
+
+
 @pytest.mark.asyncio
 async def test_run_pipeline_success(
     db_session, session_factory, storage_engine, tmp_path,
@@ -64,15 +84,10 @@ async def test_run_pipeline_success(
     work_dir = tmp_path / "work"
 
     broadcaster = AsyncMock(spec=WSBroadcaster)
-    pool = MagicMock()
+    dicom_pool = MagicMock()
+    seg_pool = MagicMock()
 
-    ctx = StepContext(
-        job_id="j1", study_id="s1",
-        current_input_path=input_file,
-        work_dir=work_dir,
-        broadcaster=broadcaster,
-        _worker_pool=pool,
-    )
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
     await run_pipeline("j1", steps, ctx, storage_service)
 
@@ -95,22 +110,89 @@ async def test_run_pipeline_failure(
     work_dir = tmp_path / "work"
 
     broadcaster = AsyncMock(spec=WSBroadcaster)
-    pool = MagicMock()
+    dicom_pool = MagicMock()
+    seg_pool = MagicMock()
 
-    ctx = StepContext(
-        job_id="j1", study_id="s1",
-        current_input_path=input_file,
-        work_dir=work_dir,
-        broadcaster=broadcaster,
-        _worker_pool=pool,
-    )
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
     await run_pipeline("j1", steps, ctx, storage_service)
 
     with session_factory() as db:
         j = PipelineJobRepo(db).get("j1")
         assert j.status == "failed"
-        assert j.error == "boom"
+        assert "bad_step" in (j.error or "")
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_failure_is_atomic_no_store_derived(
+    db_session, session_factory, storage_engine, tmp_path,
+):
+    _setup_db(db_session)
+    storage_service = StorageService(storage_engine, session_factory)
+
+    ok_artifact = tmp_path / "would_store.nii"
+    ok_artifact.write_bytes(b"x")
+
+    steps = [
+        MockStep("good", artifacts=[
+            OutputArtifact(path=ok_artifact, kind="nifti_derived", purpose="viewer_volume"),
+        ]),
+        MockStep("bad", error=RuntimeError("seg failed")),
+    ]
+
+    input_file = tmp_path / "input.nii"
+    input_file.write_bytes(b"data")
+    work_dir = tmp_path / "work"
+
+    broadcaster = AsyncMock(spec=WSBroadcaster)
+    dicom_pool = MagicMock()
+    seg_pool = MagicMock()
+
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
+
+    with patch.object(storage_service, "store_derived") as mock_store:
+        await run_pipeline("j1", steps, ctx, storage_service)
+        mock_store.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_duplicate_purpose_fails(
+    db_session, session_factory, storage_engine, tmp_path,
+):
+    _setup_db(db_session)
+    storage_service = StorageService(storage_engine, session_factory)
+
+    a1 = tmp_path / "a.nii"
+    a2 = tmp_path / "b.nii"
+    a1.write_bytes(b"a")
+    a2.write_bytes(b"b")
+
+    steps = [
+        MockStep("step1", artifacts=[
+            OutputArtifact(path=a1, kind="nifti_derived", purpose="viewer_volume"),
+            OutputArtifact(path=a2, kind="segmentation_mask", purpose="viewer_volume"),
+        ]),
+    ]
+
+    input_file = tmp_path / "input.nii"
+    input_file.write_bytes(b"data")
+    work_dir = tmp_path / "work"
+
+    broadcaster = AsyncMock(spec=WSBroadcaster)
+    dicom_pool = MagicMock()
+    seg_pool = MagicMock()
+
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
+
+    with patch.object(storage_service, "store_derived") as mock_store:
+        await run_pipeline("j1", steps, ctx, storage_service)
+        mock_store.assert_not_called()
+
+    with session_factory() as db:
+        j = PipelineJobRepo(db).get("j1")
+        assert j.status == "failed"
+        assert j.error is not None
+        assert "Duplicate viewer purpose" in j.error
 
 
 @pytest.mark.asyncio
@@ -126,15 +208,10 @@ async def test_run_pipeline_cleans_work_dir(
     work_dir = tmp_path / "work"
 
     broadcaster = AsyncMock(spec=WSBroadcaster)
-    pool = MagicMock()
+    dicom_pool = MagicMock()
+    seg_pool = MagicMock()
 
-    ctx = StepContext(
-        job_id="j1", study_id="s1",
-        current_input_path=input_file,
-        work_dir=work_dir,
-        broadcaster=broadcaster,
-        _worker_pool=pool,
-    )
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
     await run_pipeline("j1", steps, ctx, storage_service)
     assert not work_dir.exists()

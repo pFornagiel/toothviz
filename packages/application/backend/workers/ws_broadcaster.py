@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import defaultdict
 from typing import Any
 
 from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
 
 
 class WSBroadcaster:
@@ -36,7 +39,10 @@ class WSBroadcaster:
         for ws in conns:
             try:
                 await ws.send_text(text)
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "WebSocket send failed for job %s: %s", job_id, exc
+                )
                 dead.append(ws)
         for ws in dead:
             try:

@@ -8,6 +8,11 @@ from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
 
 
+# Registered keys for `StepContext.worker_pools` — must exist at app bootstrap.
+WORKER_POOL_DICOM = "dicom"
+WORKER_POOL_SEGMENTATION = "segmentation"
+
+
 @dataclass
 class StepContext:
     job_id: str
@@ -15,10 +20,17 @@ class StepContext:
     current_input_path: Path
     work_dir: Path
     broadcaster: WSBroadcaster
-    _worker_pool: WorkerPool = field(repr=False)
+    worker_pools: dict[str, WorkerPool] = field(repr=False)
 
-    async def run_subprocess(self, fn: Callable, *args: Any) -> Any:
-        return await self._worker_pool.run(fn, *args)
+    async def run_in_worker_pool(self, pool_name: str, fn: Callable, *args: Any) -> Any:
+        try:
+            pool = self.worker_pools[pool_name]
+        except KeyError:
+            known = ", ".join(sorted(self.worker_pools))
+            raise KeyError(
+                f"{pool_name} not in worker_pools; known pools: {known}"
+            ) from None
+        return await pool.run(fn, *args)
 
 
 @dataclass

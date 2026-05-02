@@ -4,10 +4,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.db.models import Study, FileRecord
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
+from backend.exceptions import ConflictError
 from backend.services.job_pipeline_service import JobPipelineService
 from backend.services.storage_service import StorageService
 from backend.workers.steps.base import StepFactory
 from backend.workers.steps.segment_nifti import SegmentNiftiStep
+from backend.workers.steps.configs import SegmentNiftiStepConfig
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
 
@@ -29,12 +31,22 @@ def _setup_db(db_session, kind="nifti_raw"):
 async def jps(session_factory, storage_engine, tmp_data_root):
     storage_service = StorageService(storage_engine, session_factory)
     broadcaster = AsyncMock(spec=WSBroadcaster)
-    pool = MagicMock(spec=WorkerPool)
+    dicom_pool = MagicMock(spec=WorkerPool)
+    seg_pool = MagicMock(spec=WorkerPool)
     step_registry: dict[str, StepFactory] = {
-        "segment_nifti": lambda cfg: SegmentNiftiStep(config=cfg),
+        "segment_nifti": lambda cfg: SegmentNiftiStep(
+            config=SegmentNiftiStepConfig.from_mapping(cfg),
+        ),
+    }
+    worker_pools = {
+        "dicom": dicom_pool,
+        "segmentation": seg_pool,
     }
     return JobPipelineService(
-        pool, session_factory, storage_service, broadcaster,
+        worker_pools,
+        session_factory,
+        storage_service,
+        broadcaster,
         step_registry=step_registry,
     )
 
@@ -100,3 +112,27 @@ async def test_dispatch_no_steps_returns_none(db_session, jps):
 
     job_id = jps.dispatch(rec, [], db_session)
     assert job_id is None
+
+
+@pytest.mark.asyncio
+async def test_dispatch_conflict_when_job_active(db_session, jps):
+    rec1 = _setup_db(db_session, kind="dicom_zip")
+    with patch("backend.services.job_pipeline_service.asyncio.run_coroutine_threadsafe") as mock_rcf:
+        fut = MagicMock()
+        fut.add_done_callback = MagicMock()
+        mock_rcf.return_value = fut
+        jps.dispatch(rec1, [], db_session)
+
+    rec2 = FileRecord(
+        id="f2",
+        study_id="s1",
+        kind="dicom_zip",
+        display_name="vol2.zip",
+        blob_hash="b" * 64,
+        size=100,
+    )
+    db_session.add(rec2)
+    db_session.commit()
+
+    with pytest.raises(ConflictError):
+        jps.dispatch(rec2, [], db_session)
