@@ -23,7 +23,13 @@ class StepContext:
     worker_pools: dict[str, WorkerPool] = field(repr=False)
 
     async def run_in_worker_pool(self, pool_name: str, fn: Callable, *args: Any) -> Any:
-        pool = self.worker_pools[pool_name]
+        try:
+            pool = self.worker_pools[pool_name]
+        except KeyError:
+            known = ", ".join(sorted(self.worker_pools))
+            raise KeyError(
+                f"{pool_name} not in worker_pools; known pools: {known}"
+            ) from None
         return await pool.run(fn, *args)
 
 

@@ -16,10 +16,19 @@ import nibabel as nib
 def _safe_extract_zip(
     zip_path: Path,
     dest_dir: Path,
-    *,
     max_members: int,
     max_uncompressed_bytes: int,
 ) -> None:
+    """Extract a ZIP into ``dest_dir`` with size and path-safety checks.
+
+    Rejects archives with too many entries, too much total size, 
+    or any member whose resolved path would leave
+    ``dest_dir``. Directories in the archive are skipped; files are
+    written.
+
+    Raises:
+        ValueError: Limits exceeded or an unsafe member path.
+    """
     dest_dir = dest_dir.resolve()
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -94,25 +103,24 @@ def convert_dicom(
     else:
         shutil.copy2(src_input, dicom_dir / src_input.name)
 
-    nifti_stage = out / "nifti_from_dicom"
-    if nifti_stage.exists():
-        shutil.rmtree(nifti_stage)
-    nifti_stage.mkdir(parents=True, exist_ok=True)
+    nifti_dir = out / "nifti_from_dicom"
+    if nifti_dir.exists():
+        shutil.rmtree(nifti_dir)
+    nifti_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         dicom2nifti.convert_directory(
             str(dicom_dir),
-            str(nifti_stage),
+            str(nifti_dir),
             compression=True,
             reorient=True,
         )
     except Exception as exc:
         raise RuntimeError(
-            "DICOM to NIfTI conversion failed "
-            "(no valid series or missing DICOM files?)"
+            "DICOM to NIfTI conversion failed (no valid series or missing DICOM files?)"
         ) from exc
 
-    candidates = _collect_nifti_candidates(nifti_stage)
+    candidates = _collect_nifti_candidates(nifti_dir)
     if not candidates:
         raise RuntimeError(
             "DICOM conversion produced no NIfTI files (check the archive contents)"
@@ -121,14 +129,13 @@ def convert_dicom(
         names = [p.name for p in candidates]
         raise RuntimeError(
             "Ambiguous DICOM conversion: expected one NIfTI volume, "
-            f"got {len(candidates)}: {names[:10]}"
-            + ("..." if len(names) > 10 else "")
+            f"got {len(candidates)}: {names[:10]}" + ("..." if len(names) > 10 else "")
         )
 
     final_path = out / "converted.nii.gz"
     img = nib.load(str(candidates[0]))
     nib.save(img, str(final_path))
 
-    # Validate round-trip (catch corrupted writer output early)
+    # Validate (catch corrupted writer output early)
     _ = nib.load(str(final_path))
     return str(final_path)
