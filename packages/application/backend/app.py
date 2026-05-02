@@ -26,7 +26,8 @@ from backend.workers.ws_broadcaster import WSBroadcaster
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Create tables
+    # 1. Create data root and tables
+    config.DATA_ROOT.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
 
     # 2. Build storage objects

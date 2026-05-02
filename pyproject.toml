@@ -5,8 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "dicom-anonymizer>=1.0.13,<2",
-    "dicom2nifti>=2.6.2",
+    # 1.0.13 wheel was yanked; .post1 is the replacement and still pins pydicom<3.
+    "dicom-anonymizer>=1.0.13.post1,<2",
+    # 2.6.x requires pydicom>=3, which conflicts with dicom-anonymizer; stay on 2.5.x.
+    "dicom2nifti>=2.5,<2.6",
     "fastapi>=0.135.2",
     "nibabel>=5.4.2",
     "onnxruntime>=1.24.4",

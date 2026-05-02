@@ -64,8 +64,21 @@ wheels = [
 ]
 
 [[package]]
+name = "dicom-anonymizer"
+version = "1.0.13.post1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydicom" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c2/93/e84cf78f2317851d9d3443b8fcb4ba95c217355250fd211f4248a05ad888/dicom_anonymizer-1.0.13.post1.tar.gz", hash = "sha256:fc5763235c0115f47475acf1a84902c407ad781f5f9425ed65cd1322fb0d76f4", size = 30928, upload-time = "2024-09-17T11:24:19.569Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/5e/c1f75bb8fd467269abc7f78abf0392ec2b7f7b303579bb1a8ea23419cdde/dicom_anonymizer-1.0.13.post1-py3-none-any.whl", hash = "sha256:cd4ddb656f96ebb67a987d2245a9de7d871f9e6942ab807989586a3131862392", size = 29962, upload-time = "2024-09-17T11:24:18.128Z" },
+]
+
+[[package]]
 name = "dicom2nifti"
-version = "2.6.2"
+version = "2.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "nibabel" },
@@ -74,9 +87,9 @@ dependencies = [
     { name = "python-gdcm" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/26/3a/88d1339ccdf51d2547d4b4b9f511d8a80be989961878b3773fd2a4396c88/dicom2nifti-2.6.2.tar.gz", hash = "sha256:2a421efeacf1616a932f41047e588477b5de72fd2d90aa15b49dcc8f1e4ea544", size = 43193, upload-time = "2025-06-23T06:39:50.267Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/83/76/84b40b482d02f49753fdfd7554f49db73c67fbc8b4302b7008f1ffb5cd9b/dicom2nifti-2.5.1.tar.gz", hash = "sha256:67d14d1544c9e9d1d8c17e1da88cab535ea5c8dab396343db0e94bc2ae13003e", size = 43140, upload-time = "2024-12-16T13:18:45.397Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/59/598237cb4a5b1fae3515ad8b402ae815a5551e236e530ba11b7a17b2c036/dicom2nifti-2.6.2-py3-none-any.whl", hash = "sha256:d2a328ac534cd424236660d3df1ad01c6fbd71587c620e93041d9ff07dceef4b", size = 43717, upload-time = "2025-06-23T06:39:48.871Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/4f/27f35bec0cf2e1fcf52e3b126b4f49443cf7d8a064a04da17eeb2a521c35/dicom2nifti-2.5.1-py3-none-any.whl", hash = "sha256:f28886b63ab8237349fc0224f1e55c6d671365f1f354d41e50a4904d82b57074", size = 43647, upload-time = "2024-12-16T13:18:44.052Z" },
 ]
 
 [[package]]
@@ -538,11 +551,11 @@ wheels = [
 
 [[package]]
 name = "pydicom"
-version = "3.0.2"
+version = "2.4.5"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7a/de/52aaf905f1f0ae7aba85996e2592ea2c1fe49157f3cfbcd1871965bdb51d/pydicom-3.0.2.tar.gz", hash = "sha256:5942bfc2d72c6fa4b3b5b62c527f54b7f2355f21d6f5d296df6bb30188df6a4f", size = 2886792, upload-time = "2026-03-19T21:46:20.935Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/8b/6fca5f1f0cc74b2ad9ea0271d374bee2cb13ed3b2793fd93254678de1aba/pydicom-2.4.5.tar.gz", hash = "sha256:ba2077bd76cb49e05fe51c3e1e0b2d77218f50c6c231120b443d29b38ea6b7a8", size = 2018349, upload-time = "2026-03-20T14:39:26.931Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/46/e0/60466c6d712dad2cf807df315e39863e91609ffd1064ecb835994460bbda/pydicom-3.0.2-py3-none-any.whl", hash = "sha256:abf971a5440f84dbaf42c4b6758e30e62480902584f8b270b9a5d146e278a07b", size = 2376822, upload-time = "2026-03-19T21:46:19.042Z" },
+    { url = "https://files.pythonhosted.org/packages/db/5b/4e7d67d880b3344afff01708725a39717694a79391a32711fd40a8958bed/pydicom-2.4.5-py3-none-any.whl", hash = "sha256:35a594cc8ebae8dd40b1f632cd7c9f08ecaa147cb9305a9f9fbca2c03f5ccc93", size = 1771963, upload-time = "2026-03-20T14:39:24.178Z" },
 ]
 
 [[package]]
@@ -838,6 +851,7 @@ name = "tooth"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "dicom-anonymizer" },
     { name = "dicom2nifti" },
     { name = "fastapi" },
     { name = "nibabel" },
@@ -858,7 +872,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dicom2nifti", specifier = ">=2.6.2" },
+    { name = "dicom-anonymizer", specifier = ">=1.0.13.post1,<2" },
+    { name = "dicom2nifti", specifier = ">=2.5,<2.6" },
     { name = "fastapi", specifier = ">=0.135.2" },
     { name = "nibabel", specifier = ">=5.4.2" },
     { name = "onnxruntime", specifier = ">=1.24.4" },
@@ -874,6 +889,18 @@ dev = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=0.23.0" },
+]
+
+[[package]]
+name = "tqdm"
+version = "4.67.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd8dac228323f2777d886cb206987444e4bce66338dd4/tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb", size = 169598, upload-time = "2026-02-03T17:35:53.048Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/16/e1/3079a9ff9b8e11b846c6ac5c8b5bfb7ff225eee721825310c91b3b50304f/tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf", size = 78374, upload-time = "2026-02-03T17:35:50.982Z" },
 ]
 
 [[package]]

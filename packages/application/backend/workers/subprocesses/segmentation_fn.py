@@ -76,12 +76,29 @@ def _predict(
     mask_probs = np.asarray(raw_output, dtype=np.float32)
 
     while mask_probs.ndim > 3:
-        if mask_probs.shape[0] != 1:
-            raise ValueError(
-                "unexpected ONNX probability tensor shape "
-                f"{mask_probs.shape!r}; expected leading singleton axes only"
-            )
-        mask_probs = mask_probs[0]
+        lead = mask_probs.shape[0]
+        if lead == 1:
+            mask_probs = mask_probs[0]
+        elif lead == 2:
+            # (batch?,) C=2, spatial — foreground probability is conventionally channel 1.
+            two = mask_probs.astype(np.float32, copy=False)
+            if np.any(two > 1.0) or np.any(two < 0.0):
+                m = np.max(two, axis=0, keepdims=True)
+                exp = np.exp(two - m)
+                mask_probs = (exp[1] / np.sum(exp, axis=0)).astype(np.float32)
+            else:
+                mask_probs = two[1]
+            break
+        else:
+            labels = np.argmax(mask_probs, axis=0)
+            mask_probs = (labels > 0).astype(np.float32)
+            break
+
+    if mask_probs.ndim != 3:
+        raise ValueError(
+            "could not reduce ONNX output to a 3D map; "
+            f"final shape {mask_probs.shape!r}"
+        )
 
     if mask_probs.shape != padded.shape:
         raise ValueError(
