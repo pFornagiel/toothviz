@@ -24,6 +24,8 @@ export function VisualizationPage() {
   const [statusText, setStatusText] = useState("Ready");
   const [pipelineProgress, setPipelineProgress] = useState<number | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(true);
+  const [sliceType, setSliceType] = useState<string>("multiplanar");
+  const [heroImage, setHeroImage] = useState(0.5);
 
   const loadStudyFiles = useCallback(
     async (nv: Niivue) => {
@@ -93,6 +95,10 @@ export function VisualizationPage() {
     nv.attachToCanvas(canvasRef.current);
     nvRef.current = nv;
 
+    nv.setSliceType(nv.sliceTypeMultiplanar);
+    nv.setMultiplanarLayout(3); // Row Layout
+    nv.setHeroImage(0.5);
+
     if (studyId) {
       loadStudyFiles(nv);
     } else {
@@ -151,6 +157,41 @@ export function VisualizationPage() {
 
   const toggleMenu = (menu: string) => {
     setActiveMenu(activeMenu === menu ? null : menu);
+  };
+
+  const handleSliceTypeChange = (type: string) => {
+    const nv = nvRef.current;
+    if (!nv) return;
+    setSliceType(type);
+    
+    switch (type) {
+      case "multiplanar":
+        nv.setSliceType(nv.sliceTypeMultiplanar);
+        break;
+      case "axial":
+        nv.setSliceType(nv.sliceTypeAxial);
+        break;
+      case "coronal":
+        nv.setSliceType(nv.sliceTypeCoronal);
+        break;
+      case "sagittal":
+        nv.setSliceType(nv.sliceTypeSagittal);
+        break;
+      case "render":
+        nv.setSliceType(nv.sliceTypeRender);
+        break;
+    }
+    
+    // Reset the view to prevent zoom issues
+    nv.scene.volScaleMultiplier = 1;
+    nv.drawScene();
+  };
+
+  const handleHeroImageChange = (value: number) => {
+    const nv = nvRef.current;
+    if (!nv) return;
+    setHeroImage(value);
+    nv.setHeroImage(value);
   };
 
   return (
@@ -218,6 +259,44 @@ export function VisualizationPage() {
       {/* NiiVue Canvas */}
       <div className="flex-1 relative overflow-hidden">
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+      </div>
+
+      {/* Controls Bar */}
+      <div className="bg-gray-800 border-t border-gray-700 px-4 py-3 flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-2">
+          <label className="text-gray-300">Slice Type:</label>
+          <select
+            value={sliceType}
+            onChange={(e) => handleSliceTypeChange(e.target.value)}
+            className="bg-gray-700 text-gray-300 border border-gray-600 rounded px-2 py-1 text-sm"
+          >
+            <option value="multiplanar">Multiplanar</option>
+            <option value="axial">Axial</option>
+            <option value="coronal">Coronal</option>
+            <option value="sagittal">Sagittal</option>
+            <option value="render">Render</option>
+          </select>
+        </div>
+
+        {sliceType === "multiplanar" && (
+          <div className="flex items-center gap-2 flex-1 max-w-xs">
+            <label className="text-gray-300">Hero Image:</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={heroImage}
+              onChange={(e) => handleHeroImageChange(parseFloat(e.target.value))}
+              className="flex-1"
+            />
+            <span className="text-gray-400 w-12 text-right">{heroImage.toFixed(1)}</span>
+          </div>
+        )}
+
+        <div className="text-gray-500 text-xs ml-auto">
+          Current: Multiplanar (Row Layout)
+        </div>
       </div>
 
       {/* Status Bar */}
