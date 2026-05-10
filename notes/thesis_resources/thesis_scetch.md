@@ -54,112 +54,99 @@ This work is aimed at filling the identified gap. The publicly available ToothFa
 
 ### Existing solution analysis
 
-A variety of tools for medical image visualization and segmentation already exist on the market, ranging from small research libraries to fully integrated clinical platforms. This section briefly surveys the most relevant categories, highlighting their capabilities and limitations in the context of dental CBCT imaging, as well as providing an insight into what the market currently lacks.
 
-Available solutions range widely when it comes to user's expected technical proficiency, monetisation model and licensing, which makes it immpossible to determine which among is the best or most universal. It does, however, hightlight areas of improvements over the currently available approaches. And most imporatant thing - mentioned before - is none of found existing products is end-to-end free app specially for tooth images anylysis.
+Numerous tools for the visualization and segmentation of medical images already exist on the market, ranging from minimal research libraries to fully integrated clinical applications. This part briefly examines the key categories, emphasizing their constraints and the elements that motivated the elements of the proposed system.
 
-#### Lightweight visualization tools
+The available options vary significantly regarding the user's expected technical proficiency, monetisation model, and licensing, making it impossible to determine which one is the best or most universally applicable. It does, however, hightlight areas of improvements over the currently available approaches.
 
-First category we can point on is code-first approach. VolViz can serve as one of the examples, being a minimal Python library designed for rendering volumetric data within notebook-based environments such as Jupyter Notebook, JupyterLab, and Google Colab. Its work characteristics make it well-suited for research pipelines in which the data scientist operates entirely within a programmatic context. However, such solutions presuppose a working knowledge of programmatic knowledge, which makes them unfit for clinical deployment.
+---
 
-Examples:
-- VolViz
-- MRI Viewer / Med3Web
-- Nora (partially lightweight, partially full app)
+#### 1. Lightweight visualization tools
 
-Key notes:
-- They are viewers, not end-to-end systems.
-- They often support NIfTI, which is a plus.
+First category we can point out is the code-first approach. VolViz can serve as one of the examples, being a minimal Python library that allows for interactive rendering of 3D NumPy arrays directly within notebook environments such as Jupyter or Google Colab. ([4]) Its work characteristics make it well-suited for research pipelines in which the data scientist operates entirely within a programmatic context. Nonetheless, these solutions assume an understanding of programmatic knowledge, rendering them unsuitable for clinical implementation.
 
-They lack:
-- segmentation tailored to teeth,
-- clinical workflow,
-- error tolerance for large CBCT files.
+![volviz](images/01.png)
+![volviz](images/02.png)
 
-Summary:
-- VolViz → developer-oriented, not dentist-friendly.
-- MRI Viewer → limited file size and stability.
-- Nora → powerful but brain-oriented, closed, not dental.
+This category provides inspiration by demonstrating that responsive 3D visualization can be realized without substantial overhead. The capacity to rapidly load volumetric data and transform it directly into an interactive visual representation influenced the performance‑focused design of the offered application.
 
-Conclusion:
-- Good inspiration for visualization, not suitable for a real dental pipeline.
+At the same time, such tools are not suitable for clinical dental application. They require programming knowledge, manual file handling, and operate entirely within developer‑oriented environments. They also provide no segmentation capabilities and fail to tackle CBCT-specific issues like noise and metal artifacts, which are well recognized in dental radiology literature and were noted by the client. These shortcomings indicate the need to preserve lightweight rendering principles while fully abstracting technical complexity away from the end user.
 
-#### Medical imaging platforms
+---
 
-Examples:
+#### 2. Web‑based medical image viewers
 
-- OHIF Viewer
-- 3D Slicer
-- Dental Segmentator (Slicer extension)
-
-Notes:
-
-- OHIF → beautiful viewer, but DICOM-only, not tailored for CBCT tooth segmentation.
-- 3D Slicer → extremely capable, but:
-    - too complex for dentists,
-    - high learning curve,
-    - heavy software,
-    - not optimized for simple CBCT segmentation UX
-- Dental Segmentator → promising, but:
-    - not customizable,
-    - tied to Slicer environment,
-    - not a standalone application
-
-Conclusion:
-- Powerful, but overkill, non‑specialized for simple CBCT workflows, not local single-app solutions.
-
-#### Commercial cloud-based end-to-end solutions
-
-Examples:
-- 3D Surgical
-- Axial3D
-- Materialise Mimics Viewer
-- Relu Creator
-- CephX
-- Diagnocat
+![nora](images/nora.png)
+![nora](images/nora_electron.png)
+![ohif](images/ohif.png)
+![volviz](images/volviz.png)
 
 
-Notes:
+Web-based viewers like **Nora Imaging**, **OHIF Viewer**, and **VolViz Volume Viewer** (beta version) extend lightweight visualization ideas into complete interactive applications. Nora Imaging is highly significant, as it accommodates both DICOM and NIfTI formats, offers multi-planar reconstruction, overlays, regions of interest, and basic labeling, and can be accessed directly in a browser without any installation requirements.
 
-- cloud-only → unsuitable for clinics with strict patient data policies
-- DICOM-only → NIfTI not supported
-- closed → no customization, no algorithm adjustments
-- expensive → subscription or per-case
-- designed for general or broad surgical workflows
+These platforms significantly impacted the interaction design of the proposed system. Loading file picker, instant visualization without complex configuration, and seamless reslicing through anatomical planes acted as usability benchmarks. Deployments based on browsers and Electron-style further illustrate effective cross-platform distribution methods.
+
+Nevertheless, practical constraints arise when these viewers are utilized for dental CBCT data. Extensive CBCT volumes frequently surpass browser memory limits, resulting in strict file size restrictions or unstable performance. When accessible, segmentation features are generally experimental and not dependable for dental structures. The OHIF Viewer, while established and effective in radiology workflows, is exclusively focused on DICOM and does not accommodate NIfTI, highlighting the divide between clinical acquisition formats and research-focused post-processing pipelines. These limitations motivate the choice of local execution while retaining web-inspired interaction styles.
+
+---
+
+#### 3. General‑purpose medical imaging platforms
+
+![slicer](images/slicer.png)
+![dental_segmentator](images/dental_segmentator.png)
+
+Desktop platform like **3D Slicer** is among the most feature-rich open-source options available for analyzing medical images. It accommodates both DICOM and NIfTI formats, offers advanced 3D visualization, manual and AI-assisted segmentation, and allows extensibility via plugins ([9]). From a technical standpoint, they confirm the feasibility of combining complex image-processing and segmentation processes into a unified platform.
+
+The **Dental Segmentator** extension further illustrates that automatic segmentation of dental structures—like teeth, mandible, and mandibular canal—from CT and CBCT scans is clinically achievable. This establishes that tooth-level segmentation using CBCT data is not only a research issue but also a viable task.
+
+However, platforms such as 3D Slicer demonstrate a significant usability compromise. Their interfaces provide various tools and settings designed for different medical fields, leading to a challenging learning experience. Even straightforward workflows demand in-depth expertise, which does not align with the expectations of dentists looking for quick and consistent analyses. Although their segmentation abilities influenced the technical aims of this thesis, their complexity prompted a more targeted design specific to dentistry.
+
+---
+
+#### 4. Commercial end‑to‑end dental solutions
+
+![relu](images/relu.png)
+![cephx](images/cephx.png)
+![diagnocat](images/diagnocat.png)
+![3dsurgical](images/3dsurgical.png)
+
+Commercial platforms like **Relu Creator**, **CephX**, **Diagnocat**, **3D Surgical** establish the present condition of clinical practice in imaging for dental and maxillofacial fields. These systems offer automated workflows that include data uploading, AI-driven segmentation, 3D visualization, and treatment planning, clearly indicating a significant clinical need for comprehensive dental CBCT solutions.
+
+These products greatly impacted the workflow design of the suggested system. Automation-first strategies, minimal necessary user engagement, and visually straightforward display of segmentation outcomes set a standard for usability tailored to dentists. Their extensive range demonstrates that intricate image analysis can be successfully concealed behind user-friendly interfaces.
+
+At the same time, these solutions expose significant limitations. They are mainly proprietary and cloud-based, raising concerns related to patient data privacy, compliance with regulations, and expenses. Their workflows are mostly tightly coupled to DICOM, with no native NIfTI support, limiting interoperability with research pipelines and modern machine‑learning workflows. Their closed ecosystems also prevent customization or inspection of underlying algorithms, motivating the development of a local, open‑source alternative.
+
+---
+
+#### 5. Backend frameworks and AI classification models
+
+Backend-focused frameworks like **MIST**, foundational models such as **MedSAM2**, or the 3DSlicer extension **DentalSegmentator** exemplify the cutting edge in medical image segmentation studies. They show that high-quality, versatile 3D segmentation can be accomplished across imaging modalities, such as CT and CBCT, by employing contemporary deep-learning architectures trained on extensive datasets ([7], [8]).
+
+These tools mainly shaped the internal structure of the suggested system instead of its outward design. They motivated modular pipelines, differentiation between inference and visualization, and the reuse of pretrained models. Nonetheless, their absence of graphical user interfaces, workflow orchestration, and visualization features renders them inappropriate for direct clinical application. Their computational requirements and dependence on specialized skills further highlight the necessity of integrating sophisticated algorithms into a user-friendly dental application.
 
 
-- Relu, CephX, Diagnocat → very strong dental functionality, but:
-    - cloud upload required,
-    - no raw AI integration,
-    - no local/offline operation.
+#### 6. Synthesis and recognized gap
 
-Conclusion:
-- Excellent clinically except your setting requires offline, customizable, NIfTI-native, non-cloud workflow.
+Across all assessed categories, existing solutions address only subsets of the client’s requirements, while failing to satisfy others or directly conflicting with them. Lightweight tools focus on efficiency or easy usage in developer environment but lack usability and clinical workflow support. Web-based viewers prioritize accessibility, yet face challenges with scalability and specialization. Research‑oriented platforms offer powerful segmentation capabilities but remain overly complex and unsuitable for routine clinical use. Commercial systems provide end-to-end workflows while compromising on openness, local execution, and format flexibility. The most crucial aspect - none of reviewed products is a comprehensive, free app dedicated specifically to the analysis of dental CBCT tooth images.
 
-#### Backend toolkits and AI models
+No evaluated solution integrates **native NIfTI and DICOM compatibility**, **local and offline processing**, **seamless visualization of extensive CBCT volumes**, **tooth-specific segmentation**, and a **simple, dentist-focused interface** within a single, free, standalone application. The proposed system aims to integrate the best concepts from current tools while directly tackling their identified shortcomings, establishing the basis for the design and implementation decisions discussed in later chapters.
 
-Examples:
+---
 
-- MIST
-- MedSAM2
-
-Notes:
-
-- MIST → excellent for research, not an application; lacks:
-    - viewer,
-    - UI,
-    - workflow environment,
-    - clinical UX.
-
-- MedSAM2 → cutting-edge model but:
-    - only the model,
-    - requires own backend + viewer + orchestration,
-    - computationally heavy.
+### References
 
 
+4. https://github.com/RJPaneque/volviz
 
-Conclusion:
-- Useful inside your system, but not standalone apps.
+
+7. Isensee, F., et al. (2022). Foundation models for medical image segmentation. *Nature Communications*, 13, 29637.  
+   https://www.nature.com/articles/s41467-022-29637-2
+
+8. Ma, J., et al. (2023). Segment Anything for 3D medical images. *arXiv preprint arXiv:2312.12990*.  
+   https://arxiv.org/html/2312.12990
+
+9. Fedorov A, Beichel R, Kalpathy-Cramer J, Finet J, Fillion-Robin JC, Pujol S, Bauer C, Jennings D, Fennessy F, Sonka M, Buatti J, Aylward S, Miller JV, Pieper S, Kikinis R. 3D Slicer as an image computing platform for the Quantitative Imaging Network. Magn Reson Imaging. 2012;30(9):1323–41. doi: 10.1016/j.mri.2012.05.001. [DOI](https://www.sciencedirect.com/science/article/abs/pii/S0730725X12001816?via%3Dihub)
+
  
 
 ### Domain knowledge
