@@ -42,7 +42,7 @@ export function StudyBrowsePage() {
   };
 
   const handleDoubleClick = (id: string) => {
-    navigate(`/visualize/${id}`);
+    navigate(`/visualize/${id}`, { state: { from: "browse" } });
   };
 
   const formatDate = (iso: string) =>
@@ -97,7 +97,11 @@ export function StudyBrowsePage() {
                               ? "text-green-400"
                               : study.status === "processing"
                                 ? "text-yellow-400"
-                                : "text-gray-400"
+                                : study.status === "failed"
+                                  ? "text-red-400"
+                                  : study.status === "cancelled"
+                                    ? "text-orange-300"
+                                    : "text-gray-400"
                           }
                         >
                           {study.status}

@@ -46,14 +46,4 @@ class AnonymiseDicomStep:
             bundle_zip = ctx.work_dir / "anonymized_bundle.zip"
             next_path = zip_directory(out_zipped, bundle_zip)
 
-        await ctx.broadcaster.broadcast(
-            ctx.job_id,
-            {
-                "event": "step_completed",
-                "job_id": ctx.job_id,
-                "step": self.name,
-                "status": "completed",
-            },
-        )
-
         return StepResult(next_input_path=next_path, artifacts=[])

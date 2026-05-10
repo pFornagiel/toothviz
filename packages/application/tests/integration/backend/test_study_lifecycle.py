@@ -23,6 +23,17 @@ def _upload_file(client, study_id, kind="nifti_raw", filename="file.nii", data=b
     return resp.json()
 
 
+def test_get_study_detail(client, created_study):
+    study_id = created_study["id"]
+    resp = client.get(f"/storage/studies/{study_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == study_id
+    assert data.get("status") == "created"
+    assert "job_id" in data
+    assert "steps" in data
+
+
 def test_create_list_rename_delete(client):
     resp = client.post("/storage/studies", json={"name": "Study1"})
     assert resp.status_code == 201

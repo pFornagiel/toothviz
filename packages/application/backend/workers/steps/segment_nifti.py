@@ -32,16 +32,6 @@ class SegmentNiftiStep:
         )
         mask_path = Path(mask_path_str)
 
-        await ctx.broadcaster.broadcast(
-            ctx.job_id,
-            {
-                "event": "step_completed",
-                "job_id": ctx.job_id,
-                "step": self.name,
-                "status": "completed",
-            },
-        )
-
         return StepResult(
             next_input_path=ctx.current_input_path,
             artifacts=[

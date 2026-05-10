@@ -18,17 +18,32 @@ def _svc(request: Request):
 
 
 def _study_response(study, pipeline_job) -> StudyResponse:
-    status = (
-        study_workflow_display_status(pipeline_job.status)
-        if pipeline_job is not None
-        else "created"
-    )
+    if pipeline_job is None:
+        return StudyResponse(
+            id=study.id,
+            name=study.name,
+            created_at=study.created_at,
+            status="created",
+        )
     return StudyResponse(
         id=study.id,
         name=study.name,
         created_at=study.created_at,
-        status=status,
+        status=study_workflow_display_status(pipeline_job.status),
+        job_id=pipeline_job.id,
+        pipeline_status=pipeline_job.status,
+        steps=list(pipeline_job.steps or []),
+        error=pipeline_job.error,
+        source_file_id=pipeline_job.source_file_id,
     )
+
+
+@router.get("/{study_id}", response_model=StudyResponse)
+def get_study(request: Request, study_id: str):
+    storage_svc = request.app.state.storage_service
+    with storage_svc.session_factory() as db:
+        s = StudyRepo(db).get_with_pipeline_job(study_id)
+    return _study_response(s, s.pipeline_job)
 
 
 @router.get("", response_model=list[StudyResponse])

@@ -32,16 +32,6 @@ class DicomToNiftiStep:
         )
         nifti_path = Path(nifti_path_str)
 
-        await ctx.broadcaster.broadcast(
-            ctx.job_id,
-            {
-                "event": "step_completed",
-                "job_id": ctx.job_id,
-                "step": self.name,
-                "status": "completed",
-            },
-        )
-
         return StepResult(
             next_input_path=nifti_path,
             artifacts=[
