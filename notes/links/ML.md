@@ -67,7 +67,7 @@ Datasets:
 - [Segmentacja kanalika w żuchwie z UNet-3D](https://www.researchgate.net/publication/386338289_Location_Matters_Harnessing_Spatial_Information_to_Enhance_the_Segmentation_of_the_Inferior_Alveolar_Canal_in_CBCTs)
 - [Strona do śledzenia postępu treningu modelu, sama tworzy wykresy itd.](https://wandb.ai/site)
 - [Model, z którego stworzyłem tego testowego onnx'a.](https://huggingface.co/Tournesol-Saturday/railNet-tooth-segmentation-in-CBCT-image)
-
+- [ToothSeg - model który mamy w .onnx - tzn. my mamy tylko tego semantic branch z tego. Eksportowany do .onnx rzemieślniczo przeze mnie z .pth.](https://github.com/MIC-DKFZ/ToothSeg)
 ### Kasia
 
 ### Łukasz
