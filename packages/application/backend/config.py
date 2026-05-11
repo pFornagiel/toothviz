@@ -18,10 +18,7 @@ if SEGMENTATION_MODE not in ("normal", "dummy"):
         f"Must be 'normal' or 'dummy'"
     )
 
-if SEGMENTATION_MODE == "dummy":
-    MODEL_PATH: Path = _REPO_ROOT / "packages" / "models" / "tooth_seg_dummy.onnx"
-else:
-    MODEL_PATH: Path = _REPO_ROOT / "packages" / "models" / "tooth_seg_semantic.onnx"
+MODEL_PATH: Path = _REPO_ROOT / "packages" / "models" / "tooth_seg_semantic.onnx"
 
 ONNX_EXECUTION_PROVIDERS: tuple[str, ...] = ("CPUExecutionProvider",)
 
