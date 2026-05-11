@@ -63,7 +63,7 @@ The available options vary significantly regarding the user's expected technical
 
 #### 1. Lightweight visualization tools
 
-First category we can point out is the code-first approach. VolViz can serve as one of the examples, being a minimal Python library that allows for interactive rendering of 3D NumPy arrays directly within notebook environments such as Jupyter or Google Colab. ([4]) Its work characteristics make it well-suited for research pipelines in which the data scientist operates entirely within a programmatic context. Nonetheless, these solutions assume an understanding of programmatic knowledge, rendering them unsuitable for clinical implementation.
+First category we can point out is the code-first approach. VolViz can serve as one of the examples, being a minimal Python library that allows for interactive rendering of 3D NumPy arrays directly within notebook environments such as Jupyter or Google Colab. ([1]) Its work characteristics make it well-suited for research pipelines in which the data scientist operates entirely within a programmatic context. Nonetheless, these solutions assume an understanding of programmatic knowledge, rendering them unsuitable for clinical implementation.
 
 ![volviz](images/01.png)
 ![volviz](images/02.png)
@@ -95,7 +95,7 @@ Nevertheless, practical constraints arise when these viewers are utilized for de
 ![slicer](images/slicer.png)
 ![dental_segmentator](images/dental_segmentator.png)
 
-Desktop platform like **3D Slicer** is among the most feature-rich open-source options available for analyzing medical images. It accommodates both DICOM and NIfTI formats, offers advanced 3D visualization, manual and AI-assisted segmentation, and allows extensibility via plugins ([9]). From a technical standpoint, they confirm the feasibility of combining complex image-processing and segmentation processes into a unified platform.
+Desktop platform like **3D Slicer** is among the most feature-rich open-source options available for analyzing medical images. It accommodates both DICOM and NIfTI formats, offers advanced 3D visualization, manual and AI-assisted segmentation, and allows extensibility via plugins ([4]). From a technical standpoint, they confirm the feasibility of combining complex image-processing and segmentation processes into a unified platform.
 
 The **Dental Segmentator** extension further illustrates that automatic segmentation of dental structures—like teeth, mandible, and mandibular canal—from CT and CBCT scans is clinically achievable. This establishes that tooth-level segmentation using CBCT data is not only a research issue but also a viable task.
 
@@ -120,7 +120,7 @@ At the same time, these solutions expose significant limitations. They are mainl
 
 #### 5. Backend frameworks and AI classification models
 
-Backend-focused frameworks like **MIST**, foundational models such as **MedSAM2**, or the 3DSlicer extension **DentalSegmentator** exemplify the cutting edge in medical image segmentation studies. They show that high-quality, versatile 3D segmentation can be accomplished across imaging modalities, such as CT and CBCT, by employing contemporary deep-learning architectures trained on extensive datasets ([7], [8]).
+Backend-focused frameworks like **MIST**, foundational models such as **MedSAM2**, or the 3DSlicer extension **DentalSegmentator** exemplify the cutting edge in medical image segmentation studies. They show that high-quality, versatile 3D segmentation can be accomplished across imaging modalities, such as CT and CBCT, by employing contemporary deep-learning architectures trained on extensive datasets ([2], [3]).
 
 These tools mainly shaped the internal structure of the suggested system instead of its outward design. They motivated modular pipelines, differentiation between inference and visualization, and the reuse of pretrained models. Nonetheless, their absence of graphical user interfaces, workflow orchestration, and visualization features renders them inappropriate for direct clinical application. Their computational requirements and dependence on specialized skills further highlight the necessity of integrating sophisticated algorithms into a user-friendly dental application.
 
@@ -136,16 +136,16 @@ No evaluated solution integrates **native NIfTI and DICOM compatibility**, **loc
 ### References
 
 
-4. https://github.com/RJPaneque/volviz
+1. https://github.com/RJPaneque/volviz
 
 
-7. Isensee, F., et al. (2022). Foundation models for medical image segmentation. *Nature Communications*, 13, 29637.  
+2. Isensee, F., et al. (2022). Foundation models for medical image segmentation. *Nature Communications*, 13, 29637.  
    https://www.nature.com/articles/s41467-022-29637-2
 
-8. Ma, J., et al. (2023). Segment Anything for 3D medical images. *arXiv preprint arXiv:2312.12990*.  
+3. Ma, J., et al. (2023). Segment Anything for 3D medical images. *arXiv preprint arXiv:2312.12990*.  
    https://arxiv.org/html/2312.12990
 
-9. Fedorov A, Beichel R, Kalpathy-Cramer J, Finet J, Fillion-Robin JC, Pujol S, Bauer C, Jennings D, Fennessy F, Sonka M, Buatti J, Aylward S, Miller JV, Pieper S, Kikinis R. 3D Slicer as an image computing platform for the Quantitative Imaging Network. Magn Reson Imaging. 2012;30(9):1323–41. doi: 10.1016/j.mri.2012.05.001. [DOI](https://www.sciencedirect.com/science/article/abs/pii/S0730725X12001816?via%3Dihub)
+4. Fedorov A, Beichel R, Kalpathy-Cramer J, Finet J, Fillion-Robin JC, Pujol S, Bauer C, Jennings D, Fennessy F, Sonka M, Buatti J, Aylward S, Miller JV, Pieper S, Kikinis R. 3D Slicer as an image computing platform for the Quantitative Imaging Network. Magn Reson Imaging. 2012;30(9):1323–41. doi: 10.1016/j.mri.2012.05.001. [DOI](https://www.sciencedirect.com/science/article/abs/pii/S0730725X12001816?via%3Dihub)
 
  
 
