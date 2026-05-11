@@ -17,6 +17,11 @@ def load_onnx_model(model_path: str | Path, providers: list[str] | None = None):
 
     sess_providers = providers if providers else ["CPUExecutionProvider"]
 
+    opts = ort.SessionOptions()
+    opts.enable_cpu_mem_arena = False 
+    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        
     logger.info("Loading ONNX model: %s", path.name)
-    session = ort.InferenceSession(str(path), providers=sess_providers)
+    session = ort.InferenceSession(str(path), sess_options=opts, providers=sess_providers)
     return session
+    

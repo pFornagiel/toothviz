@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 _BACKEND_DIR = Path(__file__).parent
@@ -10,7 +11,17 @@ DATA_ROOT: Path = _APPLICATION_ROOT / "data"
 
 STORAGE_DB_URL: str = f"sqlite:///{DATA_ROOT / 'cbct.db'}"
 
-MODEL_PATH: Path = _REPO_ROOT / "packages" / "models" / "railnet_dental.onnx"
+SEGMENTATION_MODE: str = os.getenv("SEGMENTATION_MODE", "normal").lower()
+if SEGMENTATION_MODE not in ("normal", "dummy"):
+    raise ValueError(
+        f"Invalid SEGMENTATION_MODE: {SEGMENTATION_MODE!r}. "
+        f"Must be 'normal' or 'dummy'"
+    )
+
+if SEGMENTATION_MODE == "dummy":
+    MODEL_PATH: Path = _REPO_ROOT / "packages" / "models" / "tooth_seg_dummy.onnx"
+else:
+    MODEL_PATH: Path = _REPO_ROOT / "packages" / "models" / "tooth_seg_semantic.onnx"
 
 ONNX_EXECUTION_PROVIDERS: tuple[str, ...] = ("CPUExecutionProvider",)
 

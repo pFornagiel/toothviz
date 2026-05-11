@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "colorlog>=6.10.1",
     # 1.0.13 wheel was yanked; .post1 is the replacement and still pins pydicom<3.
     "dicom-anonymizer>=1.0.13.post1,<2",
     # 2.6.x requires pydicom>=3, which conflicts with dicom-anonymizer; stay on 2.5.x.
