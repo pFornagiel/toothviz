@@ -5,6 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from backend.logging import setup_logging
+setup_logging("app")
+
 from backend import config
 from backend.db.models import Base
 from backend.db.repos.upload_session_repo import UploadSessionRepo
@@ -19,9 +22,15 @@ from backend.storage.local_engine import LocalStorageEngine
 from backend.workers.steps.base import StepFactory
 from backend.workers.steps.segment_nifti import SegmentNiftiStep
 from backend.workers.steps.configs import SegmentNiftiStepConfig
-from backend.workers.subprocesses.segmentation_fn import _init_segmentation
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
+
+if config.SEGMENTATION_MODE == "dummy":
+    from backend.workers.subprocesses.segmentation_fn_dummy import (
+        _init_segmentation_dummy as _init_segmentation,
+    )
+else:
+    from backend.workers.subprocesses.segmentation_fn import _init_segmentation
 
 
 @asynccontextmanager
