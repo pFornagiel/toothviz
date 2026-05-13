@@ -24,6 +24,7 @@ export function VisualizationPage() {
   const [statusText, setStatusText] = useState("Ready");
   const [pipelineProgress, setPipelineProgress] = useState<number | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(true);
+  const [imageVisible, setImageVisible] = useState(true);
   const [sliceType, setSliceType] = useState<string>("multiplanar");
   const [heroImage, setHeroImage] = useState(0.5);
 
@@ -153,6 +154,14 @@ export function VisualizationPage() {
     const next = !overlayVisible;
     setOverlayVisible(next);
     nv.setOpacity(1, next ? 0.5 : 0);
+  };
+
+  const toggleImage = () => {
+    const nv = nvRef.current;
+    if (!nv || nv.volumes.length < 1) return;
+    const next = !imageVisible;
+    setImageVisible(next);
+    nv.setOpacity(0, next ? 1 : 0);
   };
 
   const toggleMenu = (menu: string) => {
@@ -293,6 +302,29 @@ export function VisualizationPage() {
             <span className="text-gray-400 w-12 text-right">{heroImage.toFixed(1)}</span>
           </div>
         )}
+
+        <div className="flex items-center gap-4 border-l border-gray-700 pl-4">
+          <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={imageVisible}
+              onChange={toggleImage}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+            />
+            <span>Show Image</span>
+          </label>
+          {nvRef.current && nvRef.current.volumes.length > 1 && (
+            <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={overlayVisible}
+                onChange={toggleOverlay}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+              />
+              <span>Show Mask</span>
+            </label>
+          )}
+        </div>
 
         <div className="text-gray-500 text-xs ml-auto">
           Current: Multiplanar (Row Layout)
