@@ -79,12 +79,22 @@ export function VisualizationPage() {
           url: fileContentUrl(studyId, overlay.id),
           name: overlay.display_name ?? "overlay.nii",
           opacity: 0.5,
-          colormap: "red",
+          // Use a colormap that shows different labels with different colors
+          colormap: "actc",
         });
       }
 
       if (volumes.length > 0) {
         await nv.loadVolumes(volumes);
+        
+        // Configure overlay volume to show all tooth labels (0-32)
+        if (nv.volumes.length > 1 && overlay) {
+          const overlayVol = nv.volumes[1];
+          overlayVol.cal_min = 0;
+          overlayVol.cal_max = 32;
+          nv.updateGLVolume();
+        }
+        
         setStatusText(`Loaded ${volumes.length} volume(s)`);
         
         // Update UI state based on loaded volume
@@ -122,11 +132,21 @@ export function VisualizationPage() {
         url: URL.createObjectURL(mask),
         name: mask.name,
         opacity: 0.5,
-        colormap: "red",
+        // Use a colormap that shows different labels with different colors
+        colormap: "actc",
       });
     }
 
     await nv.loadVolumes(volumes);
+    
+    // Configure mask volume to show all tooth labels (0-32)
+    if (nv.volumes.length > 1 && mask) {
+      const maskVol = nv.volumes[1];
+      maskVol.cal_min = 0;
+      maskVol.cal_max = 32;
+      nv.updateGLVolume();
+    }
+    
     setStatusText(`Volatile mode — ${primary.name}`);
     
     // Update UI state based on loaded volume
