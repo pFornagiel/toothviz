@@ -41,8 +41,14 @@ export function StudyBrowsePage() {
     await refresh();
   };
 
-  const handleDoubleClick = (id: string) => {
-    navigate(`/visualize/${id}`, { state: { from: "browse" } });
+  const handleDoubleClick = (study: StudyResponse) => {
+    if (study.status === "processing" && study.job_id) {
+      navigate(`/pipeline/${study.id}`, {
+        state: { jobId: study.job_id, from: "browse" },
+      });
+    } else {
+      navigate(`/visualize/${study.id}`, { state: { from: "browse" } });
+    }
   };
 
   const formatDate = (iso: string) =>
@@ -87,7 +93,7 @@ export function StudyBrowsePage() {
                     <tr
                       key={study.id}
                       className="hover:bg-gray-750 cursor-pointer"
-                      onDoubleClick={() => handleDoubleClick(study.id)}
+                      onDoubleClick={() => handleDoubleClick(study)}
                     >
                       <td className="px-6 py-4 text-sm text-gray-200">{study.name ?? "—"}</td>
                       <td className="px-6 py-4 text-sm">

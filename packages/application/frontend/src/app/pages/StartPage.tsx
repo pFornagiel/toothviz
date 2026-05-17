@@ -84,9 +84,17 @@ export function StartPage() {
         );
       }
 
-      navigate(`/visualize/${study.id}`, {
-        state: { jobId: baseResult.job_id, from: "home" },
-      });
+      if (baseResult.job_id) {
+        // Pipeline was dispatched — go to pipeline loading screen
+        navigate(`/pipeline/${study.id}`, {
+          state: { jobId: baseResult.job_id, from: "home" },
+        });
+      } else {
+        // No pipeline — go straight to viewer
+        navigate(`/visualize/${study.id}`, {
+          state: { from: "home" },
+        });
+      }
     } catch (err: unknown) {
       if (createdId) {
         try {
