@@ -158,19 +158,23 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                 </div>
               </label>
 
-              <label className="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-750">
-                <input
-                  type="radio"
-                  name="segmentation"
-                  value="testing_stub"
-                  checked={segmentationType === "testing_stub"}
-                  onChange={() => setSegmentationType("testing_stub")}
-                  className="mt-1"
-                />
-                <div>
-                  <div className="text-sm text-gray-300">TESTING: Stub Pipeline (6s delay over 3 steps)</div>
-                </div>
-              </label>
+              {import.meta.env.DEV && (
+                <label className="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-750">
+                  <input
+                    type="radio"
+                    name="segmentation"
+                    value="testing_stub"
+                    checked={segmentationType === "testing_stub"}
+                    onChange={() => setSegmentationType("testing_stub")}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="text-sm text-gray-300">
+                      TESTING: Stub pipeline (3×2s delays + passthrough, 4 steps)
+                    </div>
+                  </div>
+                </label>
+              )}
             </div>
           </div>
 

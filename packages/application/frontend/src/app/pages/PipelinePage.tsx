@@ -184,9 +184,6 @@ export function PipelinePage() {
             const p = clamp01(msg.progress);
             if (p != null) setProgress(p);
             if (msg.step_index != null) setCurrentStepIndex(msg.step_index);
-            if (msg.status === "running" && msg.step) {
-              setStatusText(`Running: ${msg.step}`);
-            }
             if (msg.event === "step_completed" && msg.step_index != null) {
               setCompletedSteps((prev) => new Set(prev).add(msg.step_index!));
               setStatusText(`Finished step: ${msg.step}`);

@@ -30,12 +30,14 @@ class PassthroughViewerStep:
     async def run(self, ctx: StepContext) -> StepResult:
         logger.info(f"Starting PassthroughViewerStep for job {ctx.job_id}")
         
+        await asyncio.sleep(2)
+
         return StepResult(
             next_input_path=ctx.current_input_path,
             artifacts=[
                 OutputArtifact(
                     path=ctx.current_input_path,
-                    kind="nifti_raw",
+                    kind="nifti_derived",
                     purpose="viewer_volume",
                 )
             ],

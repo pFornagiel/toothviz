@@ -6,6 +6,8 @@ const DEFAULT_LABELS: Record<string, string> = {
   dicom_to_nifti: "Converting DICOM to NIfTI",
   segment_nifti: "Running segmentation",
   anonymyse_dicom: "Anonymising DICOM",
+  stub: "Stub (testing)",
+  passthrough: "Passthrough to viewer",
 };
 
 export interface StudyLoadingScreenProps {
