@@ -154,6 +154,35 @@ export function PipelinePage() {
       return;
     }
 
+    const finishOk = async () => {
+      try {
+        const s = await getStudy(studyId);
+        if (cancelled) return;
+        if (s.status === "ready") {
+          navigate(`/visualize/${studyId}`, {
+            state: { from: routeState.from ?? "home" },
+            replace: true,
+          });
+        }
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (e instanceof ApiError && e.status === 404) {
+          goError(
+            "Study not found",
+            "Processing may have failed and the study was removed.",
+            errorHints(null),
+          );
+          return;
+        }
+        const msg = e instanceof Error ? e.message : String(e);
+        goError(
+          "Could not load study after pipeline",
+          msg,
+          errorHints(null),
+        );
+      }
+    };
+
     if (uploadPayload) {
       const combinedSteps = buildUploadPhaseSteps(uploadPayload);
       const hasMask = Boolean(uploadPayload.segmentationFile);
@@ -194,11 +223,11 @@ export function PipelinePage() {
           } else if (p.phase === "finalizing") {
             if (volumeFinalizeOnSameStep) {
               setCurrentStepIndex(uploadStepIdx);
-              setStatusText("Finalizing on server…");
+              setStatusText("Finalizing upload...");
               setProgress(Math.min(1, (uploadStepIdx + 0.9) / totalStepsCount));
             } else if (finalizeStepIdx != null) {
               setCurrentStepIndex(finalizeStepIdx);
-              setStatusText("Finalizing on server…");
+              setStatusText("Finalizing upload...");
               setProgress((finalizeStepIdx + 0.5) / totalStepsCount);
             }
           } else if (p.phase === "done") {
@@ -244,25 +273,84 @@ export function PipelinePage() {
             setCompletedSteps(new Set([0, 1, 2]));
           }
 
-          setProgress(1);
-          setCurrentStepIndex(null);
-          setStatusText(
-            baseResult.job_id ? "Pipeline running…" : "Opening viewer…",
-          );
+          const fromPage = routeState.from ?? "home";
 
           if (!baseResult.job_id) {
+            setProgress(1);
+            setCurrentStepIndex(null);
+            setStatusText("Opening viewer…");
             navigate(`/visualize/${studyId}`, {
               replace: true,
-              state: { from: routeState.from ?? "home" },
+              state: { from: fromPage },
             });
           } else {
-            navigate(".", {
-              replace: true,
-              state: {
-                from: routeState.from ?? "home",
-                jobId: baseResult.job_id,
+            const uploadPrefixLen = hasMask ? 3 : 2;
+            wsStepIndexOffsetRef.current = uploadPrefixLen;
+            const uploadWeight = uploadPrefixLen / totalStepsCount;
+
+            setPhase("running");
+            setCurrentStepIndex(null);
+            setProgress(uploadWeight);
+            setStatusText("Pipeline running…");
+
+            const idxOffset = wsStepIndexOffsetRef.current;
+
+            disconnect = connectPipeline(
+              baseResult.job_id,
+              (msg: PipelineMessage) => {
+                const p = clamp01(msg.progress);
+                if (p != null) {
+                  setProgress(uploadWeight + p * (1 - uploadWeight));
+                }
+                if (msg.step_index != null) {
+                  setCurrentStepIndex(msg.step_index + idxOffset);
+                }
+                if (msg.event === "step_completed" && msg.step_index != null) {
+                  setCompletedSteps((prev) =>
+                    new Set(prev).add(msg.step_index! + idxOffset),
+                  );
+                  setStatusText(`Finished step: ${msg.step}`);
+                }
+                if (msg.event === "step_started" && msg.step) {
+                  setStatusText(`Started: ${msg.step}`);
+                }
+
+                if (msg.event === "pipeline_completed") {
+                  if (pipelineFinished) return;
+                  pipelineFinished = true;
+                  disconnect?.();
+                  setProgress(1);
+                  setStatusText("Pipeline completed — loading…");
+                  void finishOk();
+                }
+
+                if (msg.event === "pipeline_failed") {
+                  if (pipelineFinished) return;
+                  pipelineFinished = true;
+                  disconnect?.();
+                  goError(
+                    "Processing failed",
+                    msg.error ?? "The pipeline reported a failure.",
+                    errorHints(msg.failed_step),
+                  );
+                }
+
+                if (msg.event === "pipeline_cancelled") {
+                  if (pipelineFinished) return;
+                  pipelineFinished = true;
+                  disconnect?.();
+                  goError("Processing cancelled", "The pipeline was cancelled.", [
+                    "Open another study or start again from the home page.",
+                  ]);
+                }
               },
-            });
+              () => {
+                if (cancelled || pipelineFinished) return;
+                setStatusText(
+                  "Connection closed — check your network or refresh this page.",
+                );
+              },
+            );
           }
         } catch (err: unknown) {
           if (cancelled) return;
@@ -343,35 +431,6 @@ export function PipelinePage() {
       setCurrentStepIndex(null);
 
       const idxOffset = wsStepIndexOffsetRef.current;
-
-      const finishOk = async () => {
-        try {
-          const s = await getStudy(studyId);
-          if (cancelled) return;
-          if (s.status === "ready") {
-            navigate(`/visualize/${studyId}`, {
-              state: { from: routeState.from },
-              replace: true,
-            });
-          }
-        } catch (e: unknown) {
-          if (cancelled) return;
-          if (e instanceof ApiError && e.status === 404) {
-            goError(
-              "Study not found",
-              "Processing may have failed and the study was removed.",
-              errorHints(null),
-            );
-            return;
-          }
-          const msg = e instanceof Error ? e.message : String(e);
-          goError(
-            "Could not load study after pipeline",
-            msg,
-            errorHints(null),
-          );
-        }
-      };
 
       disconnect = connectPipeline(
         jobId,
