@@ -9,4 +9,8 @@ def study_workflow_display_status(job_status: str) -> str:
         return "ready"
     if job_status == "created":
         return "created"
+    if job_status == "failed":
+        return "failed"
+    if job_status == "cancelled":
+        return "cancelled"
     return job_status

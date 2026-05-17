@@ -1,33 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 import { Niivue } from "@niivue/niivue";
-import { listFiles, fileContentUrl } from "@/api/studies";
-import { connectPipeline } from "@/api/ws";
-import type { FileRecordResponse, PipelineMessage } from "@/api/types";
+import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
+import { ApiError } from "@/api/client";
+import { StudyErrorScreen } from "../components/StudyErrorScreen";
+
+export async function visualizationLoader({ params }: LoaderFunctionArgs) {
+  if (!params.studyId) return null;
+  // Pre-fetch study to ensure it exists
+  const study = await getStudy(params.studyId);
+  return study;
+}
 
 interface LocationState {
   primary?: File;
   mask?: File;
-  jobId?: string | null;
+  from?: "home" | "browse";
 }
+
+type ViewPhase = "loading" | "ready" | "error";
 
 export function VisualizationPage() {
   const navigate = useNavigate();
   const { studyId } = useParams();
   const location = useLocation();
-  const state = (location.state ?? {}) as LocationState;
+  const routeState = (location.state ?? {}) as LocationState;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nvRef = useRef<Niivue | null>(null);
 
   const [statusText, setStatusText] = useState("Ready");
-  const [pipelineProgress, setPipelineProgress] = useState<number | null>(null);
+  const [viewPhase, setViewPhase] = useState<ViewPhase>("loading");
+
+  const [errorTitle, setErrorTitle] = useState("Something went wrong");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [errorHintsList, setErrorHintsList] = useState<string[]>([]);
+
   const [sliceType, setSliceType] = useState<string>("multiplanar");
-  
+
   // UI state
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [lightBackground, setLightBackground] = useState(false);
-  
+
   // Volume controls
   const [selectedVolume, setSelectedVolume] = useState(0);
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
@@ -36,26 +51,38 @@ export function VisualizationPage() {
   const [colormap, setColormap] = useState("gray");
   const [cal_min, setCalMin] = useState(0);
   const [cal_max, setCalMax] = useState(100);
-  
+
   // Crosshair and display settings
   const [showCrosshair, setShowCrosshair] = useState(true);
   const [crosshairWidth, setCrosshairWidth] = useState(1);
-  
+
   // Clip plane settings
   const [clipPlaneDepth, setClipPlaneDepth] = useState(2);
   const [clipPlaneAzimuth, setClipPlaneAzimuth] = useState(0);
   const [clipPlaneElevation, setClipPlaneElevation] = useState(0);
-  
+
   // Render settings
   const [renderAzimuth, setRenderAzimuth] = useState(120);
   const [renderElevation, setRenderElevation] = useState(10);
-  
+
   // Available colormaps
   const colormaps = [
-    "gray", "red", "green", "blue", "plasma", "viridis", "inferno", 
+    "gray", "red", "green", "blue", "plasma", "viridis", "inferno",
     "magma", "hot", "winter", "cool", "spring", "summer", "autumn",
-    "bone", "copper", "grays", "warm", "red_yellow", "blue_green"
+    "bone", "copper", "grays", "warm", "red_yellow", "blue_green",
   ];
+
+  const disposeNv = useCallback(() => {
+    const nv = nvRef.current;
+    if (nv) {
+      try {
+        /* nv.close() */
+      } catch {
+        /* ignore */
+      }
+    }
+    nvRef.current = null;
+  }, []);
 
   const loadStudyFiles = useCallback(
     async (nv: Niivue) => {
@@ -96,56 +123,63 @@ export function VisualizationPage() {
           setCalMax(vol.cal_max ?? 100);
           // Initialize visibility and store opacities for all volumes
           setVolumeVisibility(nv.volumes.map(() => true));
-          setVolumeOpacities(nv.volumes.map(v => v.opacity));
+          setVolumeOpacities(nv.volumes.map((v) => v.opacity));
         }
+        nv.setSliceType(nv.sliceTypeMultiplanar);
+        nv.setMultiplanarLayout(0);
       } else {
         setStatusText("No viewable files found for this study");
+        throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
     [studyId],
   );
 
   const loadVolatileFiles = useCallback(async (nv: Niivue) => {
-    const { primary, mask } = state;
-    if (!primary) return;
+    const { primary, mask } = routeState;
+    if (!primary) {
+      throw new Error("No file was provided. Go back and choose Open Raw File.");
+    }
 
-    setStatusText("Loading local file...");
-    const volumes: { url: string; name: string; opacity?: number; colormap?: string }[] = [];
+    setStatusText("Loading volume…");
+    const primaryUrl = URL.createObjectURL(primary);
+    await nv.loadVolumes([
+      {
+        url: primaryUrl,
+        name: primary.name,
+        colormap: "gray",
+      },
+    ]);
 
-    volumes.push({
-      url: URL.createObjectURL(primary),
-      name: primary.name,
-      colormap: "gray",
-    });
     if (mask) {
-      volumes.push({
-        url: URL.createObjectURL(mask),
+      setStatusText("Loading overlay…");
+      const maskUrl = URL.createObjectURL(mask);
+      await nv.addVolumeFromUrl({
+        url: maskUrl,
         name: mask.name,
         opacity: 0.5,
         colormap: "red",
       });
     }
 
-    await nv.loadVolumes(volumes);
     setStatusText(`Volatile mode — ${primary.name}`);
-    
-    // Update UI state based on loaded volume
+
     if (nv.volumes.length > 0) {
       const vol = nv.volumes[0];
       setOpacity(vol.opacity);
       setColormap(vol.colormap || "gray");
       setCalMin(vol.cal_min ?? 0);
       setCalMax(vol.cal_max ?? 100);
-      // Initialize visibility and store opacities for all volumes
       setVolumeVisibility(nv.volumes.map(() => true));
-      setVolumeOpacities(nv.volumes.map(v => v.opacity));
+      setVolumeOpacities(nv.volumes.map((v) => v.opacity));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    nv.setSliceType(nv.sliceTypeMultiplanar);
+    nv.setMultiplanarLayout(0);
+  }, [routeState]);
 
-  useEffect(() => {
-    if (!canvasRef.current) return;
-
+  const initNiivue = useCallback(() => {
+    if (!canvasRef.current) return null;
+    if (nvRef.current) return nvRef.current;
     const nv = new Niivue({
       backColor: [0, 0, 0, 1],
       show3Dcrosshair: true,
@@ -153,57 +187,94 @@ export function VisualizationPage() {
     });
     nv.attachToCanvas(canvasRef.current);
     nvRef.current = nv;
+    return nv;
+  }, []);
 
-    nv.setSliceType(nv.sliceTypeMultiplanar);
-    nv.setMultiplanarLayout(0);
+  const goError = useCallback(
+    (title: string, message: string, hints: string[]) => {
+      setErrorTitle(title);
+      setErrorMessage(message);
+      setErrorHintsList(hints);
+      setViewPhase("error");
+    },
+    [],
+  );
 
-    if (studyId) {
-      loadStudyFiles(nv);
-    } else {
-      loadVolatileFiles(nv);
-    }
+  const handleBackFromError = useCallback(() => {
+    const from = routeState.from ?? "home";
+    if (from === "browse") navigate("/browse");
+    else navigate("/");
+  }, [navigate, routeState.from]);
+
+  /** Volatile (no persisted study) */
+  useEffect(() => {
+    if (studyId) return;
+
+    let cancelled = false;
+    (async () => {
+      setViewPhase("loading");
+      setStatusText("Loading…");
+      try {
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        const nv = initNiivue();
+        if (!nv || cancelled) return;
+        await loadVolatileFiles(nv);
+        if (!cancelled) setViewPhase("ready");
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        disposeNv();
+        goError(
+          "Could not load file",
+          msg,
+          [
+            "Check that the file is a supported NIfTI format.",
+            "Try a smaller file or a different browser if the problem persists.",
+          ],
+        );
+      }
+    })();
 
     return () => {
-      nvRef.current = null;
+      cancelled = true;
+      disposeNv();
     };
-  }, [studyId, loadStudyFiles, loadVolatileFiles]);
+  }, [studyId, initNiivue, loadVolatileFiles, goError, disposeNv]);
 
+  /** Load persisted study: status + ready path */
   useEffect(() => {
-    if (!state.jobId) return;
+    if (!studyId) return;
 
-    setStatusText("Pipeline running...");
-    setPipelineProgress(0);
+    let cancelled = false;
 
-    const disconnect = connectPipeline(
-      state.jobId,
-      (msg: PipelineMessage) => {
-        if (msg.progress != null) {
-          setPipelineProgress(msg.progress);
-        }
-        if (msg.step) {
-          setStatusText(`Pipeline: ${msg.step} — ${msg.status ?? ""}`);
-        }
-        if (msg.status === "completed") {
-          setPipelineProgress(null);
-          setStatusText("Pipeline completed — reloading files...");
-          if (nvRef.current) loadStudyFiles(nvRef.current);
-        }
-        if (msg.status === "failed") {
-          setPipelineProgress(null);
-          setStatusText(`Pipeline failed: ${msg.error ?? "unknown error"}`);
-        }
-      },
-      () => {
-        if (pipelineProgress != null) {
-          setStatusText("Pipeline connection closed");
-          setPipelineProgress(null);
-        }
-      },
-    );
+    (async () => {
+      setViewPhase("loading");
+      setStatusText("Loading study files...");
+      try {
+        const nv = initNiivue();
+        if (!nv || cancelled) return;
+        await loadStudyFiles(nv);
+        if (!cancelled) setViewPhase("ready");
+      } catch (err: unknown) {
+        if (cancelled) return;
+        disposeNv();
+        const msg = err instanceof Error ? err.message : String(err);
+        goError(
+          "Could not load study",
+          msg,
+          [
+            "The study may still be processing — try opening it again.",
+            "If the problem continues, delete the study and upload again.",
+          ]
+        );
+      }
+    })();
 
-    return disconnect;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.jobId]);
+    return () => {
+      cancelled = true;
+      disposeNv();
+    };
+  }, [studyId, initNiivue, loadStudyFiles, goError, disposeNv]);
 
   const handleSliceTypeChange = (type: string) => {
     const nv = nvRef.current;
@@ -475,8 +546,21 @@ export function VisualizationPage() {
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        {viewPhase === "error" && (
+          <div className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-gray-900">
+            <StudyErrorScreen
+              title={errorTitle}
+              message={errorMessage}
+              hints={errorHintsList}
+              backLabel={routeState.from === "browse" ? "Back to studies" : "Back to home"}
+              onBack={handleBackFromError}
+            />
+          </div>
+        )}
+
+
+        <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left Sidebar - Controls */}
         {sidebarVisible && (
           <div className="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto">
@@ -699,24 +783,30 @@ export function VisualizationPage() {
         )}
 
         {/* Main Canvas Area */}
-        <div className="flex-1 flex flex-col">
-          {/* Canvas */}
-          <div className="flex-1 relative overflow-hidden" style={{ backgroundColor: lightBackground ? '#ffffff' : '#000000' }}>
-            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-          </div>
-
-          {/* Status Bar */}
-          <div className="bg-gray-800 border-t border-gray-700 px-4 py-2 flex items-center gap-4">
-            <span className="text-xs text-gray-500 flex-1">{statusText}</span>
-            {pipelineProgress != null && (
-              <div className="w-48 h-2 bg-gray-700 rounded overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div
+            className="relative min-h-0 flex-1 overflow-hidden"
+            style={{ backgroundColor: lightBackground ? "#ffffff" : "#000000" }}
+          >
+            {!studyId && viewPhase === "loading" && (
+              <div className="absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-gray-900">
                 <div
-                  className="h-full bg-blue-500 transition-all duration-300"
-                  style={{ width: `${Math.round(pipelineProgress * 100)}%` }}
+                  className="h-10 w-10 shrink-0 rounded-full border-2 border-gray-500 border-t-gray-200 animate-spin"
+                  aria-hidden
                 />
+                <p className="text-sm text-gray-500">{statusText}</p>
               </div>
             )}
+            {viewPhase !== "error" && (
+              <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+            )}
           </div>
+
+          <div className="flex shrink-0 items-center gap-4 border-t border-gray-700 bg-gray-800 px-4 py-2">
+            <span className="flex-1 text-xs text-gray-500">{statusText}</span>
+
+          </div>
+        </div>
         </div>
       </div>
     </div>

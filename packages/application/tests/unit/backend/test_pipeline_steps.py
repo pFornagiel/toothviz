@@ -88,7 +88,8 @@ async def test_segment_nifti_step_result(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_step_broadcasts_progress(tmp_path):
+async def test_steps_do_not_broadcast(tmp_path):
+    """Step progress events are emitted by ``run_pipeline``, not individual steps."""
     ctx = _make_ctx(tmp_path)
 
     async def _fake_run(fn, *args):
@@ -103,10 +104,7 @@ async def test_step_broadcasts_progress(tmp_path):
     step = DicomToNiftiStep()
     await step.run(ctx)
 
-    ctx.broadcaster.broadcast.assert_called_once()
-    payload = ctx.broadcaster.broadcast.call_args[0][1]
-    assert payload.get("event") == "step_completed"
-    assert payload.get("step") == "dicom_to_nifti"
+    ctx.broadcaster.broadcast.assert_not_called()
 
 
 @pytest.mark.asyncio

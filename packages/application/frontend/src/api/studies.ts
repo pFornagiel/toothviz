@@ -8,6 +8,10 @@ export async function listStudies(
   return fetchJson<StudyResponse[]>(`/storage/studies${qs}`);
 }
 
+export async function getStudy(studyId: string): Promise<StudyResponse> {
+  return fetchJson<StudyResponse>(`/storage/studies/${studyId}`);
+}
+
 export async function createStudy(
   name?: string,
 ): Promise<StudyResponse> {

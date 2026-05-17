@@ -3,6 +3,11 @@ export interface StudyResponse {
   name: string | null;
   status: string;
   created_at: string;
+  job_id?: string | null;
+  pipeline_status?: string | null;
+  steps?: string[];
+  error?: string | null;
+  source_file_id?: string | null;
 }
 
 export interface CreateStudyRequest {
@@ -37,7 +42,7 @@ export interface UploadStatusResponse {
 }
 
 export interface PipelineRequestItem {
-  name: "segment_nifti";
+  name: "segment_nifti" | "stub" | "passthrough";
   config?: Record<string, unknown>;
 }
 
@@ -71,4 +76,7 @@ export interface PipelineMessage {
   progress?: number;
   error?: string;
   file_id?: string;
+  failed_step?: string;
+  total_steps?: number;
+  step_index?: number;
 }

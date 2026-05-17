@@ -11,6 +11,7 @@ from backend.db.models import FileRecord
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.exceptions import ConflictError
 from backend.services.storage_service import StorageService
+from backend.services.study_service import StudyService
 from backend.workers.pipeline_runner import run_pipeline
 from backend.workers.steps.base import PipelineStep, StepContext, StepFactory
 from backend.workers.steps.dicom_to_nifti import DicomToNiftiStep
@@ -63,8 +64,8 @@ class JobPipelineService:
         self._broadcaster = broadcaster
         self._step_registry = step_registry
 
-        # Captured here (inside the async lifespan context) so that dispatch(),
-        # which runs on a worker thread, can hand coroutines back to this loop.
+        # Captured here so that dispatch(), which runs on a worker thread, can
+        # hand coroutines back to this loop (see class docstring).
         self._loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
 
         # Maps job_id -> concurrent.futures.Future wrapping the pipeline task.
@@ -72,6 +73,13 @@ class JobPipelineService:
         # it is thread-safe: cancel() and add_done_callback() can be called
         # from any thread.
         self._running: dict[str, concurrent.futures.Future[None]] = {}
+
+        # Set after ``StudyService`` is constructed (see ``attach_study_service``).
+        self._study_service: StudyService | None = None
+
+    def attach_study_service(self, study_service: StudyService) -> None:
+        """Wire study lifecycle (e.g. delete study on pipeline failure)."""
+        self._study_service = study_service
 
     def dispatch(
         self,
@@ -129,7 +137,13 @@ class JobPipelineService:
         )
 
         future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
-            run_pipeline(job.id, steps, ctx, self._storage_service),
+            run_pipeline(
+                job.id,
+                steps,
+                ctx,
+                self._storage_service,
+                self._study_service,
+            ),
             self._loop,
         )
 

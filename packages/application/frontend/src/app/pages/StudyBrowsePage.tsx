@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useCallback, useState } from "react";
+import { useNavigate, useLoaderData, useRevalidator } from "react-router";
 import {
   listStudies,
   renameStudy,
@@ -7,30 +7,26 @@ import {
 } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 
+export async function browseLoader() {
+  return await listStudies();
+}
+
 export function StudyBrowsePage() {
   const navigate = useNavigate();
-  const [studies, setStudies] = useState<StudyResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const revalidator = useRevalidator();
+  const studies = useLoaderData() as StudyResponse[];
+  
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      setStudies(await listStudies());
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+    revalidator.revalidate();
+  }, [revalidator]);
 
   const handleDeleteStudy = async (id: string) => {
     if (!confirm("Delete this study?")) return;
     setActiveDropdown(null);
     await deleteStudy(id);
-    await refresh();
+    refresh();
   };
 
   const handleRename = async (study: StudyResponse) => {
@@ -38,11 +34,17 @@ export function StudyBrowsePage() {
     if (!newName || newName === study.name) return;
     setActiveDropdown(null);
     await renameStudy(study.id, newName);
-    await refresh();
+    refresh();
   };
 
-  const handleDoubleClick = (id: string) => {
-    navigate(`/visualize/${id}`);
+  const handleDoubleClick = (study: StudyResponse) => {
+    if (study.status === "processing" && study.job_id) {
+      navigate(`/pipeline/${study.id}`, {
+        state: { jobId: study.job_id, from: "browse" },
+      });
+    } else {
+      navigate(`/visualize/${study.id}`, { state: { from: "browse" } });
+    }
   };
 
   const formatDate = (iso: string) =>
@@ -65,9 +67,7 @@ export function StudyBrowsePage() {
 
       <main className="flex-1 p-6">
         <div className="max-w-7xl mx-auto">
-          {loading ? (
-            <div className="text-center text-gray-500 py-12">Loading...</div>
-          ) : studies.length === 0 ? (
+          {studies.length === 0 ? (
             <div className="text-center text-gray-500 py-12">
               No studies found. Create one from the start page.
             </div>
@@ -87,7 +87,7 @@ export function StudyBrowsePage() {
                     <tr
                       key={study.id}
                       className="hover:bg-gray-750 cursor-pointer"
-                      onDoubleClick={() => handleDoubleClick(study.id)}
+                      onDoubleClick={() => handleDoubleClick(study)}
                     >
                       <td className="px-6 py-4 text-sm text-gray-200">{study.name ?? "—"}</td>
                       <td className="px-6 py-4 text-sm">
@@ -97,7 +97,11 @@ export function StudyBrowsePage() {
                               ? "text-green-400"
                               : study.status === "processing"
                                 ? "text-yellow-400"
-                                : "text-gray-400"
+                                : study.status === "failed"
+                                  ? "text-red-400"
+                                  : study.status === "cancelled"
+                                    ? "text-orange-300"
+                                    : "text-gray-400"
                           }
                         >
                           {study.status}

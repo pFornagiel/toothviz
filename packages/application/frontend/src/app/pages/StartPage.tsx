@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { OpenRawFileModal } from "../components/OpenRawFileModal";
 import { CreateStudyModal, type CreateStudyData } from "../components/CreateStudyModal";
-import { listStudies, createStudy } from "@/api/studies";
-import { uploadFile } from "@/api/upload";
+import { listStudies, createStudy, deleteStudy } from "@/api/studies";
 import type { UploadKind, PipelineRequestItem } from "@/api/types";
 
 export function StartPage() {
@@ -15,13 +14,15 @@ export function StartPage() {
 
   const handleOpenRawFile = (primary: File, mask?: File) => {
     setShowOpenRawModal(false);
-    navigate("/visualize", { state: { primary, mask } });
+    navigate("/visualize", { state: { primary, mask, from: "home" } });
   };
 
   const handleCreateStudy = async (data: CreateStudyData) => {
     setShowCreateStudyModal(false);
     setBusy(true);
     setError(null);
+
+    let createdId: string | undefined;
 
     try {
       const existing = await listStudies(data.studyName);
@@ -32,30 +33,44 @@ export function StartPage() {
       }
 
       const study = await createStudy(data.studyName);
+      createdId = study.id;
 
       const baseKind: UploadKind =
         data.fileType === "dicom" ? "dicom_zip" : "nifti_raw";
 
-      const pipelines: PipelineRequestItem[] =
-        data.segmentationType === "automated"
-          ? [{ name: "segment_nifti" }]
-          : [];
-
-      const baseResult = await uploadFile(
-        study.id,
-        data.baseImageFile,
-        baseKind,
-        pipelines,
-      );
-
-      if (data.segmentationType === "precomputed" && data.segmentationFile) {
-        await uploadFile(study.id, data.segmentationFile, "nifti_mask");
+      let pipelines: PipelineRequestItem[] = [];
+      if (data.segmentationType === "automated") {
+        pipelines = [{ name: "segment_nifti" }];
+      } else if (data.segmentationType === "testing_stub") {
+        pipelines = [
+          { name: "stub" },
+          { name: "stub" },
+          { name: "stub" },
+          { name: "passthrough" },
+        ];
       }
 
-      navigate(`/visualize/${study.id}`, {
-        state: { jobId: baseResult.job_id },
+      const uploadPayload = {
+        baseImageFile: data.baseImageFile,
+        baseKind,
+        pipelines,
+        segmentationFile:
+          data.segmentationType === "precomputed" && data.segmentationFile
+            ? data.segmentationFile
+            : undefined,
+      };
+
+      navigate(`/pipeline/${study.id}`, {
+        state: { uploadPayload, from: "home" as const },
       });
     } catch (err: unknown) {
+      if (createdId) {
+        try {
+          await deleteStudy(createdId);
+        } catch {
+          /* best-effort cleanup */
+        }
+      }
       setError(err instanceof Error ? err.message : "Study creation failed");
     } finally {
       setBusy(false);
@@ -70,8 +85,8 @@ export function StartPage() {
 
       <main className="flex-1 flex items-center justify-center p-8">
         {busy ? (
-          <div className="text-gray-400 text-center">
-            <div className="mb-4 text-lg">Creating study and uploading files...</div>
+          <div className="text-gray-400 text-center max-w-md w-full">
+            <div className="mb-4 text-lg">Creating study…</div>
             <div className="w-8 h-8 border-2 border-gray-500 border-t-gray-200 rounded-full animate-spin mx-auto" />
           </div>
         ) : (
@@ -83,6 +98,7 @@ export function StartPage() {
             )}
             <div className="grid grid-cols-3 gap-6 max-w-5xl w-full">
               <button
+                type="button"
                 onClick={() => setShowOpenRawModal(true)}
                 className="bg-gray-800 border border-gray-700 rounded p-12 hover:border-gray-500 transition-colors flex flex-col items-center justify-center gap-4 min-h-[240px]"
               >
@@ -94,6 +110,7 @@ export function StartPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setShowCreateStudyModal(true)}
                 className="bg-gray-800 border border-gray-700 rounded p-12 hover:border-gray-500 transition-colors flex flex-col items-center justify-center gap-4 min-h-[240px]"
               >
@@ -105,6 +122,7 @@ export function StartPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => navigate("/browse")}
                 className="bg-gray-800 border border-gray-700 rounded p-12 hover:border-gray-500 transition-colors flex flex-col items-center justify-center gap-4 min-h-[240px]"
               >

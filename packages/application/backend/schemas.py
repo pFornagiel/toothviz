@@ -32,7 +32,7 @@ class UploadStatusResponse(BaseModel):
 
 
 class PipelineRequestItem(BaseModel):
-    name: Literal["segment_nifti"]
+    name: Literal["segment_nifti", "stub", "passthrough"]
     config: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -59,10 +59,18 @@ class RenameStudyRequest(BaseModel):
 
 
 class StudyResponse(BaseModel):
+    """Study row/detail. ``status`` is display-facing (processing, ready, failed, …)."""
+
     id: str
     name: str | None
     created_at: datetime
     status: str
+
+    job_id: str | None = None
+    pipeline_status: str | None = None
+    steps: list[str] = Field(default_factory=list)
+    error: str | None = None
+    source_file_id: str | None = None
 
     model_config = {"from_attributes": True}
 
