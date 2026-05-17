@@ -62,29 +62,35 @@ function clamp01(x: number | undefined | null): number | undefined {
 }
 
 function errorHints(failedStep?: string | null): string[] {
-  const base = [
-    "Ensure the file is a valid NIfTI (.nii / .nii.gz) or a ZIP of DICOM files.",
-    "For DICOM, confirm the archive contains readable slices (not empty or corrupt).",
-    "Try again with automated segmentation disabled and upload a precomputed mask instead.",
-    "Create a new study from the home page if this message appeared after a failed run.",
-  ];
+  const validFormat =
+    "Ensure the file is a valid NIfTI (.nii / .nii.gz) or a ZIP of DICOM files.";
+  const dicomArchive =
+    "For DICOM, confirm the archive contains readable slices (not empty or corrupt).";
+  const precomputedMask =
+    "Try again with automated segmentation disabled and upload a precomputed mask instead.";
+  const newStudy =
+    "Create a new study from the home page if this message appeared after a failed run.";
+
   if (failedStep === "dicom_to_nifti") {
     return [
       "DICOM conversion failed — check that the ZIP is not corrupt and contains valid DICOM.",
-      ...base.slice(1),
+      dicomArchive,
+      precomputedMask,
+      newStudy,
     ];
   }
   if (failedStep === "segment_nifti") {
     return [
       "Segmentation failed — the volume may be unsupported or too small for the model.",
-      ...base.slice(2),
+      precomputedMask,
+      newStudy,
     ];
   }
-  return base;
+  return [validFormat, dicomArchive, precomputedMask, newStudy];
 }
 
-function buildUploadPhaseSteps(payload: UploadPayload): string[] {
-  const hasMask = Boolean(payload.segmentationFile);
+function createLoadingSteps(payload: UploadPayload): string[] {
+  const hasMask = !!payload.segmentationFile;
   const uploadPrefix = hasMask
     ? ["upload_volume", "upload_mask", "finalize_upload"]
     : ["upload_volume", "finalize_upload"];
@@ -156,9 +162,9 @@ export function PipelinePage() {
 
     const finishOk = async () => {
       try {
-        const s = await getStudy(studyId);
+        const study = await getStudy(studyId);
         if (cancelled) return;
-        if (s.status === "ready") {
+        if (study.status === "ready") {
           navigate(`/visualize/${studyId}`, {
             state: { from: routeState.from ?? "home" },
             replace: true,
@@ -175,16 +181,12 @@ export function PipelinePage() {
           return;
         }
         const msg = e instanceof Error ? e.message : String(e);
-        goError(
-          "Could not load study after pipeline",
-          msg,
-          errorHints(null),
-        );
+        goError("Could not load study after pipeline", msg, errorHints(null));
       }
     };
 
     if (uploadPayload) {
-      const combinedSteps = buildUploadPhaseSteps(uploadPayload);
+      const combinedSteps = createLoadingSteps(uploadPayload);
       const hasMask = Boolean(uploadPayload.segmentationFile);
       const totalStepsCount = combinedSteps.length;
 
@@ -339,9 +341,11 @@ export function PipelinePage() {
                   if (pipelineFinished) return;
                   pipelineFinished = true;
                   disconnect?.();
-                  goError("Processing cancelled", "The pipeline was cancelled.", [
-                    "Open another study or start again from the home page.",
-                  ]);
+                  goError(
+                    "Processing cancelled",
+                    "The pipeline was cancelled.",
+                    ["Open another study or start again from the home page."],
+                  );
                 }
               },
               () => {
@@ -373,7 +377,7 @@ export function PipelinePage() {
     const jobId =
       typeof routeState.jobId === "string"
         ? routeState.jobId
-        : study.job_id ?? null;
+        : (study.job_id ?? null);
 
     if (
       !jobId &&
@@ -491,10 +495,7 @@ export function PipelinePage() {
             }
             try {
               const s = await getStudy(studyId);
-              if (
-                s.status === "processing" &&
-                !reconnectAttemptedRef.current
-              ) {
+              if (s.status === "processing" && !reconnectAttemptedRef.current) {
                 reconnectAttemptedRef.current = true;
                 setStatusText(
                   "Connection closed — check your network or refresh this page.",
