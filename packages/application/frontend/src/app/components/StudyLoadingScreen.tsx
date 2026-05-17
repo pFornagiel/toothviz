@@ -8,6 +8,11 @@ const DEFAULT_LABELS: Record<string, string> = {
   anonymyse_dicom: "Anonymising DICOM",
   stub: "Stub (testing)",
   passthrough: "Passthrough to viewer",
+  upload_volume: "Uploading volume",
+  upload_mask: "Uploading segmentation mask",
+  finalize_upload: "Finalising on server",
+  load_volume: "Loading volume",
+  load_mask: "Loading overlay",
 };
 
 export interface StudyLoadingScreenProps {

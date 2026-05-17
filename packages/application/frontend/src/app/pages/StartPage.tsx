@@ -3,9 +3,7 @@ import { useNavigate } from "react-router";
 import { OpenRawFileModal } from "../components/OpenRawFileModal";
 import { CreateStudyModal, type CreateStudyData } from "../components/CreateStudyModal";
 import { listStudies, createStudy, deleteStudy } from "@/api/studies";
-import { uploadFile, type UploadProgress } from "@/api/upload";
 import type { UploadKind, PipelineRequestItem } from "@/api/types";
-import { Progress } from "../components/ui/progress";
 
 export function StartPage() {
   const navigate = useNavigate();
@@ -13,36 +11,16 @@ export function StartPage() {
   const [showCreateStudyModal, setShowCreateStudyModal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadLabel, setUploadLabel] = useState("");
-  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
 
   const handleOpenRawFile = (primary: File, mask?: File) => {
     setShowOpenRawModal(false);
     navigate("/visualize", { state: { primary, mask, from: "home" } });
   };
 
-  const applyUploadProgress = (p: UploadProgress) => {
-    if (p.phase === "begin") {
-      setUploadLabel("Starting upload…");
-      setUploadPercent(0);
-    } else if (p.phase === "uploading" && p.totalChunks) {
-      const idx = (p.chunkIndex ?? 0) + 1;
-      setUploadLabel(`Uploading chunks ${idx} / ${p.totalChunks}`);
-      setUploadPercent(Math.round((idx / p.totalChunks) * 100));
-    } else if (p.phase === "finalizing") {
-      setUploadLabel("Finalizing on server…");
-      setUploadPercent(100);
-    } else if (p.phase === "done") {
-      setUploadPercent(100);
-    }
-  };
-
   const handleCreateStudy = async (data: CreateStudyData) => {
     setShowCreateStudyModal(false);
     setBusy(true);
     setError(null);
-    setUploadLabel("");
-    setUploadPercent(null);
 
     let createdId: string | undefined;
 
@@ -68,40 +46,23 @@ export function StartPage() {
           { name: "stub" },
           { name: "stub" },
           { name: "stub" },
-          { name: "passthrough" }
+          { name: "passthrough" },
         ];
       }
 
-      const baseResult = await uploadFile(
-        study.id,
-        data.baseImageFile,
+      const uploadPayload = {
+        baseImageFile: data.baseImageFile,
         baseKind,
         pipelines,
-        applyUploadProgress,
-      );
+        segmentationFile:
+          data.segmentationType === "precomputed" && data.segmentationFile
+            ? data.segmentationFile
+            : undefined,
+      };
 
-      if (data.segmentationType === "precomputed" && data.segmentationFile) {
-        setUploadLabel("Uploading mask…");
-        await uploadFile(
-          study.id,
-          data.segmentationFile,
-          "nifti_mask",
-          [],
-          applyUploadProgress,
-        );
-      }
-
-      if (baseResult.job_id) {
-        // Pipeline was dispatched — go to pipeline loading screen
-        navigate(`/pipeline/${study.id}`, {
-          state: { jobId: baseResult.job_id, from: "home" },
-        });
-      } else {
-        // No pipeline — go straight to viewer
-        navigate(`/visualize/${study.id}`, {
-          state: { from: "home" },
-        });
-      }
+      navigate(`/pipeline/${study.id}`, {
+        state: { uploadPayload, from: "home" as const },
+      });
     } catch (err: unknown) {
       if (createdId) {
         try {
@@ -113,8 +74,6 @@ export function StartPage() {
       setError(err instanceof Error ? err.message : "Study creation failed");
     } finally {
       setBusy(false);
-      setUploadLabel("");
-      setUploadPercent(null);
     }
   };
 
@@ -127,19 +86,8 @@ export function StartPage() {
       <main className="flex-1 flex items-center justify-center p-8">
         {busy ? (
           <div className="text-gray-400 text-center max-w-md w-full">
-            <div className="mb-4 text-lg">Creating study and uploading files…</div>
-            {uploadLabel && (
-              <p className="text-sm text-gray-500 mb-3">{uploadLabel}</p>
-            )}
-            {uploadPercent != null && (
-              <Progress
-                value={uploadPercent}
-                className="h-2 bg-gray-700 [&_[data-slot=progress-indicator]]:bg-blue-500 mb-4"
-              />
-            )}
-            {uploadPercent == null && (
-              <div className="w-8 h-8 border-2 border-gray-500 border-t-gray-200 rounded-full animate-spin mx-auto" />
-            )}
+            <div className="mb-4 text-lg">Creating study…</div>
+            <div className="w-8 h-8 border-2 border-gray-500 border-t-gray-200 rounded-full animate-spin mx-auto" />
           </div>
         ) : (
           <div className="space-y-6">

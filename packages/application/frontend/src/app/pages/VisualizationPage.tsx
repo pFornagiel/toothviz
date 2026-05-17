@@ -141,27 +141,29 @@ export function VisualizationPage() {
       throw new Error("No file was provided. Go back and choose Open Raw File.");
     }
 
-    setStatusText("Loading local file...");
-    const volumes: { url: string; name: string; opacity?: number; colormap?: string }[] = [];
+    setStatusText("Loading volume…");
+    const primaryUrl = URL.createObjectURL(primary);
+    await nv.loadVolumes([
+      {
+        url: primaryUrl,
+        name: primary.name,
+        colormap: "gray",
+      },
+    ]);
 
-    volumes.push({
-      url: URL.createObjectURL(primary),
-      name: primary.name,
-      colormap: "gray",
-    });
     if (mask) {
-      volumes.push({
-        url: URL.createObjectURL(mask),
+      setStatusText("Loading overlay…");
+      const maskUrl = URL.createObjectURL(mask);
+      await nv.addVolumeFromUrl({
+        url: maskUrl,
         name: mask.name,
         opacity: 0.5,
         colormap: "red",
       });
     }
 
-    await nv.loadVolumes(volumes);
     setStatusText(`Volatile mode — ${primary.name}`);
 
-    // Update UI state based on loaded volume
     if (nv.volumes.length > 0) {
       const vol = nv.volumes[0];
       setOpacity(vol.opacity);
@@ -786,6 +788,15 @@ export function VisualizationPage() {
             className="relative min-h-0 flex-1 overflow-hidden"
             style={{ backgroundColor: lightBackground ? "#ffffff" : "#000000" }}
           >
+            {!studyId && viewPhase === "loading" && (
+              <div className="absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-gray-900">
+                <div
+                  className="h-10 w-10 shrink-0 rounded-full border-2 border-gray-500 border-t-gray-200 animate-spin"
+                  aria-hidden
+                />
+                <p className="text-sm text-gray-500">{statusText}</p>
+              </div>
+            )}
             {viewPhase !== "error" && (
               <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
             )}
