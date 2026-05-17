@@ -4,7 +4,7 @@ export interface CreateStudyData {
   studyName: string;
   baseImageFile: File;
   fileType: "nifti" | "dicom";
-  segmentationType: "none" | "precomputed" | "automated";
+  segmentationType: "none" | "precomputed" | "automated" | "testing_stub";
   segmentationFile?: File;
 }
 
@@ -18,7 +18,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
   const [studyName, setStudyName] = useState("");
   const [baseImageFile, setBaseImageFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState<"nifti" | "dicom">("nifti");
-  const [segmentationType, setSegmentationType] = useState<"none" | "precomputed" | "automated">("none");
+  const [segmentationType, setSegmentationType] = useState<"none" | "precomputed" | "automated" | "testing_stub">("none");
   const [segmentationFile, setSegmentationFile] = useState<File | null>(null);
 
   if (!isOpen) return null;
@@ -155,6 +155,20 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                 />
                 <div>
                   <div className="text-sm text-gray-300">Automated Deep Learning Pipeline</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-750">
+                <input
+                  type="radio"
+                  name="segmentation"
+                  value="testing_stub"
+                  checked={segmentationType === "testing_stub"}
+                  onChange={() => setSegmentationType("testing_stub")}
+                  className="mt-1"
+                />
+                <div>
+                  <div className="text-sm text-gray-300">TESTING: Stub Pipeline (6s delay over 3 steps)</div>
                 </div>
               </label>
             </div>

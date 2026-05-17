@@ -42,7 +42,7 @@ export interface UploadStatusResponse {
 }
 
 export interface PipelineRequestItem {
-  name: "segment_nifti";
+  name: "segment_nifti" | "stub" | "passthrough";
   config?: Record<string, unknown>;
 }
 

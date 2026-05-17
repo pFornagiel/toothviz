@@ -75,10 +75,10 @@ export function PipelinePage() {
 
   // Progress tracking
   const [steps, setSteps] = useState<string[]>([]);
-  const [completedSteps, setCompletedSteps] = useState<Set<string>>(
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(
     () => new Set(),
   );
-  const [currentStep, setCurrentStep] = useState<string | null>(null);
+  const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(0);
   const [statusText, setStatusText] = useState("Connecting…");
 
@@ -147,7 +147,7 @@ export function PipelinePage() {
     setStatusText("Pipeline running…");
     setProgress(0);
     setCompletedSteps(new Set());
-    setCurrentStep(null);
+    setCurrentStepIndex(null);
 
     const finishOk = async () => {
           try {
@@ -183,22 +183,19 @@ export function PipelinePage() {
           (msg: PipelineMessage) => {
             const p = clamp01(msg.progress);
             if (p != null) setProgress(p);
-            if (msg.step) setCurrentStep(msg.step);
+            if (msg.step_index != null) setCurrentStepIndex(msg.step_index);
             if (msg.status === "running" && msg.step) {
               setStatusText(`Running: ${msg.step}`);
             }
-            if (msg.event === "step_completed" && msg.step) {
-              setCompletedSteps((prev) => new Set(prev).add(msg.step!));
+            if (msg.event === "step_completed" && msg.step_index != null) {
+              setCompletedSteps((prev) => new Set(prev).add(msg.step_index!));
               setStatusText(`Finished step: ${msg.step}`);
             }
             if (msg.event === "step_started" && msg.step) {
               setStatusText(`Started: ${msg.step}`);
             }
 
-            if (
-              msg.status === "completed" ||
-              msg.event === "pipeline_completed"
-            ) {
+            if (msg.event === "pipeline_completed") {
               if (pipelineFinished) return;
               pipelineFinished = true;
               disconnect?.();
@@ -207,7 +204,7 @@ export function PipelinePage() {
               void finishOk();
             }
 
-            if (msg.status === "failed" || msg.event === "pipeline_failed") {
+            if (msg.event === "pipeline_failed") {
               if (pipelineFinished) return;
               pipelineFinished = true;
               disconnect?.();
@@ -218,10 +215,7 @@ export function PipelinePage() {
               );
             }
 
-            if (
-              msg.status === "cancelled" ||
-              msg.event === "pipeline_cancelled"
-            ) {
+            if (msg.event === "pipeline_cancelled") {
               if (pipelineFinished) return;
               pipelineFinished = true;
               disconnect?.();
@@ -291,7 +285,7 @@ export function PipelinePage() {
         title="Processing study"
         steps={steps}
         completedSteps={completedSteps}
-        currentStep={currentStep}
+        currentStepIndex={currentStepIndex}
         progressFraction={progress}
         statusLine={statusText}
       />

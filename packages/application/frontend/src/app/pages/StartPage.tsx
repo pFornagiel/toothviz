@@ -60,10 +60,17 @@ export function StartPage() {
       const baseKind: UploadKind =
         data.fileType === "dicom" ? "dicom_zip" : "nifti_raw";
 
-      const pipelines: PipelineRequestItem[] =
-        data.segmentationType === "automated"
-          ? [{ name: "segment_nifti" }]
-          : [];
+      let pipelines: PipelineRequestItem[] = [];
+      if (data.segmentationType === "automated") {
+        pipelines = [{ name: "segment_nifti" }];
+      } else if (data.segmentationType === "testing_stub") {
+        pipelines = [
+          { name: "stub" },
+          { name: "stub" },
+          { name: "stub" },
+          { name: "passthrough" }
+        ];
+      }
 
       const baseResult = await uploadFile(
         study.id,

@@ -32,7 +32,7 @@ class UploadStatusResponse(BaseModel):
 
 
 class PipelineRequestItem(BaseModel):
-    name: Literal["segment_nifti"]
+    name: Literal["segment_nifti", "stub", "passthrough"]
     config: dict[str, Any] = Field(default_factory=dict)
 
 

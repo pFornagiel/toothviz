@@ -11,8 +11,8 @@ const DEFAULT_LABELS: Record<string, string> = {
 export interface StudyLoadingScreenProps {
   title?: string;
   steps: string[];
-  completedSteps: Set<string>;
-  currentStep: string | null;
+  completedSteps: Set<number>;
+  currentStepIndex: number | null;
   /** 0–1 from backend; optional if deriving from steps only */
   progressFraction: number | null;
   statusLine: string;
@@ -26,13 +26,13 @@ export function StudyLoadingScreen({
   title = "Processing study",
   steps,
   completedSteps,
-  currentStep,
+  currentStepIndex,
   progressFraction,
   statusLine,
 }: StudyLoadingScreenProps) {
   const derived =
     steps.length > 0
-      ? Array.from(steps).filter((s) => completedSteps.has(s)).length / steps.length
+      ? Array.from(completedSteps).length / steps.length
       : 0;
   const pct =
     progressFraction != null
@@ -54,12 +54,12 @@ export function StudyLoadingScreen({
 
       {steps.length > 0 && (
         <ol className="w-full max-w-md text-left space-y-2 text-sm">
-          {steps.map((step) => {
-            const done = completedSteps.has(step);
-            const active = !done && currentStep === step;
+          {steps.map((step, idx) => {
+            const done = completedSteps.has(idx);
+            const active = !done && currentStepIndex === idx;
             return (
               <li
-                key={step}
+                key={`${step}-${idx}`}
                 className={`flex items-center gap-2 rounded px-3 py-2 border ${
                   done
                     ? "border-green-800/60 bg-green-950/20 text-green-300"
