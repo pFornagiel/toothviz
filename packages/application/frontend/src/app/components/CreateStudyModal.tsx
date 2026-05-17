@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+const NIFTI_ACCEPT = [".nii", ".nii.gz"] as const;
+const DICOM_BASE_ACCEPT = [".dcm", ".zip", "application/dicom"] as const;
+
 export interface CreateStudyData {
   studyName: string;
   baseImageFile: File;
@@ -14,11 +17,17 @@ interface CreateStudyModalProps {
   onSubmit: (data: CreateStudyData) => void;
 }
 
-export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModalProps) {
+export function CreateStudyModal({
+  isOpen,
+  onClose,
+  onSubmit,
+}: CreateStudyModalProps) {
   const [studyName, setStudyName] = useState("");
   const [baseImageFile, setBaseImageFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState<"nifti" | "dicom">("nifti");
-  const [segmentationType, setSegmentationType] = useState<"none" | "precomputed" | "automated" | "testing_stub">("none");
+  const [segmentationType, setSegmentationType] = useState<
+    "none" | "precomputed" | "automated" | "testing_stub"
+  >("none");
   const [segmentationFile, setSegmentationFile] = useState<File | null>(null);
 
   if (!isOpen) return null;
@@ -31,7 +40,10 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
         baseImageFile,
         fileType,
         segmentationType,
-        segmentationFile: segmentationType === "precomputed" ? segmentationFile ?? undefined : undefined,
+        segmentationFile:
+          segmentationType === "precomputed"
+            ? (segmentationFile ?? undefined)
+            : undefined,
       });
     }
   };
@@ -42,14 +54,21 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-700 px-6 py-4 sticky top-0 bg-gray-800">
           <h2 className="text-base text-gray-200">Create a Study</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300">✕</button>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-300"
+          >
+            ✕
+          </button>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Study Name */}
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Study Name *</label>
+            <label className="block text-sm text-gray-400 mb-2">
+              Study Name *
+            </label>
             <input
               type="text"
               value={studyName}
@@ -62,8 +81,10 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
 
           {/* Base Medical Image */}
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Base Medical Image *</label>
-            
+            <label className="block text-sm text-gray-400 mb-2">
+              Base Medical Image *
+            </label>
+
             {/* File Type Selection */}
             <div className="flex gap-4 mb-3">
               <label className="flex items-center gap-2 text-sm text-gray-400">
@@ -91,18 +112,28 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
             <div className="border border-gray-700 rounded p-6">
               <input
                 type="file"
-                accept={fileType === "nifti" ? ".nii,.nii.gz" : ".zip"}
+                accept={
+                  fileType === "nifti"
+                    ? NIFTI_ACCEPT.join(",")
+                    : DICOM_BASE_ACCEPT.join(",")
+                }
                 onChange={(e) => setBaseImageFile(e.target.files?.[0] || null)}
                 className="w-full text-sm text-gray-400"
               />
-              {baseImageFile && <p className="text-xs text-gray-500 mt-2">{baseImageFile.name}</p>}
+              {baseImageFile && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {baseImageFile.name}
+                </p>
+              )}
             </div>
           </div>
 
           {/* Segmentation Options */}
           <div>
-            <label className="block text-sm text-gray-400 mb-3">Segmentation Method</label>
-            
+            <label className="block text-sm text-gray-400 mb-3">
+              Segmentation Method
+            </label>
+
             <div className="space-y-2">
               <label className="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-750">
                 <input
@@ -128,17 +159,25 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                   className="mt-1"
                 />
                 <div className="flex-1">
-                  <div className="text-sm text-gray-300">Pre-computed Segmentation Mask</div>
-                  
+                  <div className="text-sm text-gray-300">
+                    Pre-computed Segmentation Mask
+                  </div>
+
                   {segmentationType === "precomputed" && (
                     <div className="mt-2 border border-gray-700 rounded p-4">
                       <input
                         type="file"
-                        accept=".nii,.nii.gz"
-                        onChange={(e) => setSegmentationFile(e.target.files?.[0] || null)}
+                        accept={NIFTI_ACCEPT.join(",")}
+                        onChange={(e) =>
+                          setSegmentationFile(e.target.files?.[0] || null)
+                        }
                         className="w-full text-sm text-gray-400"
                       />
-                      {segmentationFile && <p className="text-xs text-gray-500 mt-2">{segmentationFile.name}</p>}
+                      {segmentationFile && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          {segmentationFile.name}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -154,7 +193,9 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                   className="mt-1"
                 />
                 <div>
-                  <div className="text-sm text-gray-300">Automated Deep Learning Pipeline</div>
+                  <div className="text-sm text-gray-300">
+                    Automated Deep Learning Pipeline
+                  </div>
                 </div>
               </label>
 
@@ -170,7 +211,8 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                   />
                   <div>
                     <div className="text-sm text-gray-300">
-                      TESTING: Stub pipeline (3×2s delays + passthrough, 4 steps)
+                      TESTING: Stub pipeline (3×2s delays + passthrough, 4
+                      steps)
                     </div>
                   </div>
                 </label>
@@ -189,7 +231,11 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
             </button>
             <button
               type="submit"
-              disabled={!studyName || !baseImageFile || (segmentationType === "precomputed" && !segmentationFile)}
+              disabled={
+                !studyName ||
+                !baseImageFile ||
+                (segmentationType === "precomputed" && !segmentationFile)
+              }
               className="px-4 py-2 bg-gray-700 text-gray-200 rounded hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600"
             >
               Create
