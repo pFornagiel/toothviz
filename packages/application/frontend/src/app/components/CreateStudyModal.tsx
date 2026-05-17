@@ -1,7 +1,25 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 
-const NIFTI_ACCEPT = [".nii", ".nii.gz"] as const;
-const DICOM_BASE_ACCEPT = [".dcm", ".zip", "application/dicom"] as const;
+/** Used for hints only; `accept` is omitted because Safari/macOS greys out unknown extensions. */
+const NIFTI_EXTENSIONS = [".nii", ".nii.gz"] as const;
+const DICOM_BASE_EXTENSIONS = [".zip", ".dcm"] as const;
+
+function isNiftiFileName(name: string): boolean {
+  const name_lower_case = name.toLowerCase();
+  return name_lower_case.endsWith(".nii") || name_lower_case.endsWith(".nii.gz");
+}
+
+function isDicomBaseFile(file: File): boolean {
+  const name_lower_case = file.name.toLowerCase();
+  const mime = file.type.toLowerCase();
+  return (
+    name_lower_case.endsWith(".zip") ||
+    name_lower_case.endsWith(".dcm") ||
+    mime === "application/dicom" ||
+    mime === "application/zip" ||
+    mime === "application/x-zip-compressed"
+  );
+}
 
 export interface CreateStudyData {
   studyName: string;
@@ -22,15 +40,76 @@ export function CreateStudyModal({
   onClose,
   onSubmit,
 }: CreateStudyModalProps) {
+  const baseImageInputId = useId();
+  const segmentationInputId = useId();
+  const precomputedRadioId = useId();
+  const segmentationFileInputRef = useRef<HTMLInputElement>(null);
+
   const [studyName, setStudyName] = useState("");
   const [baseImageFile, setBaseImageFile] = useState<File | null>(null);
+  const [baseFileError, setBaseFileError] = useState<string | null>(null);
   const [fileType, setFileType] = useState<"nifti" | "dicom">("nifti");
   const [segmentationType, setSegmentationType] = useState<
     "none" | "precomputed" | "automated" | "testing_stub"
   >("none");
   const [segmentationFile, setSegmentationFile] = useState<File | null>(null);
+  const [segmentationFileError, setSegmentationFileError] = useState<
+    string | null
+  >(null);
 
   if (!isOpen) return null;
+
+  function handleBaseImageFileChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ): void {
+    const input = e.target;
+    const file = input.files?.[0] ?? null;
+    if (!file) {
+      setBaseImageFile(null);
+      setBaseFileError(null);
+      return;
+    }
+    if (fileType === "nifti" && !isNiftiFileName(file.name)) {
+      setBaseImageFile(null);
+      setBaseFileError(
+        `Choose a NIfTI file (${NIFTI_EXTENSIONS.join(" or ")}).`,
+      );
+      input.value = "";
+      return;
+    }
+    if (fileType === "dicom" && !isDicomBaseFile(file)) {
+      setBaseImageFile(null);
+      setBaseFileError(
+        "Choose a ZIP of a DICOM directory or a .dcm file.",
+      );
+      input.value = "";
+      return;
+    }
+    setBaseFileError(null);
+    setBaseImageFile(file);
+  }
+
+  function handleSegmentationFileChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ): void {
+    const input = e.target;
+    const file = input.files?.[0] ?? null;
+    if (!file) {
+      setSegmentationFile(null);
+      setSegmentationFileError(null);
+      return;
+    }
+    if (!isNiftiFileName(file.name)) {
+      setSegmentationFile(null);
+      setSegmentationFileError(
+        `Choose a NIfTI mask (${NIFTI_EXTENSIONS.join(" or ")}).`,
+      );
+      input.value = "";
+      return;
+    }
+    setSegmentationFileError(null);
+    setSegmentationFile(file);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +172,11 @@ export function CreateStudyModal({
                   name="fileType"
                   value="nifti"
                   checked={fileType === "nifti"}
-                  onChange={() => setFileType("nifti")}
+                  onChange={() => {
+                    setFileType("nifti");
+                    setBaseImageFile(null);
+                    setBaseFileError(null);
+                  }}
                 />
                 NIfTI File
               </label>
@@ -103,29 +186,37 @@ export function CreateStudyModal({
                   name="fileType"
                   value="dicom"
                   checked={fileType === "dicom"}
-                  onChange={() => setFileType("dicom")}
+                  onChange={() => {
+                    setFileType("dicom");
+                    setBaseImageFile(null);
+                    setBaseFileError(null);
+                  }}
                 />
                 DICOM Directory (ZIP)
               </label>
             </div>
 
-            <div className="border border-gray-700 rounded p-6">
-              <input
-                type="file"
-                accept={
-                  fileType === "nifti"
-                    ? NIFTI_ACCEPT.join(",")
-                    : DICOM_BASE_ACCEPT.join(",")
-                }
-                onChange={(e) => setBaseImageFile(e.target.files?.[0] || null)}
-                className="w-full text-sm text-gray-400"
-              />
-              {baseImageFile && (
-                <p className="text-xs text-gray-500 mt-2">
-                  {baseImageFile.name}
-                </p>
-              )}
-            </div>
+            <p className="text-xs text-gray-500">
+              {fileType === "nifti"
+                ? `Allowed: ${NIFTI_EXTENSIONS.join(", ")}`
+                : `Allowed: ${DICOM_BASE_EXTENSIONS[0]} (DICOM directory) or ${DICOM_BASE_EXTENSIONS[1]}`}
+            </p>
+            <label
+              htmlFor={baseImageInputId}
+              className="block cursor-pointer rounded border border-dashed border-gray-600 px-4 py-6 text-center text-sm text-gray-400 hover:border-gray-500 hover:text-gray-300"
+            >
+              {baseImageFile ? baseImageFile.name : "Click to choose a file"}
+            </label>
+            <input
+              key={fileType}
+              id={baseImageInputId}
+              type="file"
+              className="sr-only"
+              onChange={handleBaseImageFileChange}
+            />
+            {baseFileError && (
+              <p className="text-xs text-red-400">{baseFileError}</p>
+            )}
           </div>
 
           {/* Segmentation Options */}
@@ -141,7 +232,11 @@ export function CreateStudyModal({
                   name="segmentation"
                   value="none"
                   checked={segmentationType === "none"}
-                  onChange={() => setSegmentationType("none")}
+                  onChange={() => {
+                    setSegmentationType("none");
+                    setSegmentationFile(null);
+                    setSegmentationFileError(null);
+                  }}
                   className="mt-1"
                 />
                 <div>
@@ -149,39 +244,59 @@ export function CreateStudyModal({
                 </div>
               </label>
 
-              <label className="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-750">
+              <div className="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-750">
                 <input
+                  id={precomputedRadioId}
                   type="radio"
                   name="segmentation"
                   value="precomputed"
                   checked={segmentationType === "precomputed"}
-                  onChange={() => setSegmentationType("precomputed")}
+                  onChange={() => {
+                    setSegmentationType("precomputed");
+                    setSegmentationFileError(null);
+                  }}
                   className="mt-1"
                 />
-                <div className="flex-1">
-                  <div className="text-sm text-gray-300">
+                <div className="flex-1 min-w-0">
+                  <label
+                    htmlFor={precomputedRadioId}
+                    className="text-sm text-gray-300 cursor-pointer"
+                  >
                     Pre-computed Segmentation Mask
-                  </div>
+                  </label>
 
                   {segmentationType === "precomputed" && (
-                    <div className="mt-2 border border-gray-700 rounded p-4">
-                      <input
-                        type="file"
-                        accept={NIFTI_ACCEPT.join(",")}
-                        onChange={(e) =>
-                          setSegmentationFile(e.target.files?.[0] || null)
+                    <div className="mt-2 border border-gray-700 rounded p-4 space-y-2">
+                      <p className="text-xs text-gray-500">
+                        Allowed: {NIFTI_EXTENSIONS.join(", ")}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          segmentationFileInputRef.current?.click()
                         }
-                        className="w-full text-sm text-gray-400"
+                        className="block w-full cursor-pointer rounded border border-dashed border-gray-600 px-4 py-4 text-center text-sm text-gray-400 hover:border-gray-500 hover:text-gray-300"
+                      >
+                        {segmentationFile
+                          ? segmentationFile.name
+                          : "Click to choose a mask"}
+                      </button>
+                      <input
+                        ref={segmentationFileInputRef}
+                        id={segmentationInputId}
+                        type="file"
+                        className="sr-only"
+                        onChange={handleSegmentationFileChange}
                       />
-                      {segmentationFile && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          {segmentationFile.name}
+                      {segmentationFileError && (
+                        <p className="text-xs text-red-400">
+                          {segmentationFileError}
                         </p>
                       )}
                     </div>
                   )}
                 </div>
-              </label>
+              </div>
 
               <label className="flex items-start gap-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-750">
                 <input
@@ -189,7 +304,11 @@ export function CreateStudyModal({
                   name="segmentation"
                   value="automated"
                   checked={segmentationType === "automated"}
-                  onChange={() => setSegmentationType("automated")}
+                  onChange={() => {
+                    setSegmentationType("automated");
+                    setSegmentationFile(null);
+                    setSegmentationFileError(null);
+                  }}
                   className="mt-1"
                 />
                 <div>
@@ -206,7 +325,11 @@ export function CreateStudyModal({
                     name="segmentation"
                     value="testing_stub"
                     checked={segmentationType === "testing_stub"}
-                    onChange={() => setSegmentationType("testing_stub")}
+                    onChange={() => {
+                      setSegmentationType("testing_stub");
+                      setSegmentationFile(null);
+                      setSegmentationFileError(null);
+                    }}
                     className="mt-1"
                   />
                   <div>
