@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type DragEvent } from "react";
 
 /** Used for hints only; `accept` is omitted because Safari/macOS greys out unknown extensions. */
 const NIFTI_EXTENSIONS = [".nii", ".nii.gz"] as const;
@@ -44,10 +44,16 @@ export function CreateStudyModal({
   const segmentationInputId = useId();
   const precomputedRadioId = useId();
   const segmentationFileInputRef = useRef<HTMLInputElement>(null);
+  const baseImageInputRef = useRef<HTMLInputElement>(null);
+  const baseDropEnterCountRef = useRef(0);
+  const segmentationDropEnterCountRef = useRef(0);
 
   const [studyName, setStudyName] = useState("");
   const [baseImageFile, setBaseImageFile] = useState<File | null>(null);
   const [baseFileError, setBaseFileError] = useState<string | null>(null);
+  const [isBaseDropActive, setIsBaseDropActive] = useState(false);
+  const [isSegmentationDropActive, setIsSegmentationDropActive] =
+    useState(false);
   const [fileType, setFileType] = useState<"nifti" | "dicom">("nifti");
   const [segmentationType, setSegmentationType] = useState<
     "none" | "precomputed" | "automated" | "testing_stub"
@@ -59,14 +65,14 @@ export function CreateStudyModal({
 
   if (!isOpen) return null;
 
-  function handleBaseImageFileChange(
-    e: React.ChangeEvent<HTMLInputElement>,
+  function applyBaseImageFile(
+    file: File | null,
+    input?: HTMLInputElement | null,
   ): void {
-    const input = e.target;
-    const file = input.files?.[0] ?? null;
     if (!file) {
       setBaseImageFile(null);
       setBaseFileError(null);
+      if (input) input.value = "";
       return;
     }
     if (fileType === "nifti" && !isNiftiFileName(file.name)) {
@@ -74,7 +80,7 @@ export function CreateStudyModal({
       setBaseFileError(
         `Choose a NIfTI file (${NIFTI_EXTENSIONS.join(" or ")}).`,
       );
-      input.value = "";
+      if (input) input.value = "";
       return;
     }
     if (fileType === "dicom" && !isDicomBaseFile(file)) {
@@ -82,21 +88,28 @@ export function CreateStudyModal({
       setBaseFileError(
         "Choose a ZIP of a DICOM directory or a .dcm file.",
       );
-      input.value = "";
+      if (input) input.value = "";
       return;
     }
     setBaseFileError(null);
     setBaseImageFile(file);
   }
 
-  function handleSegmentationFileChange(
+  function handleBaseImageFileChange(
     e: React.ChangeEvent<HTMLInputElement>,
   ): void {
     const input = e.target;
-    const file = input.files?.[0] ?? null;
+    applyBaseImageFile(input.files?.[0] ?? null, input);
+  }
+
+  function applySegmentationFile(
+    file: File | null,
+    input?: HTMLInputElement | null,
+  ): void {
     if (!file) {
       setSegmentationFile(null);
       setSegmentationFileError(null);
+      if (input) input.value = "";
       return;
     }
     if (!isNiftiFileName(file.name)) {
@@ -104,11 +117,105 @@ export function CreateStudyModal({
       setSegmentationFileError(
         `Choose a NIfTI mask (${NIFTI_EXTENSIONS.join(" or ")}).`,
       );
-      input.value = "";
+      if (input) input.value = "";
       return;
     }
     setSegmentationFileError(null);
     setSegmentationFile(file);
+  }
+
+  function handleSegmentationFileChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ): void {
+    const input = e.target;
+    applySegmentationFile(input.files?.[0] ?? null, input);
+  }
+
+  function hasFilePayload(e: DragEvent): boolean {
+    return Array.from(e.dataTransfer.types).includes("Files");
+  }
+
+  function resetBaseDropVisualState(): void {
+    baseDropEnterCountRef.current = 0;
+    setIsBaseDropActive(false);
+  }
+
+  function handleBaseDragEnter(e: DragEvent<HTMLLabelElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!hasFilePayload(e)) return;
+    baseDropEnterCountRef.current += 1;
+    setIsBaseDropActive(true);
+  }
+
+  function handleBaseDragLeave(e: DragEvent<HTMLLabelElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!hasFilePayload(e)) return;
+    baseDropEnterCountRef.current -= 1;
+    if (baseDropEnterCountRef.current <= 0) {
+      resetBaseDropVisualState();
+    }
+  }
+
+  function handleBaseDragOver(e: DragEvent<HTMLLabelElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hasFilePayload(e)) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+  }
+
+  function handleBaseDrop(e: DragEvent<HTMLLabelElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+    resetBaseDropVisualState();
+    const file = e.dataTransfer.files?.[0] ?? null;
+    applyBaseImageFile(file);
+    if (baseImageInputRef.current) {
+      baseImageInputRef.current.value = "";
+    }
+  }
+
+  function resetSegmentationDropVisualState(): void {
+    segmentationDropEnterCountRef.current = 0;
+    setIsSegmentationDropActive(false);
+  }
+
+  function handleSegmentationDragEnter(e: DragEvent<HTMLButtonElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!hasFilePayload(e)) return;
+    segmentationDropEnterCountRef.current += 1;
+    setIsSegmentationDropActive(true);
+  }
+
+  function handleSegmentationDragLeave(
+    e: DragEvent<HTMLButtonElement>,
+  ): void {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!hasFilePayload(e)) return;
+    segmentationDropEnterCountRef.current -= 1;
+    if (segmentationDropEnterCountRef.current <= 0) {
+      resetSegmentationDropVisualState();
+    }
+  }
+
+  function handleSegmentationDragOver(e: DragEvent<HTMLButtonElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hasFilePayload(e)) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+  }
+
+  function handleSegmentationDrop(e: DragEvent<HTMLButtonElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+    resetSegmentationDropVisualState();
+    const file = e.dataTransfer.files?.[0] ?? null;
+    applySegmentationFile(file, segmentationFileInputRef.current);
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -176,6 +283,8 @@ export function CreateStudyModal({
                     setFileType("nifti");
                     setBaseImageFile(null);
                     setBaseFileError(null);
+                    baseDropEnterCountRef.current = 0;
+                    setIsBaseDropActive(false);
                   }}
                 />
                 NIfTI File
@@ -190,6 +299,8 @@ export function CreateStudyModal({
                     setFileType("dicom");
                     setBaseImageFile(null);
                     setBaseFileError(null);
+                    baseDropEnterCountRef.current = 0;
+                    setIsBaseDropActive(false);
                   }}
                 />
                 DICOM Directory (ZIP)
@@ -203,11 +314,23 @@ export function CreateStudyModal({
             </p>
             <label
               htmlFor={baseImageInputId}
-              className="block cursor-pointer rounded border border-dashed border-gray-600 px-4 py-6 text-center text-sm text-gray-400 hover:border-gray-500 hover:text-gray-300"
+              onDragEnter={handleBaseDragEnter}
+              onDragLeave={handleBaseDragLeave}
+              onDragOver={handleBaseDragOver}
+              onDrop={handleBaseDrop}
+              className={[
+                "block cursor-pointer rounded border border-dashed px-4 py-6 text-center text-sm transition-colors duration-150 select-none",
+                isBaseDropActive
+                  ? "border-cyan-400 bg-cyan-950/35 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]"
+                  : "border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300",
+              ].join(" ")}
             >
-              {baseImageFile ? baseImageFile.name : "Click to choose a file"}
+              {baseImageFile
+                ? baseImageFile.name
+                : "Drop a file here or click to browse"}
             </label>
             <input
+              ref={baseImageInputRef}
               key={fileType}
               id={baseImageInputId}
               type="file"
@@ -236,6 +359,8 @@ export function CreateStudyModal({
                     setSegmentationType("none");
                     setSegmentationFile(null);
                     setSegmentationFileError(null);
+                    segmentationDropEnterCountRef.current = 0;
+                    setIsSegmentationDropActive(false);
                   }}
                   className="mt-1"
                 />
@@ -275,11 +400,20 @@ export function CreateStudyModal({
                         onClick={() =>
                           segmentationFileInputRef.current?.click()
                         }
-                        className="block w-full cursor-pointer rounded border border-dashed border-gray-600 px-4 py-4 text-center text-sm text-gray-400 hover:border-gray-500 hover:text-gray-300"
+                        onDragEnter={handleSegmentationDragEnter}
+                        onDragLeave={handleSegmentationDragLeave}
+                        onDragOver={handleSegmentationDragOver}
+                        onDrop={handleSegmentationDrop}
+                        className={[
+                          "block w-full cursor-pointer rounded border border-dashed px-4 py-4 text-center text-sm transition-colors duration-150 select-none",
+                          isSegmentationDropActive
+                            ? "border-cyan-400 bg-cyan-950/35 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]"
+                            : "border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300",
+                        ].join(" ")}
                       >
                         {segmentationFile
                           ? segmentationFile.name
-                          : "Click to choose a mask"}
+                          : "Drop a mask here or click to browse"}
                       </button>
                       <input
                         ref={segmentationFileInputRef}
@@ -308,6 +442,8 @@ export function CreateStudyModal({
                     setSegmentationType("automated");
                     setSegmentationFile(null);
                     setSegmentationFileError(null);
+                    segmentationDropEnterCountRef.current = 0;
+                    setIsSegmentationDropActive(false);
                   }}
                   className="mt-1"
                 />
@@ -329,6 +465,8 @@ export function CreateStudyModal({
                       setSegmentationType("testing_stub");
                       setSegmentationFile(null);
                       setSegmentationFileError(null);
+                      segmentationDropEnterCountRef.current = 0;
+                      setIsSegmentationDropActive(false);
                     }}
                     className="mt-1"
                   />
