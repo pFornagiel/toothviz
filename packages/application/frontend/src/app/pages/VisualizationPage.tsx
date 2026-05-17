@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 import { Niivue } from "@niivue/niivue";
-import { listFiles, fileContentUrl } from "@/api/studies";
+import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
 import { ApiError } from "@/api/client";
 import { StudyErrorScreen } from "../components/StudyErrorScreen";
+
+export async function visualizationLoader({ params }: LoaderFunctionArgs) {
+  if (!params.studyId) return null;
+  // Pre-fetch study to ensure it exists
+  const study = await getStudy(params.studyId);
+  return study;
+}
 
 interface LocationState {
   primary?: File;

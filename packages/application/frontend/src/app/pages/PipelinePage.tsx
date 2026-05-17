@@ -1,11 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams, useLocation } from "react-router";
+import { useNavigate, useParams, useLocation, redirect, useLoaderData } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 import { getStudy } from "@/api/studies";
 import { connectPipeline } from "@/api/ws";
 import { ApiError } from "@/api/client";
-import type { PipelineMessage } from "@/api/types";
+import type { PipelineMessage, StudyResponse } from "@/api/types";
 import { StudyLoadingScreen } from "../components/StudyLoadingScreen";
 import { StudyErrorScreen } from "../components/StudyErrorScreen";
+
+export async function pipelineLoader({ params }: LoaderFunctionArgs) {
+  if (!params.studyId) return redirect("/");
+
+  try {
+    const study = await getStudy(params.studyId);
+    
+    if (study.status === "ready") {
+      return redirect(`/visualize/${study.id}`);
+    }
+    
+    return study;
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 404) {
+      throw err; // React Router error element could handle it, or we handle below
+    }
+    throw err;
+  }
+}
 
 type FromPage = "home" | "browse";
 
@@ -48,6 +68,8 @@ export function PipelinePage() {
   const { studyId } = useParams();
   const location = useLocation();
   const routeState = (location.state ?? {}) as LocationState;
+  
+  const study = useLoaderData() as StudyResponse;
 
   const [phase, setPhase] = useState<PipelinePhase>("connecting");
 
@@ -91,60 +113,43 @@ export function PipelinePage() {
     let pipelineFinished = false;
     let disconnect: (() => void) | null = null;
 
-    (async () => {
-      setPhase("connecting");
-      setStatusText("Checking study status…");
+    setSteps(study.steps ?? []);
 
-      try {
-        const study = await getStudy(studyId);
-        if (cancelled) return;
+    if (study.status === "failed" || study.status === "cancelled") {
+      goError(
+        "Study is not available",
+        study.error ??
+          (study.status === "cancelled"
+            ? "Processing was cancelled."
+            : "Processing failed."),
+        errorHints(null),
+      );
+      return;
+    }
 
-        setSteps(study.steps ?? []);
+    // Determine jobId
+    const jobId =
+      typeof routeState.jobId === "string"
+        ? routeState.jobId
+        : study.job_id;
 
-        if (study.status === "failed" || study.status === "cancelled") {
-          goError(
-            "Study is not available",
-            study.error ??
-              (study.status === "cancelled"
-                ? "Processing was cancelled."
-                : "Processing failed."),
-            errorHints(null),
-          );
-          return;
-        }
+    if (study.status !== "processing" || !jobId) {
+      // Not processing or no job — try viewer anyway
+      navigate(`/visualize/${studyId}`, {
+        state: { from: routeState.from },
+        replace: true,
+      });
+      return;
+    }
 
-        // Already done — go straight to viewer
-        if (study.status === "ready") {
-          navigate(`/visualize/${studyId}`, {
-            state: { from: routeState.from },
-            replace: true,
-          });
-          return;
-        }
+    // Study is processing — connect WebSocket
+    setPhase("running");
+    setStatusText("Pipeline running…");
+    setProgress(0);
+    setCompletedSteps(new Set());
+    setCurrentStep(null);
 
-        // Determine jobId
-        const jobId =
-          typeof routeState.jobId === "string"
-            ? routeState.jobId
-            : study.job_id;
-
-        if (study.status !== "processing" || !jobId) {
-          // Not processing or no job — try viewer anyway
-          navigate(`/visualize/${studyId}`, {
-            state: { from: routeState.from },
-            replace: true,
-          });
-          return;
-        }
-
-        // Study is processing — connect WebSocket
-        setPhase("running");
-        setStatusText("Pipeline running…");
-        setProgress(0);
-        setCompletedSteps(new Set());
-        setCurrentStep(null);
-
-        const finishOk = async () => {
+    const finishOk = async () => {
           try {
             const s = await getStudy(studyId);
             if (cancelled) return;
@@ -257,29 +262,12 @@ export function PipelinePage() {
             })();
           },
         );
-      } catch (err: unknown) {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.status === 404) {
-          goError(
-            "Study not found",
-            "This study no longer exists. It may have been removed after a processing error.",
-            [
-              "Return home and create a new study.",
-              "If you uploaded invalid data, fix the file and try again.",
-            ],
-          );
-          return;
-        }
-        const msg = err instanceof Error ? err.message : String(err);
-        goError("Could not open study", msg, errorHints(null));
-      }
-    })();
 
     return () => {
       cancelled = true;
       disconnect?.();
     };
-  }, [studyId, routeState.jobId, routeState.from, navigate, goError]);
+  }, [studyId, study, routeState.jobId, routeState.from, navigate, goError]);
 
   if (phase === "error") {
     return (
