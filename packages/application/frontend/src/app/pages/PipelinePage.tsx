@@ -289,7 +289,7 @@ export function PipelinePage() {
             const uploadWeight = uploadPrefixLen / totalStepsCount;
 
             setPhase("running");
-            setCurrentStepIndex(null);
+            setCurrentStepIndex(uploadPrefixLen);
             setProgress(uploadWeight);
             setStatusText("Pipeline running…");
 
@@ -403,10 +403,12 @@ export function PipelinePage() {
     wsStepIndexOffsetRef.current = 0;
 
     void (async () => {
+      let stepNames: string[] = [];
       try {
         const fresh = await getStudy(studyId);
         if (cancelled) return;
-        setSteps(fresh.steps ?? []);
+        stepNames = fresh.steps ?? [];
+        setSteps(stepNames);
       } catch (e: unknown) {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 404) {
@@ -428,7 +430,7 @@ export function PipelinePage() {
       setStatusText("Pipeline running…");
       setProgress(0);
       setCompletedSteps(new Set());
-      setCurrentStepIndex(null);
+      setCurrentStepIndex(stepNames.length > 0 ? 0 : null);
 
       const idxOffset = wsStepIndexOffsetRef.current;
 
