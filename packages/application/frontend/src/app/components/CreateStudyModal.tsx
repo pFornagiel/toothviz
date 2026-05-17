@@ -1,25 +1,12 @@
-import { useId, useRef, useState, type DragEvent } from "react";
+import { useId, useState } from "react";
 
-/** Used for hints only; `accept` is omitted because Safari/macOS greys out unknown extensions. */
-const NIFTI_EXTENSIONS = [".nii", ".nii.gz"] as const;
-const DICOM_BASE_EXTENSIONS = [".zip", ".dcm"] as const;
-
-function isNiftiFileName(name: string): boolean {
-  const name_lower_case = name.toLowerCase();
-  return name_lower_case.endsWith(".nii") || name_lower_case.endsWith(".nii.gz");
-}
-
-function isDicomBaseFile(file: File): boolean {
-  const name_lower_case = file.name.toLowerCase();
-  const mime = file.type.toLowerCase();
-  return (
-    name_lower_case.endsWith(".zip") ||
-    name_lower_case.endsWith(".dcm") ||
-    mime === "application/dicom" ||
-    mime === "application/zip" ||
-    mime === "application/x-zip-compressed"
-  );
-}
+import { DashedFileDropZone } from "./DashedFileDropZone";
+import {
+  DICOM_BASE_EXTENSIONS,
+  isDicomBaseFile,
+  isNiftiFileName,
+  NIFTI_EXTENSIONS,
+} from "./medicalFileTypes";
 
 export interface CreateStudyData {
   studyName: string;
@@ -40,20 +27,11 @@ export function CreateStudyModal({
   onClose,
   onSubmit,
 }: CreateStudyModalProps) {
-  const baseImageInputId = useId();
-  const segmentationInputId = useId();
   const precomputedRadioId = useId();
-  const segmentationFileInputRef = useRef<HTMLInputElement>(null);
-  const baseImageInputRef = useRef<HTMLInputElement>(null);
-  const baseDropEnterCountRef = useRef(0);
-  const segmentationDropEnterCountRef = useRef(0);
 
   const [studyName, setStudyName] = useState("");
   const [baseImageFile, setBaseImageFile] = useState<File | null>(null);
   const [baseFileError, setBaseFileError] = useState<string | null>(null);
-  const [isBaseDropActive, setIsBaseDropActive] = useState(false);
-  const [isSegmentationDropActive, setIsSegmentationDropActive] =
-    useState(false);
   const [fileType, setFileType] = useState<"nifti" | "dicom">("nifti");
   const [segmentationType, setSegmentationType] = useState<
     "none" | "precomputed" | "automated" | "testing_stub"
@@ -95,13 +73,6 @@ export function CreateStudyModal({
     setBaseImageFile(file);
   }
 
-  function handleBaseImageFileChange(
-    e: React.ChangeEvent<HTMLInputElement>,
-  ): void {
-    const input = e.target;
-    applyBaseImageFile(input.files?.[0] ?? null, input);
-  }
-
   function applySegmentationFile(
     file: File | null,
     input?: HTMLInputElement | null,
@@ -122,100 +93,6 @@ export function CreateStudyModal({
     }
     setSegmentationFileError(null);
     setSegmentationFile(file);
-  }
-
-  function handleSegmentationFileChange(
-    e: React.ChangeEvent<HTMLInputElement>,
-  ): void {
-    const input = e.target;
-    applySegmentationFile(input.files?.[0] ?? null, input);
-  }
-
-  function hasFilePayload(e: DragEvent): boolean {
-    return Array.from(e.dataTransfer.types).includes("Files");
-  }
-
-  function resetBaseDropVisualState(): void {
-    baseDropEnterCountRef.current = 0;
-    setIsBaseDropActive(false);
-  }
-
-  function handleBaseDragEnter(e: DragEvent<HTMLLabelElement>): void {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!hasFilePayload(e)) return;
-    baseDropEnterCountRef.current += 1;
-    setIsBaseDropActive(true);
-  }
-
-  function handleBaseDragLeave(e: DragEvent<HTMLLabelElement>): void {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!hasFilePayload(e)) return;
-    baseDropEnterCountRef.current -= 1;
-    if (baseDropEnterCountRef.current <= 0) {
-      resetBaseDropVisualState();
-    }
-  }
-
-  function handleBaseDragOver(e: DragEvent<HTMLLabelElement>): void {
-    e.preventDefault();
-    e.stopPropagation();
-    if (hasFilePayload(e)) {
-      e.dataTransfer.dropEffect = "copy";
-    }
-  }
-
-  function handleBaseDrop(e: DragEvent<HTMLLabelElement>): void {
-    e.preventDefault();
-    e.stopPropagation();
-    resetBaseDropVisualState();
-    const file = e.dataTransfer.files?.[0] ?? null;
-    applyBaseImageFile(file);
-    if (baseImageInputRef.current) {
-      baseImageInputRef.current.value = "";
-    }
-  }
-
-  function resetSegmentationDropVisualState(): void {
-    segmentationDropEnterCountRef.current = 0;
-    setIsSegmentationDropActive(false);
-  }
-
-  function handleSegmentationDragEnter(e: DragEvent<HTMLButtonElement>): void {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!hasFilePayload(e)) return;
-    segmentationDropEnterCountRef.current += 1;
-    setIsSegmentationDropActive(true);
-  }
-
-  function handleSegmentationDragLeave(
-    e: DragEvent<HTMLButtonElement>,
-  ): void {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!hasFilePayload(e)) return;
-    segmentationDropEnterCountRef.current -= 1;
-    if (segmentationDropEnterCountRef.current <= 0) {
-      resetSegmentationDropVisualState();
-    }
-  }
-
-  function handleSegmentationDragOver(e: DragEvent<HTMLButtonElement>): void {
-    e.preventDefault();
-    e.stopPropagation();
-    if (hasFilePayload(e)) {
-      e.dataTransfer.dropEffect = "copy";
-    }
-  }
-
-  function handleSegmentationDrop(e: DragEvent<HTMLButtonElement>): void {
-    e.preventDefault();
-    e.stopPropagation();
-    resetSegmentationDropVisualState();
-    const file = e.dataTransfer.files?.[0] ?? null;
-    applySegmentationFile(file, segmentationFileInputRef.current);
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -283,8 +160,6 @@ export function CreateStudyModal({
                     setFileType("nifti");
                     setBaseImageFile(null);
                     setBaseFileError(null);
-                    baseDropEnterCountRef.current = 0;
-                    setIsBaseDropActive(false);
                   }}
                 />
                 NIfTI File
@@ -299,8 +174,6 @@ export function CreateStudyModal({
                     setFileType("dicom");
                     setBaseImageFile(null);
                     setBaseFileError(null);
-                    baseDropEnterCountRef.current = 0;
-                    setIsBaseDropActive(false);
                   }}
                 />
                 DICOM Directory (ZIP)
@@ -312,33 +185,14 @@ export function CreateStudyModal({
                 ? `Allowed: ${NIFTI_EXTENSIONS.join(", ")}`
                 : `Allowed: ${DICOM_BASE_EXTENSIONS[0]} (DICOM directory) or ${DICOM_BASE_EXTENSIONS[1]}`}
             </p>
-            <label
-              htmlFor={baseImageInputId}
-              onDragEnter={handleBaseDragEnter}
-              onDragLeave={handleBaseDragLeave}
-              onDragOver={handleBaseDragOver}
-              onDrop={handleBaseDrop}
-              className={[
-                "block cursor-pointer rounded border border-dashed px-4 py-6 text-center text-sm transition-colors duration-150 select-none",
-                isBaseDropActive
-                  ? "border-cyan-400 bg-cyan-950/35 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]"
-                  : "border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300",
-              ].join(" ")}
-            >
-              {baseImageFile
-                ? baseImageFile.name
-                : "Drop a file here or click to browse"}
-            </label>
-            <input
-              ref={baseImageInputRef}
+            <DashedFileDropZone
               key={fileType}
-              id={baseImageInputId}
-              type="file"
-              className="sr-only"
-              onChange={handleBaseImageFileChange}
+              selectedFile={baseImageFile}
+              onFileChange={(file, input) => applyBaseImageFile(file, input)}
+              emptyText="Drop a file here or click to browse"
             />
             {baseFileError && (
-              <p className="text-xs text-red-400">{baseFileError}</p>
+              <p className="text-xs text-red-400 mt-1">{baseFileError}</p>
             )}
           </div>
 
@@ -359,8 +213,6 @@ export function CreateStudyModal({
                     setSegmentationType("none");
                     setSegmentationFile(null);
                     setSegmentationFileError(null);
-                    segmentationDropEnterCountRef.current = 0;
-                    setIsSegmentationDropActive(false);
                   }}
                   className="mt-1"
                 />
@@ -391,43 +243,24 @@ export function CreateStudyModal({
                   </label>
 
                   {segmentationType === "precomputed" && (
-                    <div className="mt-2 border border-gray-700 rounded p-4 space-y-2">
+                    <>
                       <p className="text-xs text-gray-500">
                         Allowed: {NIFTI_EXTENSIONS.join(", ")}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          segmentationFileInputRef.current?.click()
+                      <DashedFileDropZone
+                        trigger="button"
+                        selectedFile={segmentationFile}
+                        onFileChange={(file, input) =>
+                          applySegmentationFile(file, input)
                         }
-                        onDragEnter={handleSegmentationDragEnter}
-                        onDragLeave={handleSegmentationDragLeave}
-                        onDragOver={handleSegmentationDragOver}
-                        onDrop={handleSegmentationDrop}
-                        className={[
-                          "block w-full cursor-pointer rounded border border-dashed px-4 py-4 text-center text-sm transition-colors duration-150 select-none",
-                          isSegmentationDropActive
-                            ? "border-cyan-400 bg-cyan-950/35 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]"
-                            : "border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300",
-                        ].join(" ")}
-                      >
-                        {segmentationFile
-                          ? segmentationFile.name
-                          : "Drop a mask here or click to browse"}
-                      </button>
-                      <input
-                        ref={segmentationFileInputRef}
-                        id={segmentationInputId}
-                        type="file"
-                        className="sr-only"
-                        onChange={handleSegmentationFileChange}
+                        emptyText="Drop a mask here or click to browse"
                       />
                       {segmentationFileError && (
                         <p className="text-xs text-red-400">
                           {segmentationFileError}
                         </p>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -442,8 +275,6 @@ export function CreateStudyModal({
                     setSegmentationType("automated");
                     setSegmentationFile(null);
                     setSegmentationFileError(null);
-                    segmentationDropEnterCountRef.current = 0;
-                    setIsSegmentationDropActive(false);
                   }}
                   className="mt-1"
                 />
@@ -465,8 +296,6 @@ export function CreateStudyModal({
                       setSegmentationType("testing_stub");
                       setSegmentationFile(null);
                       setSegmentationFileError(null);
-                      segmentationDropEnterCountRef.current = 0;
-                      setIsSegmentationDropActive(false);
                     }}
                     className="mt-1"
                   />
