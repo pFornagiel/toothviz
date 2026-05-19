@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.logging import setup_logging
 setup_logging("app")
@@ -13,7 +14,7 @@ from backend.db.models import Base
 from backend.db.repos.upload_session_repo import UploadSessionRepo
 from backend.db.session import SessionLocal, engine
 from backend.exceptions import AppError
-from backend.routers import files, studies, uploads, ws
+from backend.routers import files, health, studies, uploads, ws
 from backend.services.job_pipeline_service import JobPipelineService
 from backend.services.storage_service import StorageService
 from backend.services.study_service import StudyService
@@ -116,10 +117,18 @@ def create_app() -> FastAPI:
             content={"detail": exc.detail},
         )
 
+    app.include_router(health.router)
     app.include_router(studies.router)
     app.include_router(uploads.router)
     app.include_router(files.router)
     app.include_router(ws.router)
+
+    if config.SERVE_FRONTEND and config.FRONTEND_DIST.is_dir():
+        app.mount(
+            "/",
+            StaticFiles(directory=str(config.FRONTEND_DIST), html=True),
+            name="spa",
+        )
 
     return app
 
