@@ -3,18 +3,6 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
-function figmaAssetResolver() {
-  return {
-    name: "figma-asset-resolver",
-    resolveId(id: string) {
-      if (id.startsWith("figma:asset/")) {
-        const filename = id.replace("figma:asset/", "");
-        return path.resolve(__dirname, "../frontend/src/assets", filename);
-      }
-    },
-  };
-}
-
 const frontendRoot = path.resolve(__dirname, "../frontend");
 const backendPort = process.env.TOOTH_BACKEND_PORT ?? "17890";
 
@@ -37,7 +25,7 @@ export default defineConfig({
   },
   renderer: {
     root: frontendRoot,
-    plugins: [figmaAssetResolver(), react(), tailwindcss()],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         "@": path.resolve(frontendRoot, "src"),
