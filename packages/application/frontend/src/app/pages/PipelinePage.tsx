@@ -61,7 +61,7 @@ export function PipelinePage() {
 
   if (phase === "error" && error) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col">
+      <div className="min-h-screen bg-background flex flex-col font-sans">
         <StudyErrorScreen
           title={error.title}
           message={error.message}
@@ -76,7 +76,7 @@ export function PipelinePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col font-sans">
       <StudyLoadingScreen
         title="Processing study"
         steps={steps}

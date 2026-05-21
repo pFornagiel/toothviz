@@ -55,82 +55,82 @@ export function StudyBrowsePage() {
     });
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
-      <header className="border-b border-gray-700 px-6 py-4">
+    <div className="min-h-screen bg-background flex flex-col font-sans">
+      <header className="border-b border-border bg-card px-6 py-4 shadow-sm">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate("/")} className="text-gray-400 hover:text-gray-200">
+          <button onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground transition-colors p-1">
             &larr;
           </button>
-          <h1 className="text-lg text-gray-200">Browse Studies</h1>
+          <h1 className="text-xl text-foreground font-semibold tracking-tight">Browse Studies</h1>
         </div>
       </header>
 
       <main className="flex-1 p-6">
         <div className="max-w-7xl mx-auto">
           {studies.length === 0 ? (
-            <div className="text-center text-gray-500 py-12">
+            <div className="text-center text-muted-foreground py-12">
               No studies found. Create one from the start page.
             </div>
           ) : (
-            <div className="bg-gray-800 border border-gray-700 rounded overflow-hidden">
+            <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
               <table className="w-full">
-                <thead className="border-b border-gray-700">
+                <thead className="border-b border-border bg-muted/30">
                   <tr>
-                    <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">Name</th>
-                    <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">Status</th>
-                    <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">Created</th>
-                    <th className="text-left px-6 py-3 text-xs text-gray-400 uppercase">Actions</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Name</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Created</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-700">
+                <tbody className="divide-y divide-border">
                   {studies.map((study) => (
                     <tr
                       key={study.id}
-                      className="hover:bg-gray-750 cursor-pointer"
+                      className="hover:bg-muted/50 cursor-pointer transition-colors border-l-2 border-transparent hover:border-primary"
                       onDoubleClick={() => handleDoubleClick(study)}
                     >
-                      <td className="px-6 py-4 text-sm text-gray-200">{study.name ?? "—"}</td>
+                      <td className="px-6 py-4 text-sm text-foreground font-medium">{study.name ?? "—"}</td>
                       <td className="px-6 py-4 text-sm">
                         <span
                           className={
                             study.status === "ready"
-                              ? "text-green-400"
+                              ? "text-emerald-600 font-medium"
                               : study.status === "processing"
-                                ? "text-yellow-400"
+                                ? "text-amber-600 font-medium"
                                 : study.status === "failed"
-                                  ? "text-red-400"
+                                  ? "text-destructive font-medium"
                                   : study.status === "cancelled"
-                                    ? "text-orange-300"
-                                    : "text-gray-400"
+                                    ? "text-orange-500 font-medium"
+                                    : "text-muted-foreground"
                           }
                         >
                           {study.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-400">{formatDate(study.created_at)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-400">
+                      <td className="px-6 py-4 text-sm text-muted-foreground font-mono">{formatDate(study.created_at)}</td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
                         <div className="relative">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveDropdown(activeDropdown === study.id ? null : study.id);
                             }}
-                            className="p-1 hover:bg-gray-700 rounded"
+                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
                           >
                             &#x22EE;
                           </button>
 
                           {activeDropdown === study.id && (
-                            <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded z-10">
+                            <div className="absolute right-0 mt-2 w-48 bg-popover border border-border rounded-md shadow-lg z-10 overflow-hidden">
                               <button
                                 onClick={() => handleRename(study)}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                                className="w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors"
                               >
                                 Edit Name
                               </button>
                               <button
                                 onClick={() => handleDeleteStudy(study.id)}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 border-t border-gray-700"
+                                className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors border-t border-border"
                               >
                                 Delete
                               </button>
@@ -145,7 +145,7 @@ export function StudyBrowsePage() {
             </div>
           )}
 
-          <div className="mt-4 text-sm text-gray-500 text-center">
+          <div className="mt-4 text-sm text-muted-foreground text-center">
             Double-click to open study
           </div>
         </div>

@@ -78,58 +78,58 @@ export function StartPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
-      <header className="border-b border-gray-700 px-6 py-4">
-        <h1 className="text-lg text-gray-200">Medical Visualization App</h1>
+    <div className="min-h-screen bg-background flex flex-col font-sans">
+      <header className="border-b border-border bg-card px-6 py-4 shadow-sm">
+        <h1 className="text-xl text-foreground font-semibold tracking-tight">Medical Visualization App</h1>
       </header>
 
       <main className="flex-1 flex items-center justify-center p-8">
         {busy ? (
-          <div className="text-gray-400 text-center max-w-md w-full">
+          <div className="text-muted-foreground text-center max-w-md w-full">
             <div className="mb-4 text-lg">Creating study…</div>
-            <div className="w-8 h-8 border-2 border-gray-500 border-t-gray-200 rounded-full animate-spin mx-auto" />
+            <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
           </div>
         ) : (
           <div className="space-y-6">
             {error && (
-              <div className="bg-red-900/40 border border-red-700 rounded px-4 py-3 text-sm text-red-300">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-md px-4 py-3 text-sm text-destructive font-medium">
                 {error}
               </div>
             )}
-            <div className="grid grid-cols-3 gap-6 max-w-5xl w-full">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl w-full">
               <button
                 type="button"
                 onClick={() => setShowOpenRawModal(true)}
-                className="bg-gray-800 border border-gray-700 rounded p-12 hover:border-gray-500 transition-colors flex flex-col items-center justify-center gap-4 min-h-[240px]"
+                className="bg-card border border-border rounded-lg p-12 hover:border-primary hover:shadow-md transition-all flex flex-col items-center justify-center gap-4 min-h-[240px] group cursor-pointer"
               >
-                <div className="w-16 h-16 border-2 border-gray-600 rounded" />
+                <div className="w-16 h-16 border-2 border-primary/20 rounded flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors" />
                 <div className="text-center">
-                  <h2 className="text-base text-gray-200 mb-2">Open Raw File</h2>
-                  <p className="text-sm text-gray-500">Volatile workspace</p>
+                  <h2 className="text-base text-foreground font-semibold mb-2">Open Raw File</h2>
+                  <p className="text-sm text-muted-foreground">Volatile workspace</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowCreateStudyModal(true)}
-                className="bg-gray-800 border border-gray-700 rounded p-12 hover:border-gray-500 transition-colors flex flex-col items-center justify-center gap-4 min-h-[240px]"
+                className="bg-card border border-border rounded-lg p-12 hover:border-primary hover:shadow-md transition-all flex flex-col items-center justify-center gap-4 min-h-[240px] group cursor-pointer"
               >
-                <div className="w-16 h-16 border-2 border-gray-600 rounded" />
+                <div className="w-16 h-16 border-2 border-primary/20 rounded flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors" />
                 <div className="text-center">
-                  <h2 className="text-base text-gray-200 mb-2">Create a Study</h2>
-                  <p className="text-sm text-gray-500">Persistent workspace</p>
+                  <h2 className="text-base text-foreground font-semibold mb-2">Create a Study</h2>
+                  <p className="text-sm text-muted-foreground">Persistent workspace</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => navigate("/browse")}
-                className="bg-gray-800 border border-gray-700 rounded p-12 hover:border-gray-500 transition-colors flex flex-col items-center justify-center gap-4 min-h-[240px]"
+                className="bg-card border border-border rounded-lg p-12 hover:border-primary hover:shadow-md transition-all flex flex-col items-center justify-center gap-4 min-h-[240px] group cursor-pointer"
               >
-                <div className="w-16 h-16 border-2 border-gray-600 rounded" />
+                <div className="w-16 h-16 border-2 border-primary/20 rounded flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors" />
                 <div className="text-center">
-                  <h2 className="text-base text-gray-200 mb-2">Browse Studies</h2>
-                  <p className="text-sm text-gray-500">Saved studies</p>
+                  <h2 className="text-base text-foreground font-semibold mb-2">Browse Studies</h2>
+                  <p className="text-sm text-muted-foreground">Saved studies</p>
                 </div>
               </button>
             </div>

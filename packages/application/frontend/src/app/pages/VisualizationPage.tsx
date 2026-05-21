@@ -456,14 +456,14 @@ export function VisualizationPage() {
   }, [sliceType]);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-900">
+    <div className="h-screen flex flex-col bg-background font-sans">
       {/* Ribbon - Top Controls */}
-      <div className="bg-gray-800 border-b border-gray-700 px-4 py-2">
+      <div className="bg-card border-b border-border px-4 py-2 shadow-sm relative z-10">
         <div className="flex items-center gap-6">
           {/* Sidebar Toggle */}
           <button
             onClick={() => setSidebarVisible(!sidebarVisible)}
-            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-sm flex items-center gap-2"
+            className="px-3 py-1.5 bg-secondary hover:bg-muted border border-border text-secondary-foreground rounded text-sm flex items-center gap-2 transition-colors"
             title="Toggle Sidebar"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -473,19 +473,19 @@ export function VisualizationPage() {
           </button>
 
           {/* Crosshair Controls */}
-          <div className="flex items-center gap-3 border-l border-gray-700 pl-6">
-            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+          <div className="flex items-center gap-3 border-l border-border pl-6">
+            <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer font-medium">
               <input
                 type="checkbox"
                 checked={showCrosshair}
                 onChange={handleCrosshairToggle}
-                className="w-4 h-4 rounded border-gray-600 bg-gray-700"
+                className="w-4 h-4 rounded border-border bg-card text-primary focus:ring-primary"
               />
               <span>Crosshair</span>
             </label>
 
             <div className="flex items-center gap-2">
-              <label className="text-xs text-gray-400">Width:</label>
+              <label className="text-xs text-muted-foreground font-medium">Width:</label>
               <input
                 type="range"
                 min="1"
@@ -496,19 +496,19 @@ export function VisualizationPage() {
                 className="w-20"
                 disabled={!showCrosshair}
               />
-              <span className="text-xs text-gray-400 w-4">{crosshairWidth}</span>
+              <span className="text-xs text-muted-foreground font-medium w-4">{crosshairWidth}</span>
             </div>
           </div>
 
           {/* Background Toggle */}
-          <div className="flex items-center gap-2 border-l border-gray-700 pl-6">
-            <label className="text-sm text-gray-300">Background:</label>
+          <div className="flex items-center gap-2 border-l border-border pl-6">
+            <label className="text-sm text-foreground font-medium">Background:</label>
             <button
               onClick={handleBackgroundToggle}
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                 lightBackground
-                  ? "bg-white text-gray-900"
-                  : "bg-gray-900 text-gray-300 border border-gray-600"
+                  ? "bg-primary text-primary-foreground border border-primary"
+                  : "bg-card text-foreground border border-border hover:bg-muted"
               }`}
             >
               {lightBackground ? "Light" : "Dark"}
@@ -516,15 +516,15 @@ export function VisualizationPage() {
           </div>
 
           {/* Status */}
-          <div className="ml-auto text-xs text-gray-500">
+          <div className="ml-auto text-xs text-muted-foreground font-medium">
             {statusText}
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center gap-2 border-l border-gray-700 pl-6">
+          <div className="flex items-center gap-2 border-l border-border pl-6">
             <button
               onClick={() => navigate("/")}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-sm flex items-center gap-2"
+              className="px-3 py-1.5 bg-secondary hover:bg-muted border border-border text-secondary-foreground rounded text-sm flex items-center gap-2 transition-colors"
               title="Back to Home"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -534,7 +534,7 @@ export function VisualizationPage() {
             </button>
             <button
               onClick={() => navigate("/browse")}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-sm flex items-center gap-2"
+              className="px-3 py-1.5 bg-secondary hover:bg-muted border border-border text-secondary-foreground rounded text-sm flex items-center gap-2 transition-colors"
               title="Browse Studies"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -548,7 +548,7 @@ export function VisualizationPage() {
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {viewPhase === "error" && (
-          <div className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-gray-900">
+          <div className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-background">
             <StudyErrorScreen
               title={errorTitle}
               message={errorMessage}
@@ -563,12 +563,12 @@ export function VisualizationPage() {
         <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left Sidebar - Controls */}
         {sidebarVisible && (
-          <div className="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto">
+          <div className="w-80 bg-secondary border-r border-border overflow-y-auto shadow-inner relative z-0">
             <div className="p-4 space-y-6">
               {/* Header */}
-              <div className="border-b border-gray-700 pb-4">
-                <h1 className="text-xl font-bold text-white mb-2">NiiVue Controls</h1>
-                <div className="text-xs text-gray-400">
+              <div className="border-b border-border pb-4">
+                <h1 className="text-xl font-semibold text-foreground mb-2 tracking-tight">NiiVue Controls</h1>
+                <div className="text-xs text-muted-foreground font-mono">
                   {studyId ? `Study: ${studyId}` : "Volatile Mode"}
                 </div>
               </div>
@@ -576,17 +576,17 @@ export function VisualizationPage() {
               {/* Volume Selection and Visibility */}
               {nvRef.current && nvRef.current.volumes.length > 0 && (
                 <div className="space-y-3">
-                  <label className="text-sm font-semibold text-gray-300">Volumes</label>
+                  <label className="text-sm font-semibold text-foreground">Volumes</label>
                   
                   {/* Volume visibility checkboxes */}
                   <div className="space-y-2">
                     {nvRef.current.volumes.map((vol, idx) => (
-                      <label key={idx} className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                      <label key={idx} className="flex items-center gap-2 text-sm text-foreground cursor-pointer font-medium">
                         <input
                           type="checkbox"
                           checked={volumeVisibility[idx] ?? true}
                           onChange={() => handleVolumeVisibilityToggle(idx)}
-                          className="w-4 h-4 rounded border-gray-600 bg-gray-700"
+                          className="w-4 h-4 rounded border-border bg-card text-primary focus:ring-primary"
                         />
                         <span>{vol.name || `Volume ${idx}`}</span>
                       </label>
@@ -595,11 +595,11 @@ export function VisualizationPage() {
                   
                   {/* Volume selector for editing */}
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400">Edit Volume:</label>
+                    <label className="text-xs text-muted-foreground font-medium">Edit Volume:</label>
                     <select
                       value={selectedVolume}
                       onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
-                      className="w-full bg-gray-700 text-gray-300 border border-gray-600 rounded px-3 py-2 text-sm"
+                      className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                     >
                       {nvRef.current.volumes.map((vol, idx) => (
                         <option key={idx} value={idx}>
@@ -613,11 +613,11 @@ export function VisualizationPage() {
 
               {/* Slice Type */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-300">Slice Type</label>
+                <label className="text-sm font-semibold text-foreground">Slice Type</label>
                 <select
                   value={sliceType}
                   onChange={(e) => handleSliceTypeChange(e.target.value)}
-                  className="w-full bg-gray-700 text-gray-300 border border-gray-600 rounded px-3 py-2 text-sm"
+                  className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                 >
                   <option value="multiplanar">Multiplanar</option>
                   <option value="multiplanar_4view">Multiplanar (4 Views)</option>
@@ -630,7 +630,7 @@ export function VisualizationPage() {
 
               {/* Opacity */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-300">
+                <label className="text-sm font-semibold text-foreground">
                   Opacity: {opacity.toFixed(2)}
                 </label>
                 <input
@@ -646,11 +646,11 @@ export function VisualizationPage() {
 
               {/* Colormap */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-300">Colormap</label>
+                <label className="text-sm font-semibold text-foreground">Colormap</label>
                 <select
                   value={colormap}
                   onChange={(e) => handleColormapChange(e.target.value)}
-                  className="w-full bg-gray-700 text-gray-300 border border-gray-600 rounded px-3 py-2 text-sm"
+                  className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                 >
                   {colormaps.map((cm) => (
                     <option key={cm} value={cm}>
@@ -662,7 +662,7 @@ export function VisualizationPage() {
 
               {/* Cal Min */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-300">
+                <label className="text-sm font-semibold text-foreground">
                   Cal Min: {cal_min.toFixed(0)}
                 </label>
                 <input
@@ -678,7 +678,7 @@ export function VisualizationPage() {
 
               {/* Cal Max */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-300">
+                <label className="text-sm font-semibold text-foreground">
                   Cal Max: {cal_max.toFixed(0)}
                 </label>
                 <input
@@ -693,11 +693,11 @@ export function VisualizationPage() {
               </div>
 
               {/* Clip Plane */}
-              <div className="space-y-3 border-t border-gray-700 pt-4">
-                <h3 className="text-sm font-semibold text-gray-300">Clip Plane</h3>
+              <div className="space-y-3 border-t border-border pt-4">
+                <h3 className="text-sm font-semibold text-foreground">Clip Plane</h3>
                 
                 <div className="space-y-2">
-                  <label className="text-sm text-gray-300">
+                  <label className="text-sm font-medium text-foreground">
                     Depth: {clipPlaneDepth.toFixed(2)}
                   </label>
                   <input
@@ -712,7 +712,7 @@ export function VisualizationPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-gray-300">
+                  <label className="text-sm font-medium text-foreground">
                     Azimuth: {clipPlaneAzimuth.toFixed(0)}°
                   </label>
                   <input
@@ -727,7 +727,7 @@ export function VisualizationPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-gray-300">
+                  <label className="text-sm font-medium text-foreground">
                     Elevation: {clipPlaneElevation.toFixed(0)}°
                   </label>
                   <input
@@ -744,11 +744,11 @@ export function VisualizationPage() {
 
               {/* Render Settings */}
               {sliceType === "render" && (
-                <div className="space-y-3 border-t border-gray-700 pt-4">
-                  <h3 className="text-sm font-semibold text-gray-300">Render View</h3>
+                <div className="space-y-3 border-t border-border pt-4">
+                  <h3 className="text-sm font-semibold text-foreground">Render View</h3>
                   
                   <div className="space-y-2">
-                    <label className="text-sm text-gray-300">
+                    <label className="text-sm font-medium text-foreground">
                       Azimuth: {renderAzimuth.toFixed(0)}°
                     </label>
                     <input
@@ -763,7 +763,7 @@ export function VisualizationPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm text-gray-300">
+                    <label className="text-sm font-medium text-foreground">
                       Elevation: {renderElevation.toFixed(0)}°
                     </label>
                     <input
@@ -789,12 +789,12 @@ export function VisualizationPage() {
             style={{ backgroundColor: lightBackground ? "#ffffff" : "#000000" }}
           >
             {!studyId && viewPhase === "loading" && (
-              <div className="absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-gray-900">
+              <div className="absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
                 <div
-                  className="h-10 w-10 shrink-0 rounded-full border-2 border-gray-500 border-t-gray-200 animate-spin"
+                  className="h-10 w-10 shrink-0 rounded-full border-2 border-primary/30 border-t-primary animate-spin"
                   aria-hidden
                 />
-                <p className="text-sm text-gray-500">{statusText}</p>
+                <p className="text-sm font-medium text-muted-foreground">{statusText}</p>
               </div>
             )}
             {viewPhase !== "error" && (
@@ -802,8 +802,8 @@ export function VisualizationPage() {
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-4 border-t border-gray-700 bg-gray-800 px-4 py-2">
-            <span className="flex-1 text-xs text-gray-500">{statusText}</span>
+          <div className="flex shrink-0 items-center gap-4 border-t border-border bg-card px-4 py-2">
+            <span className="flex-1 text-xs font-medium text-muted-foreground">{statusText}</span>
 
           </div>
         </div>

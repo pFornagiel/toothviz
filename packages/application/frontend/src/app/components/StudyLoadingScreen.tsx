@@ -48,15 +48,15 @@ export function StudyLoadingScreen({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-      <h1 className="text-xl text-gray-200 mb-2">{title}</h1>
-      <p className="text-sm text-gray-500 mb-6 max-w-md">{statusLine}</p>
+      <h1 className="text-2xl text-foreground font-semibold tracking-tight mb-2">{title}</h1>
+      <p className="text-sm text-muted-foreground mb-6 max-w-md">{statusLine}</p>
 
       <div className="w-full max-w-md mb-8">
-        <div className="flex justify-between text-xs text-gray-500 mb-2">
+        <div className="flex justify-between text-xs font-medium text-muted-foreground mb-2">
           <span>Progress</span>
           <span>{pct}%</span>
         </div>
-        <Progress value={pct} className="h-3 bg-gray-700 [&_[data-slot=progress-indicator]]:bg-blue-500" />
+        <Progress value={pct} className="h-2 bg-muted [&_[data-slot=progress-indicator]]:bg-primary" />
       </div>
 
       {steps.length > 0 && (
@@ -67,15 +67,15 @@ export function StudyLoadingScreen({
             return (
               <li
                 key={`${step}-${idx}`}
-                className={`flex items-center gap-2 rounded px-3 py-2 border ${
+                className={`flex items-center gap-2 rounded px-3 py-2 border font-medium transition-colors ${
                   done
-                    ? "border-green-800/60 bg-green-950/20 text-green-300"
+                    ? "border-emerald-600/30 bg-emerald-600/5 text-emerald-600"
                     : active
-                      ? "border-blue-700/60 bg-blue-950/30 text-blue-200"
-                      : "border-gray-700 text-gray-500"
+                      ? "border-primary/30 bg-primary/5 text-primary"
+                      : "border-border text-muted-foreground"
                 }`}
               >
-                <span className="w-5 shrink-0 text-center">{done ? "✓" : active ? "…" : "○"}</span>
+                <span className="w-5 shrink-0 text-center font-bold">{done ? "✓" : active ? "…" : "○"}</span>
                 <span>{labelForStep(step)}</span>
               </li>
             );
