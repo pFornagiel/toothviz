@@ -4,7 +4,7 @@ import { OpenRawFileModal } from "../components/OpenRawFileModal";
 import { CreateStudyModal, type CreateStudyData } from "../components/CreateStudyModal";
 import { listStudies, createStudy, deleteStudy } from "@/api/studies";
 import type { UploadKind, PipelineRequestItem } from "@/api/types";
-import { PageLayout } from "../components/ui/page-layout";
+import { PageLayout } from "../components/layout/page-layout";
 
 export function StartPage() {
   const navigate = useNavigate();

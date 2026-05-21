@@ -77,7 +77,7 @@ export function CreateStudyModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="h-auto overflow-y-aut min-w-4xl">
         <DialogHeader>
           <DialogTitle>Create New Study</DialogTitle>
           <DialogDescription>
@@ -85,7 +85,7 @@ export function CreateStudyModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-8 py-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-4">
           {/* Study Name Field */}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium uppercase tracking-wider text-foreground" htmlFor="studyName">Study Identifier</label>

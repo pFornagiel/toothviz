@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useNavigate } from "react-router";
-import { cn } from "./utils";
+import { cn } from "@/lib/utils";
 
 interface PageLayoutProps {
   title: string;
@@ -10,12 +10,12 @@ interface PageLayoutProps {
   mainClassName?: string;
 }
 
-export function PageLayout({ 
-  title, 
-  showBackButton = false, 
-  onBack, 
-  children, 
-  mainClassName 
+export function PageLayout({
+  title,
+  showBackButton = false,
+  onBack,
+  children,
+  mainClassName,
 }: PageLayoutProps) {
   const navigate = useNavigate();
 
@@ -32,8 +32,8 @@ export function PageLayout({
       <header className="border-b border-border bg-card px-6 py-4 shadow-sm">
         <div className="flex items-center gap-4">
           {showBackButton && (
-            <button 
-              onClick={handleBack} 
+            <button
+              onClick={handleBack}
               className="text-muted-foreground hover:text-foreground transition-colors p-1"
             >
               &larr;
@@ -42,9 +42,7 @@ export function PageLayout({
           <h1 className="text-xl text-foreground font-semibold tracking-tight">{title}</h1>
         </div>
       </header>
-      <main className={cn("flex-1", mainClassName)}>
-        {children}
-      </main>
+      <main className={cn("flex-1", mainClassName)}>{children}</main>
     </div>
   );
 }

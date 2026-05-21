@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { useNavigate, useLoaderData, useRevalidator } from "react-router";
 import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
-import { PageLayout } from "../components/ui/page-layout";
+import { PageLayout } from "../components/layout/page-layout";
 
 export async function browseLoader() {
   return await listStudies();
