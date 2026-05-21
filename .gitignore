@@ -73,6 +73,10 @@ Thumbs.db
 node_modules
 .vite
 
+# Electron desktop
+packages/application/desktop/out/
+packages/application/desktop/release/
+
 plans/
 
 *Anonymized*

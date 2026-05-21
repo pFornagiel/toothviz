@@ -1,4 +1,5 @@
-.PHONY: help run run-dummy run-normal dev test install
+.PHONY: help run run-dummy run-normal dev dev-dummy test install \
+	desktop-install desktop-dev desktop-build desktop-dist
 
 help:
 	@echo "Tooth - Available commands:"
@@ -7,6 +8,9 @@ help:
 	@echo "  make run-dummy      - Run app with dummy fast segmentation (for testing)"
 	@echo "  make dev            - Run with auto-reload"
 	@echo "  make dev-dummy      - Run dev mode with dummy segmentation"
+	@echo "  make desktop-dev    - Run Electron desktop app (dev)"
+	@echo "  make desktop-build  - Build Electron app (compile)"
+	@echo "  make desktop-dist   - Build installable desktop package"
 	@echo "  make test           - Run tests"
 	@echo "  make install        - Install dependencies with uv"
 
@@ -34,3 +38,16 @@ test:
 
 install:
 	uv sync
+
+desktop-install:
+	cd desktop && npm install
+	cd frontend && npm install
+
+desktop-dev: desktop-install
+	cd desktop && npm run dev
+
+desktop-build: desktop-install
+	cd desktop && npm run build
+
+desktop-dist: desktop-install
+	cd desktop && npm run dist
