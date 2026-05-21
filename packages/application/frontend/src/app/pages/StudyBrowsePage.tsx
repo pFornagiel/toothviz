@@ -52,7 +52,7 @@ export function StudyBrowsePage() {
     });
 
   return (
-    <PageLayout title="Browse Studies" showBackButton>
+    <PageLayout title="Browse Studies" showBackButton mainClassName="p-8">
       {studies.length === 0 ? (
         <div className="text-center text-muted-foreground py-12">
           No studies found. Create one from the start page.

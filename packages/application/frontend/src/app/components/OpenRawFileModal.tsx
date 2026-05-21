@@ -53,7 +53,7 @@ export function OpenRawFileModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[640px]">
+      <DialogContent className="min-w-3xl">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -64,7 +64,7 @@ export function OpenRawFileModal({
           <DialogDescription className="sr-only">Open a NIfTI file and an optional segmentation mask for volatile visualization.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6 py-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6 pt-4">
           {/* Primary NIfTI Input */}
           <div>
             <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-1 uppercase tracking-wide">

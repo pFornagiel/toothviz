@@ -85,7 +85,7 @@ export function CreateStudyModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-4">
           {/* Study Name Field */}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium uppercase tracking-wider text-foreground" htmlFor="studyName">Study Identifier</label>
@@ -108,7 +108,7 @@ export function CreateStudyModal({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Base Medical Image Section */}
-            <div className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4">
+            <div className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4 h-[380px]">
               <div className="flex items-center gap-2 mb-1">
                 <span className="material-symbols-outlined text-primary text-[20px]" style={{fontVariationSettings: "'FILL' 1"}}>folder_open</span>
                 <h3 className="text-sm font-medium uppercase text-foreground">Base Image Source</h3>
@@ -174,7 +174,7 @@ export function CreateStudyModal({
             </div>
 
             {/* Segmentation Method Section */}
-            <div className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4">
+            <div className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4 h-[380px] overflow-y-auto">
               <div className="flex items-center gap-2 mb-1">
                 <span className="material-symbols-outlined text-primary text-[20px]" style={{fontVariationSettings: "'FILL' 1"}}>layers</span>
                 <h3 className="text-sm font-medium uppercase text-foreground">Segmentation Pipeline</h3>
