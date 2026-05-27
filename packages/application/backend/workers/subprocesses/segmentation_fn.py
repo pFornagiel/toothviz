@@ -24,7 +24,6 @@ import numpy as np
 from scipy.ndimage import zoom, gaussian_filter, binary_fill_holes
 
 from backend.workers.subprocesses._onnx_helpers import load_onnx_model
-from dataclasses import dataclass
 from backend.workers.steps.configs import SegmentNiftiStepConfig
 
 logger = logging.getLogger(__name__)
@@ -47,7 +46,8 @@ def _init_segmentation(model_path: str, execution_providers: tuple[str, ...]) ->
 def run_segmentation(
     input_nifti_path: str,
     out_dir: str,
-    config: SegmentNiftiStepConfig
+    config: SegmentNiftiStepConfig,
+    progress_queue=None,
     ) -> str:
     """Run segmentation inference with nnUNet v2-style preprocessing.
     
@@ -77,9 +77,9 @@ def run_segmentation(
     spacing = np.array(img.header.get_zooms()[:3])[::-1]
 
     mask = _predict_with_preprocessing_and_postprocessing(
-        image_data, spacing, config=config
+        image_data, spacing, config=config, progress_queue=progress_queue
     )
-    
+
     # Convert mask back from SimpleITK (Z, Y, X) to nibabel (X, Y, Z)
     mask = np.transpose(mask, (2, 1, 0))
     
@@ -98,6 +98,7 @@ def _predict_with_preprocessing_and_postprocessing(
     spacing: np.ndarray,
     *,
     config: SegmentNiftiStepConfig,
+    progress_queue=None,
 ) -> np.ndarray:
     """Run preprocessing + inference + postprocessing with nnUNet v2 flow."""
     if _model is None:
@@ -133,9 +134,10 @@ def _predict_with_preprocessing_and_postprocessing(
 
     logger.info("Running sliding window inference")
     logits = _predict_sliding_window(
-        image_data, 
-        patch_size=patch_size, 
-        tile_step_size=config.tile_step_size
+        image_data,
+        patch_size=patch_size,
+        tile_step_size=config.tile_step_size,
+        progress_queue=progress_queue,
     )
     logits = logits[props['slicer_revert_pad']]
 
@@ -354,6 +356,7 @@ def _predict_sliding_window(
     image_data: np.ndarray,
     patch_size: tuple[int, int, int] = (256, 256, 256),
     tile_step_size: float = 0.5,
+    progress_queue=None,
 ) -> np.ndarray:
     """Run inference with sliding window and Gaussian blending.
     
@@ -384,6 +387,7 @@ def _predict_sliding_window(
 
     # Process each patch
     logger.info(f"Generated {len(slices)} patches for sliding window inference.")
+    total_patches = max(1, len(slices))
     for i, patch_slice in enumerate(slices):
         logger.info(f"Analyzing patch {i+1}/{len(slices)}: {patch_slice}")
         # Extract patch
@@ -400,6 +404,12 @@ def _predict_sliding_window(
         # Accumulate
         output[:, patch_slice[0], patch_slice[1], patch_slice[2]] += weighted_pred
         counts[patch_slice[0], patch_slice[1], patch_slice[2]] += gaussian_map
+
+        if progress_queue is not None:
+            try:
+                progress_queue.put((i + 1) / total_patches)
+            except Exception:
+                pass
 
     # Normalize
     output = output / counts[np.newaxis, ...]

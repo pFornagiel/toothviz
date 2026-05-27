@@ -42,9 +42,11 @@ export interface PipelineMessage {
   status?: PipelineStatus;
   step?: string;
   progress?: number;
+  step_progress?: number;
   error?: string;
   file_id?: string;
   failed_step?: string;
   total_steps?: number;
   step_index?: number;
+  derived_files?: Record<string, string>;
 }

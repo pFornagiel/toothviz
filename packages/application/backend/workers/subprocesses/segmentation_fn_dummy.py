@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 def run_segmentation(
     input_nifti_path: str,
     out_dir: str,
-    config: SegmentNiftiStepConfig
+    config: SegmentNiftiStepConfig,
+    progress_queue=None,
     ) -> str:
     """
     Fast dummy segmentation that creates a random binary mask.
@@ -61,6 +62,12 @@ def run_segmentation(
     output_path = out / "segmentation_mask.nii.gz"
     logger.info(f"[DUMMY MODE] Saving dummy mask to {output_path}")
     nib.save(mask_img, str(output_path))
+
+    if progress_queue is not None:
+        try:
+            progress_queue.put(1.0)
+        except Exception:
+            pass
     
     logger.info(f"[DUMMY MODE] Dummy segmentation completed instantly!")
     return str(output_path)

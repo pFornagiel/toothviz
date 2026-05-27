@@ -52,8 +52,9 @@ async def run_pipeline(
         collected: dict[str, OutputArtifact] = {}
 
         for i, step in enumerate(steps):
+            step_ctx = replace(ctx, step_index=i, total_steps=total)
             if total:
-                await ctx.broadcaster.broadcast(
+                await step_ctx.broadcaster.broadcast(
                     job_id,
                     {
                         "event": "step_started",
@@ -66,7 +67,7 @@ async def run_pipeline(
                     },
                 )
             try:
-                result = await step.run(ctx)
+                result = await step.run(step_ctx)
             except Exception as exc:
                 raise RuntimeError(
                     f"Pipeline step {step.name!r} failed"
@@ -81,27 +82,37 @@ async def run_pipeline(
                 collected[artifact.purpose] = artifact
 
             if total:
-                await ctx.broadcaster.broadcast(
+                # Ensure the final progress of the step is visible even when the
+                # step doesn't emit fine-grained progress updates.
+                await step_ctx.broadcast_progress(
+                    step_name=step.name,
+                    step_progress=1.0,
+                )
+
+                await step_ctx.broadcaster.broadcast(
                     job_id,
                     {
                         "event": "step_completed",
                         "job_id": job_id,
                         "step": step.name,
-                        "status": "completed",
+                        "status": "running",
                         "progress": (i + 1) / total if total else 1.0,
                         "total_steps": total,
                         "step_index": i,
                     },
                 )
 
+        derived_files: dict[str, str] = {}
         for artifact in collected.values():
-            storage_service.store_derived(
+            record = storage_service.store_derived(
                 src_path=artifact.path,
                 study_id=ctx.study_id,
                 filename=artifact.path.name,
                 kind=artifact.kind,
                 viewer_purpose=artifact.purpose,
             )
+            if artifact.purpose in ("viewer_volume", "viewer_overlay"):
+                derived_files[artifact.purpose] = record.id
 
         with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")
@@ -113,6 +124,7 @@ async def run_pipeline(
                 "job_id": job_id,
                 "status": "completed",
                 "progress": 1.0,
+                "derived_files": derived_files or None,
             },
         )
 
@@ -132,15 +144,18 @@ async def run_pipeline(
     except Exception as exc:
         logger.exception("Pipeline %s failed", job_id)
         failed_step = _extract_failed_step(exc)
+        error_text = str(exc)
+        if exc.__cause__ is not None:
+            error_text = f"{error_text}. Cause: {exc.__cause__}"
         with storage_service.session_factory() as db:
-            PipelineJobRepo(db).set_status(job_id, "failed", error=str(exc))
+            PipelineJobRepo(db).set_status(job_id, "failed", error=error_text)
         await ctx.broadcaster.broadcast(
             job_id,
             {
                 "event": "pipeline_failed",
                 "job_id": job_id,
                 "status": "failed",
-                "error": str(exc),
+                "error": error_text,
                 "failed_step": failed_step,
             },
         )
