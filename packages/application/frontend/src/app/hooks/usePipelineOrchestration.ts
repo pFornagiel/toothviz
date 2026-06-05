@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef, type Dispatch } from "react";
 import type { NavigateFunction } from "react-router";
 import { deleteStudy, getStudy } from "@/api/studies";
 import { uploadFile, type UploadProgress } from "@/api/upload";
-import { connectPipeline } from "@/api/ws";
+import { establishWebsocketConnection } from "@/api/ws";
 import { ApiError } from "@/api/client";
 import type {
   PipelineMessage,
@@ -476,7 +476,7 @@ export function usePipelineOrchestration(
               totalStepsCount,
             });
 
-            disconnect = connectPipeline(
+            disconnect = establishWebsocketConnection(
               baseResult.job_id,
               (msg: PipelineMessage) => {
                 applyWsMessage(msg, {
@@ -592,7 +592,7 @@ export function usePipelineOrchestration(
         currentStepIndex: stepNames.length > 0 ? 0 : null,
       });
 
-      disconnect = connectPipeline(
+      disconnect = establishWebsocketConnection(
         jobId,
         (msg: PipelineMessage) => {
           applyWsMessage(msg, {

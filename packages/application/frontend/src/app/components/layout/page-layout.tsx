@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
 
 interface PageLayoutProps {
-  title: string;
+  title?: string;
   showBackButton?: boolean;
   onBack?: () => void;
   children: React.ReactNode;
@@ -11,7 +11,7 @@ interface PageLayoutProps {
 }
 
 export function PageLayout({
-  title,
+  title="ToothViz",
   showBackButton = false,
   onBack,
   children,

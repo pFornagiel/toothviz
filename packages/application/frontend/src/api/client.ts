@@ -25,6 +25,9 @@ export async function fetchJson<T>(
     throw new ApiError(res.status, body.detail ?? res.statusText);
   }
 
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   return res.json();
 }

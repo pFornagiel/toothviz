@@ -79,7 +79,7 @@ export function StartPage() {
   };
 
   return (
-    <PageLayout title="Medical Visualization App" mainClassName="flex items-center justify-center p-8">
+    <PageLayout title="ToothViz" mainClassName="flex items-center justify-center p-8">
       {busy ? (
         <div className="text-muted-foreground text-center max-w-md w-full mx-auto">
           <div className="mb-4 text-lg">Creating study…</div>

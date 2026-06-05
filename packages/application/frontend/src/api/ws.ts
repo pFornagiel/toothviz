@@ -1,6 +1,6 @@
 import type { PipelineMessage } from "./types";
 
-export function connectPipeline(
+export function establishWebsocketConnection(
   jobId: string,
   onMessage: (msg: PipelineMessage) => void,
   onClose?: () => void,
