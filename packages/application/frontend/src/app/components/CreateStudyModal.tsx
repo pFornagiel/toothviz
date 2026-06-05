@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { DashedFileDropZone } from "./DashedFileDropZone";
-import { validateNiftiFile, validateDicomBaseFile } from "./medicalFileTypes";
+import { validateNiftiFile, validateDicomBaseFile } from "../utils/medicalFileTypes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
 
@@ -18,6 +18,13 @@ interface CreateStudyModalProps {
   onSubmit: (data: CreateStudyData) => void;
 }
 
+function generateDefaultStudyName(): string {
+  const now = new Date();
+  const date = now.toISOString().split('T')[0]; 
+  const time = now.toTimeString().split(' ')[0].substring(0, 8);
+  return `visualization_${date}_${time}`
+}
+
 export function CreateStudyModal({
   isOpen,
   onClose,
@@ -25,7 +32,7 @@ export function CreateStudyModal({
 }: CreateStudyModalProps) {
   const precomputedRadioId = useId();
 
-  const [studyName, setStudyName] = useState("");
+  const [studyName, setStudyName] = useState(generateDefaultStudyName());
   const [baseImageFile, setBaseImageFile] = useState<File | null>(null);
   const [baseFileError, setBaseFileError] = useState<string | null>(null);
   const [fileType, setFileType] = useState<"nifti" | "dicom">("nifti");
@@ -99,9 +106,6 @@ export function CreateStudyModal({
                 placeholder="e.g., Patient_Scan_2023_Axial" 
                 className="w-full px-4 py-2 bg-background border border-border rounded text-base text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all peer placeholder:text-muted-foreground" 
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-primary opacity-0 peer-focus:opacity-100 transition-opacity">
-                <span className="material-symbols-outlined text-[18px]">edit</span>
-              </span>
             </div>
             <p className="text-xs text-muted-foreground peer-focus:text-primary transition-colors">Use alphanumeric characters and underscores only.</p>
           </div>
