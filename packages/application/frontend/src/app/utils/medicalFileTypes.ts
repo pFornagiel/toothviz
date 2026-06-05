@@ -19,7 +19,9 @@ export function isDicomBaseFile(file: File): boolean {
 }
 
 export function validateNiftiFile(file: File | null): string | null {
-  if (!file) return null;
+  if (!file) {
+    return null;
+  }
   if (!isNiftiFileName(file.name)) {
     return `Choose a NIfTI file (${NIFTI_EXTENSIONS.join(" or ")}).`;
   }
@@ -27,7 +29,9 @@ export function validateNiftiFile(file: File | null): string | null {
 }
 
 export function validateDicomBaseFile(file: File | null): string | null {
-  if (!file) return null;
+  if (!file) {
+    return null;
+  }
   if (!isDicomBaseFile(file)) {
     return "Choose a ZIP of a DICOM directory or a .dcm file.";
   }

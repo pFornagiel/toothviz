@@ -20,10 +20,7 @@ const defaultActiveClasses =
 export interface DashedFileDropZoneProps {
   selectedFile: File | null;
   /** Second argument is the hidden file input (for clearing `value` on validation errors). */
-  onFileChange: (
-    file: File | null,
-    input: HTMLInputElement | null,
-  ) => void;
+  onFileChange: (file: File | null, input: HTMLInputElement | null) => void;
   emptyText?: string;
   trigger?: "label" | "button";
   accept?: string;
@@ -84,7 +81,9 @@ export function DashedFileDropZone({
   function handleDragEnter(e: DragEvent<HTMLElement>): void {
     e.preventDefault();
     e.stopPropagation();
-    if (!hasFilePayload(e)) return;
+    if (!hasFilePayload(e)) {
+      return;
+    }
     dropEnterCountRef.current += 1;
     setIsDropActive(true);
   }
@@ -92,7 +91,9 @@ export function DashedFileDropZone({
   function handleDragLeave(e: DragEvent<HTMLElement>): void {
     e.preventDefault();
     e.stopPropagation();
-    if (!hasFilePayload(e)) return;
+    if (!hasFilePayload(e)) {
+      return;
+    }
     dropEnterCountRef.current -= 1;
     if (dropEnterCountRef.current <= 0) {
       resetDropVisualState();
@@ -114,7 +115,9 @@ export function DashedFileDropZone({
     const file = e.dataTransfer.files?.[0] ?? null;
     onFileChange(file, getInput());
     const input = getInput();
-    if (input) input.value = "";
+    if (input) {
+      input.value = "";
+    }
   }
 
   function handleInputChange(e: ChangeEvent<HTMLInputElement>): void {
@@ -122,23 +125,27 @@ export function DashedFileDropZone({
     onFileChange(input.files?.[0] ?? null, input);
   }
 
-  const layoutClasses =
-    trigger === "button" ? "block w-full py-4" : "block py-6";
+  const layoutClasses = trigger === "button" ? "block w-full py-4" : "block py-6";
 
-  const triggerClass = className !== undefined 
-    ? [className, isDropActive ? activeClassName : inactiveClassName].filter(Boolean).join(" ")
-    : [
-        layoutClasses,
-        triggerBaseClasses,
-        triggerClassName,
-        isDropActive ? activeClassName : inactiveClassName,
-      ]
-        .filter(Boolean)
-        .join(" ");
+  const triggerClass =
+    className !== undefined
+      ? [className, isDropActive ? activeClassName : inactiveClassName].filter(Boolean).join(" ")
+      : [
+          layoutClasses,
+          triggerBaseClasses,
+          triggerClassName,
+          isDropActive ? activeClassName : inactiveClassName,
+        ]
+          .filter(Boolean)
+          .join(" ");
 
-  const content = children 
-    ? (typeof children === "function" ? children({ isDropActive, file: selectedFile }) : children)
-    : (selectedFile ? selectedFile.name : emptyText);
+  const content = children
+    ? typeof children === "function"
+      ? children({ isDropActive, file: selectedFile })
+      : children
+    : selectedFile
+      ? selectedFile.name
+      : emptyText;
 
   const input = (
     <input

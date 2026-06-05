@@ -42,7 +42,9 @@ export function uploadStepProgress(
       return { stepIndex, fraction: 0, statusText: "Starting upload…" };
 
     case "uploading": {
-      if (!upload.totalChunks) return null;
+      if (!upload.totalChunks) {
+        return null;
+      }
       const done = (upload.chunkIndex ?? 0) + 1;
       return {
         stepIndex,
@@ -80,7 +82,9 @@ export interface PipelineStepProgress extends StepProgress {
  * yields the within-step fraction (0 on `step_started`, 1 on `step_completed`).
  */
 export function pipelineStepProgress(msg: PipelineMessage): PipelineStepProgress | null {
-  if (msg.step_index == null) return null;
+  if (msg.step_index == null) {
+    return null;
+  }
 
   const completed = msg.event === "step_completed";
   const total = msg.total_steps ?? 0;
@@ -100,6 +104,8 @@ export function pipelineStepProgress(msg: PipelineMessage): PipelineStepProgress
 }
 
 export function clamp01(x: number): number {
-  if (Number.isNaN(x)) return 0;
+  if (Number.isNaN(x)) {
+    return 0;
+  }
   return Math.min(1, Math.max(0, x));
 }

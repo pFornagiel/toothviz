@@ -35,7 +35,9 @@ export function applyWsMessage(
   }: WsHandlerOptions,
 ): void {
   if (msg.event === "pipeline_completed") {
-    if (getPipelineFinished()) return;
+    if (getPipelineFinished()) {
+      return;
+    }
     markPipelineFinished();
     disconnect();
     dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
@@ -44,7 +46,9 @@ export function applyWsMessage(
   }
 
   if (msg.event === "pipeline_failed") {
-    if (getPipelineFinished()) return;
+    if (getPipelineFinished()) {
+      return;
+    }
     markPipelineFinished();
     disconnect();
     onPipelineFailed(msg);
@@ -52,7 +56,9 @@ export function applyWsMessage(
   }
 
   if (msg.event === "pipeline_cancelled") {
-    if (getPipelineFinished()) return;
+    if (getPipelineFinished()) {
+      return;
+    }
     markPipelineFinished();
     disconnect();
     onPipelineCancelled();
@@ -60,7 +66,9 @@ export function applyWsMessage(
   }
 
   const step = pipelineStepProgress(msg);
-  if (!step) return;
+  if (!step) {
+    return;
+  }
 
   const stepIndex = step.stepIndex + stepOffset;
   dispatch({

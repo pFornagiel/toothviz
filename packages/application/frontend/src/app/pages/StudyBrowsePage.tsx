@@ -13,7 +13,7 @@ export function StudyBrowsePage() {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const studies = useLoaderData() as StudyResponse[];
-  
+
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -21,7 +21,9 @@ export function StudyBrowsePage() {
   }, [revalidator]);
 
   const handleDeleteStudy = async (id: string) => {
-    if (!confirm("Delete this study?")) return;
+    if (!confirm("Delete this study?")) {
+      return;
+    }
     setActiveDropdown(null);
     await deleteStudy(id);
     refresh();
@@ -29,7 +31,9 @@ export function StudyBrowsePage() {
 
   const handleRename = async (study: StudyResponse) => {
     const newName = prompt("New study name:", study.name ?? "");
-    if (!newName || newName === study.name) return;
+    if (!newName || newName === study.name) {
+      return;
+    }
     setActiveDropdown(null);
     await renameStudy(study.id, newName);
     refresh();
@@ -63,10 +67,18 @@ export function StudyBrowsePage() {
           <table className="w-full">
             <thead className="border-b border-border bg-muted/30">
               <tr>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Name</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Created</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Created
+                </th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -76,7 +88,9 @@ export function StudyBrowsePage() {
                   className="hover:bg-muted/50 cursor-pointer transition-colors border-l-2 border-transparent hover:border-primary"
                   onClick={() => handleClick(study)}
                 >
-                  <td className="px-6 py-4 text-sm text-foreground font-medium">{study.name ?? "—"}</td>
+                  <td className="px-6 py-4 text-sm text-foreground font-medium">
+                    {study.name ?? "—"}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     <span
                       className={
@@ -94,7 +108,9 @@ export function StudyBrowsePage() {
                       {study.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground font-mono">{formatDate(study.created_at)}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground font-mono">
+                    {formatDate(study.created_at)}
+                  </td>
                   <td className="px-6 py-4 text-sm text-muted-foreground">
                     <div className="relative">
                       <button

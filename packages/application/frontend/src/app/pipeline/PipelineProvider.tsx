@@ -12,11 +12,7 @@ import { deleteStudy, getStudy } from "@/api/studies";
 import { uploadFile } from "@/api/upload";
 import { establishWebsocketConnection } from "@/api/ws";
 import type { StudyResponse } from "@/api/types";
-import {
-  initialState,
-  type LocationState,
-  type PipelineContextValue,
-} from "./types";
+import { initialState, type LocationState, type PipelineContextValue } from "./types";
 import { pipelineReducer } from "./reducer";
 import { PipelineEngine, type PipelineApi } from "./pipelineEngine";
 
@@ -38,7 +34,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const engineRef = useRef<PipelineEngine | null>(null);
 
   useEffect(() => {
-    if (!studyId) return;
+    if (!studyId) {
+      return;
+    }
 
     const api: PipelineApi = {
       getStudy,
@@ -75,9 +73,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const reconnect = useCallback(() => engineRef.current?.reconnect(), []);
 
   return (
-    <PipelineContext.Provider value={{ ...state, reconnect }}>
-      {children}
-    </PipelineContext.Provider>
+    <PipelineContext.Provider value={{ ...state, reconnect }}>{children}</PipelineContext.Provider>
   );
 }
 

@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  pipelineReducer,
-  PipelineActionType,
-  FinishMode,
-} from "@/app/pipeline/reducer";
+import { pipelineReducer, PipelineActionType, FinishMode } from "@/app/pipeline/reducer";
 import { initialState, type PipelineState } from "@/app/pipeline/types";
 import { ClientStepName, PipelineStepName } from "@/api/types";
 
@@ -173,9 +169,7 @@ describe("pipelineReducer — error & connection transitions", () => {
       type: PipelineActionType.ConnectionClosed,
     });
     expect(next.connectionLost).toBe(true);
-    expect(next.statusText).toBe(
-      "Connection closed — check your network or reconnect.",
-    );
+    expect(next.statusText).toBe("Connection closed — check your network or reconnect.");
     expect(next.steps).toEqual(noMaskSteps);
   });
 

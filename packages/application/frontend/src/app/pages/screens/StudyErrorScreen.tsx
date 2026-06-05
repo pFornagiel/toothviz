@@ -22,7 +22,9 @@ export function StudyErrorScreen({
         <p className="text-sm text-foreground/90 whitespace-pre-wrap mb-6">{message}</p>
         {hints.length > 0 && (
           <div className="mb-8">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">What you can try</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+              What you can try
+            </p>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
               {hints.map((h, i) => (
                 <li key={i}>{h}</li>

@@ -55,10 +55,7 @@ export interface PipelineStartParams {
 export class PipelineEngine {
   private readonly dispatch: Dispatch<PipelineAction>;
   private readonly api: PipelineApi;
-  private readonly onNavigateToViewer: (
-    studyId: string,
-    from: FromPage,
-  ) => void;
+  private readonly onNavigateToViewer: (studyId: string, from: FromPage) => void;
 
   private cancelled = false;
   private finished = false;
@@ -101,14 +98,10 @@ export class PipelineEngine {
 
     // No job id and not actively processing -> the initial upload state was lost which means error
     if (!jobId && study.status !== "processing") {
-      this.goError(
-        "Upload state was lost",
-        "Please create the study again from the home page.",
-        [
-          "This can happen if you refreshed during the initial upload.",
-          "Use “Create a Study” again from home.",
-        ],
-      );
+      this.goError("Upload state was lost", "Please create the study again from the home page.", [
+        "This can happen if you refreshed during the initial upload.",
+        "Use “Create a Study” again from home.",
+      ]);
       return;
     }
 
@@ -126,8 +119,12 @@ export class PipelineEngine {
    * User-driven retry after a connection loss
    */
   reconnect(): void {
-    if (this.cancelled || this.finished || this.connected) return;
-    if (!this.jobId) return;
+    if (this.cancelled || this.finished || this.connected) {
+      return;
+    }
+    if (!this.jobId) {
+      return;
+    }
     this.dispatch({ type: PipelineActionType.ClearConnectionLost });
     void this.runReconnect(this.jobId);
   }
@@ -169,9 +166,13 @@ export class PipelineEngine {
           job.carriesPipelines ? pipelines : [],
           this.onUploadProgress(layout),
         );
-        if (this.cancelled) return;
+        if (this.cancelled) {
+          return;
+        }
 
-        if (job.carriesPipelines) jobId = result.job_id;
+        if (job.carriesPipelines) {
+          jobId = result.job_id;
+        }
 
         this.dispatch({
           type: PipelineActionType.CompleteStep,
@@ -195,7 +196,9 @@ export class PipelineEngine {
       });
       this.connect(jobId, uploadPrefixLen);
     } catch (err: unknown) {
-      if (this.cancelled) return;
+      if (this.cancelled) {
+        return;
+      }
       try {
         await this.api.deleteStudy(this.studyId);
       } catch {
@@ -211,11 +214,15 @@ export class PipelineEngine {
     let stepNames: LoadingStepId[] = [];
     try {
       const fresh = await this.api.getStudy(this.studyId);
-      if (this.cancelled) return;
+      if (this.cancelled) {
+        return;
+      }
       stepNames = fresh.steps ?? [];
       this.dispatch({ type: PipelineActionType.SetSteps, steps: stepNames });
     } catch (e: unknown) {
-      if (this.cancelled) return;
+      if (this.cancelled) {
+        return;
+      }
       if (e instanceof ApiError && e.status === 404) {
         this.goError(
           "Study not found",
@@ -229,7 +236,9 @@ export class PipelineEngine {
       return;
     }
 
-    if (this.cancelled) return;
+    if (this.cancelled) {
+      return;
+    }
 
     this.dispatch({
       type: PipelineActionType.EnterPipeline,
@@ -268,11 +277,7 @@ export class PipelineEngine {
               errorHints(m.failed_step),
             ),
           onPipelineCancelled: () =>
-            this.goError(
-              "Processing cancelled",
-              "The pipeline was cancelled.",
-              CANCELLED_HINTS,
-            ),
+            this.goError("Processing cancelled", "The pipeline was cancelled.", CANCELLED_HINTS),
         }),
       () => this.onClose(),
     );
@@ -283,7 +288,9 @@ export class PipelineEngine {
   private onClose(): void {
     this.connected = false;
     this.disconnect = null;
-    if (this.cancelled || this.finished) return;
+    if (this.cancelled || this.finished) {
+      return;
+    }
     this.dispatch({ type: PipelineActionType.ConnectionClosed });
   }
 
@@ -292,13 +299,15 @@ export class PipelineEngine {
   // -------------------------------------------------------------------------
 
   /** Build a cancellation-guarded upload progress handler for one file. */
-  private onUploadProgress(
-    layout: UploadStepLayout,
-  ): (p: UploadProgress) => void {
+  private onUploadProgress(layout: UploadStepLayout): (p: UploadProgress) => void {
     return (p: UploadProgress) => {
-      if (this.cancelled) return;
+      if (this.cancelled) {
+        return;
+      }
       const step = uploadStepProgress(p, layout);
-      if (!step) return;
+      if (!step) {
+        return;
+      }
       this.dispatch({
         type: PipelineActionType.Progress,
         stepIndex: step.stepIndex,
@@ -312,10 +321,16 @@ export class PipelineEngine {
   private async finishOk(): Promise<void> {
     try {
       const fresh = await this.api.getStudy(this.studyId);
-      if (this.cancelled) return;
-      if (fresh.status === "ready") this.navigateToViewer();
+      if (this.cancelled) {
+        return;
+      }
+      if (fresh.status === "ready") {
+        this.navigateToViewer();
+      }
     } catch (e: unknown) {
-      if (this.cancelled) return;
+      if (this.cancelled) {
+        return;
+      }
       if (e instanceof ApiError && e.status === 404) {
         this.goError(
           "Study not found",
@@ -325,19 +340,12 @@ export class PipelineEngine {
         return;
       }
       const msg = e instanceof Error ? e.message : String(e);
-      this.goError(
-        "Could not load study after pipeline",
-        msg,
-        errorHints(null),
-      );
+      this.goError("Could not load study after pipeline", msg, errorHints(null));
     }
   }
 
   private navigateToViewer(): void {
-    this.onNavigateToViewer(
-      this.studyId,
-      this.routeState.from ?? FromPage.Home,
-    );
+    this.onNavigateToViewer(this.studyId, this.routeState.from ?? FromPage.Home);
   }
 
   private goError(title: string, message: string, hints: string[]): void {

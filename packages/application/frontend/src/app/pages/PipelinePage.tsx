@@ -3,15 +3,12 @@ import type { LoaderFunctionArgs } from "react-router";
 import { getStudy } from "@/api/studies";
 import { StudyLoadingScreen } from "./screens/StudyLoadingScreen";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
-import {
-  PipelineProvider,
-  usePipeline,
-  FromPage,
-  type LocationState,
-} from "../pipeline";
+import { PipelineProvider, usePipeline, FromPage, type LocationState } from "../pipeline";
 
 export async function pipelineLoader({ params }: LoaderFunctionArgs) {
-  if (!params.studyId) return redirect("/");
+  if (!params.studyId) {
+    return redirect("/");
+  }
 
   const study = await getStudy(params.studyId);
 
@@ -50,8 +47,11 @@ function PipelineScreens() {
 
   const handleBack = () => {
     const from = routeState.from ?? FromPage.Home;
-    if (from === FromPage.Browse) navigate("/browse");
-    else navigate("/");
+    if (from === FromPage.Browse) {
+      navigate("/browse");
+    } else {
+      navigate("/");
+    }
   };
 
   if (error) {
@@ -61,11 +61,7 @@ function PipelineScreens() {
           title={error.title}
           message={error.message}
           hints={error.hints}
-          backLabel={
-            routeState.from === FromPage.Browse
-              ? "Back to studies"
-              : "Back to home"
-          }
+          backLabel={routeState.from === FromPage.Browse ? "Back to studies" : "Back to home"}
           onBack={handleBack}
         />
       </div>

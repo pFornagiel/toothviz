@@ -3,9 +3,7 @@ import { applyWsMessage } from "@/app/pipeline/wsMessage";
 import { PipelineActionType, FinishMode } from "@/app/pipeline/reducer";
 import type { PipelineMessage } from "@/api/types";
 
-function makeOptions(
-  overrides: Partial<Parameters<typeof applyWsMessage>[1]> = {},
-) {
+function makeOptions(overrides: Partial<Parameters<typeof applyWsMessage>[1]> = {}) {
   return {
     stepOffset: 2,
     dispatch: vi.fn(),

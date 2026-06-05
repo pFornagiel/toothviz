@@ -5,12 +5,7 @@ import { CreateStudyModal, type CreateStudyData } from "../components/CreateStud
 import { listStudies, createStudy, deleteStudy } from "@/api/studies";
 import { UploadKind } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
-import {
-  FromPage,
-  FileType,
-  STUDY_MODES,
-  buildUploadPayload,
-} from "../pipeline";
+import { FromPage, FileType, STUDY_MODES, buildUploadPayload } from "../pipeline";
 
 export function StartPage() {
   const navigate = useNavigate();
@@ -42,8 +37,7 @@ export function StartPage() {
       const study = await createStudy(data.studyName);
       createdId = study.id;
 
-      const baseKind =
-        data.fileType === FileType.Dicom ? UploadKind.DicomZip : UploadKind.NiftiRaw;
+      const baseKind = data.fileType === FileType.Dicom ? UploadKind.DicomZip : UploadKind.NiftiRaw;
       const mode = STUDY_MODES[data.segmentationType];
       const uploadPayload = buildUploadPayload(
         { file: data.baseImageFile, kind: baseKind },

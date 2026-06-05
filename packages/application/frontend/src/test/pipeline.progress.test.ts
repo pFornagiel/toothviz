@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  uploadStepProgress,
-  pipelineStepProgress,
-} from "@/app/pipeline/progress";
+import { uploadStepProgress, pipelineStepProgress } from "@/app/pipeline/progress";
 import type { PipelineMessage } from "@/api/types";
 
 describe("uploadStepProgress — dedicated finalize step (no-mask: idx 0, finalize 1)", () => {
@@ -18,10 +15,7 @@ describe("uploadStepProgress — dedicated finalize step (no-mask: idx 0, finali
 
   it("uploading reports the within-step fraction from chunk progress", () => {
     expect(
-      uploadStepProgress(
-        { phase: "uploading", chunkIndex: 0, totalChunks: 4 },
-        layout,
-      ),
+      uploadStepProgress({ phase: "uploading", chunkIndex: 0, totalChunks: 4 }, layout),
     ).toEqual({
       stepIndex: 0,
       fraction: 1 / 4,
@@ -30,9 +24,7 @@ describe("uploadStepProgress — dedicated finalize step (no-mask: idx 0, finali
   });
 
   it("uploading is ignored until totalChunks is known", () => {
-    expect(
-      uploadStepProgress({ phase: "uploading", chunkIndex: 0 }, layout),
-    ).toBeNull();
+    expect(uploadStepProgress({ phase: "uploading", chunkIndex: 0 }, layout)).toBeNull();
   });
 
   it("finalizing moves to the finalize step at its midpoint", () => {

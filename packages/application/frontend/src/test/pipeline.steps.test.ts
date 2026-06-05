@@ -1,11 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createLoadingSteps } from "@/app/pipeline/steps";
 import type { UploadJob, UploadPayload } from "@/app/pipeline";
-import {
-  ClientStepName,
-  PipelineStepName,
-  UploadKind,
-} from "@/api/types";
+import { ClientStepName, PipelineStepName, UploadKind } from "@/api/types";
 
 function volumeJob(): UploadJob {
   return {
@@ -44,9 +40,7 @@ describe("createLoadingSteps", () => {
   });
 
   it("inserts the mask upload step when a mask upload is present", () => {
-    const steps = createLoadingSteps(
-      makePayload({ uploads: [volumeJob(), maskJob()] }),
-    );
+    const steps = createLoadingSteps(makePayload({ uploads: [volumeJob(), maskJob()] }));
     expect(steps).toEqual([
       ClientStepName.UploadVolume,
       ClientStepName.UploadMask,
@@ -58,10 +52,7 @@ describe("createLoadingSteps", () => {
   it("appends every requested pipeline in order", () => {
     const steps = createLoadingSteps(
       makePayload({
-        pipelines: [
-          { name: PipelineStepName.SegmentNifti },
-          { name: PipelineStepName.Stub },
-        ],
+        pipelines: [{ name: PipelineStepName.SegmentNifti }, { name: PipelineStepName.Stub }],
       }),
     );
     expect(steps).toEqual([

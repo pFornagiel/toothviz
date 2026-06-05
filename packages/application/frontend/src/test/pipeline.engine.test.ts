@@ -1,13 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-  PipelineEngine,
-  type PipelineApi,
-} from "@/app/pipeline/pipelineEngine";
-import {
-  PipelineActionType,
-  FinishMode,
-  type PipelineAction,
-} from "@/app/pipeline/reducer";
+import { PipelineEngine, type PipelineApi } from "@/app/pipeline/pipelineEngine";
+import { PipelineActionType, FinishMode, type PipelineAction } from "@/app/pipeline/reducer";
 import { FromPage } from "@/app/pipeline/types";
 import { ApiError } from "@/api/client";
 import {
@@ -97,10 +90,8 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
   return { engine, api, actions, onNavigateToViewer, ws };
 }
 
-const findAction = <T extends PipelineActionType>(
-  actions: PipelineAction[],
-  type: T,
-) => actions.find((a) => a.type === type) as Extract<PipelineAction, { type: T }> | undefined;
+const findAction = <T extends PipelineActionType>(actions: PipelineAction[], type: T) =>
+  actions.find((a) => a.type === type) as Extract<PipelineAction, { type: T }> | undefined;
 
 describe("PipelineEngine — start routing", () => {
   it("routes a failed study straight to an error", () => {
@@ -154,9 +145,7 @@ describe("PipelineEngine — upload flow", () => {
     expect(findAction(actions, PipelineActionType.EnterPipeline)?.stepIndex).toBe(2);
     // Upload's own finalize step (index 1) is marked complete.
     expect(
-      actions.some(
-        (a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 1,
-      ),
+      actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 1),
     ).toBe(true);
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
 
@@ -169,15 +158,11 @@ describe("PipelineEngine — upload flow", () => {
       step_index: 0,
     });
     expect(
-      actions.some(
-        (a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2,
-      ),
+      actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2),
     ).toBe(true);
 
     ws.onMessage({ event: "pipeline_completed" });
-    expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(
-      FinishMode.Completed,
-    );
+    expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.Completed);
 
     await flush();
     expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Home);
@@ -203,14 +188,10 @@ describe("PipelineEngine — upload flow", () => {
     // Volume finalizes in place on its own step (0); the mask owns the shared
     // finalize step (2). Pipeline then enters at the upload-prefix length (3).
     expect(
-      actions.some(
-        (a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 0,
-      ),
+      actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 0),
     ).toBe(true);
     expect(
-      actions.some(
-        (a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2,
-      ),
+      actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2),
     ).toBe(true);
     expect(findAction(actions, PipelineActionType.EnterPipeline)?.stepIndex).toBe(3);
 
@@ -223,9 +204,7 @@ describe("PipelineEngine — upload flow", () => {
     });
     // Pipeline step globalised by the upload offset (0 → 3).
     expect(
-      actions.some(
-        (a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 3,
-      ),
+      actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 3),
     ).toBe(true);
   });
 
@@ -244,9 +223,7 @@ describe("PipelineEngine — upload flow", () => {
     await flush();
 
     expect(api.establishWebsocketConnection).not.toHaveBeenCalled();
-    expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(
-      FinishMode.NoPipeline,
-    );
+    expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.NoPipeline);
     expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Browse);
   });
 
@@ -305,9 +282,7 @@ describe("PipelineEngine — reconnect flow", () => {
       routeState: {},
     });
     await flush();
-    expect(findAction(actions, PipelineActionType.SetError)?.error.title).toBe(
-      "Study not found",
-    );
+    expect(findAction(actions, PipelineActionType.SetError)?.error.title).toBe("Study not found");
   });
 
   it("dispatches ConnectionClosed on socket close; reconnect() re-runs", async () => {
@@ -321,15 +296,11 @@ describe("PipelineEngine — reconnect flow", () => {
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
 
     ws.onClose();
-    expect(
-      actions.some((a) => a.type === PipelineActionType.ConnectionClosed),
-    ).toBe(true);
+    expect(actions.some((a) => a.type === PipelineActionType.ConnectionClosed)).toBe(true);
 
     engine.reconnect();
     await flush();
-    expect(
-      actions.some((a) => a.type === PipelineActionType.ClearConnectionLost),
-    ).toBe(true);
+    expect(actions.some((a) => a.type === PipelineActionType.ClearConnectionLost)).toBe(true);
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(2);
   });
 

@@ -1,15 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  STUDY_MODES,
-  SegmentationType,
-  MaskInput,
-  buildUploadPayload,
-} from "@/app/pipeline";
-import {
-  ClientStepName,
-  PipelineStepName,
-  UploadKind,
-} from "@/api/types";
+import { STUDY_MODES, SegmentationType, MaskInput, buildUploadPayload } from "@/app/pipeline";
+import { ClientStepName, PipelineStepName, UploadKind } from "@/api/types";
 
 const volume = { file: new File(["v"], "volume.nii"), kind: UploadKind.NiftiRaw };
 const mask = new File(["m"], "mask.nii");
@@ -29,11 +20,7 @@ describe("buildUploadPayload", () => {
   });
 
   it("appends a trailing mask upload for a precomputed mask mode", () => {
-    const payload = buildUploadPayload(
-      volume,
-      STUDY_MODES[SegmentationType.Precomputed],
-      mask,
-    );
+    const payload = buildUploadPayload(volume, STUDY_MODES[SegmentationType.Precomputed], mask);
     expect(payload.uploads).toHaveLength(2);
     expect(payload.uploads[1]).toEqual({
       file: mask,
@@ -47,11 +34,7 @@ describe("buildUploadPayload", () => {
   });
 
   it("ignores a mask file for a mode that does not collect one", () => {
-    const payload = buildUploadPayload(
-      volume,
-      STUDY_MODES[SegmentationType.Automated],
-      mask,
-    );
+    const payload = buildUploadPayload(volume, STUDY_MODES[SegmentationType.Automated], mask);
     expect(payload.uploads).toHaveLength(1);
     expect(payload.pipelines).toEqual([{ name: PipelineStepName.SegmentNifti }]);
   });
@@ -80,9 +63,7 @@ describe("STUDY_MODES registry", () => {
   });
 
   it("only the precomputed mode requires a mask file", () => {
-    const required = Object.values(STUDY_MODES).filter(
-      (m) => m.maskInput === MaskInput.Required,
-    );
+    const required = Object.values(STUDY_MODES).filter((m) => m.maskInput === MaskInput.Required);
     expect(required.map((m) => m.key)).toEqual([SegmentationType.Precomputed]);
     expect(STUDY_MODES[SegmentationType.Precomputed].validateMask).toBeTypeOf("function");
   });

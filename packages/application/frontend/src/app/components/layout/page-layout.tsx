@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
-import { ChevronLeft  } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { Button } from "../ui/button";
 interface PageLayoutProps {
   title?: string;
@@ -12,7 +12,7 @@ interface PageLayoutProps {
 }
 
 export function PageLayout({
-  title="ToothViz",
+  title = "ToothViz",
   showBackButton = false,
   onBack,
   children,
@@ -33,17 +33,15 @@ export function PageLayout({
       <header className="border-b border-border bg-card px-6 py-4 shadow-sm">
         <div className="flex items-center gap-4">
           {showBackButton && (
-
-              // <Button
-              // variant="ghost"
-              // className="absolute top-2 right-2 h-8 w-8 p-0"
-              // >
+            // <Button
+            // variant="ghost"
+            // className="absolute top-2 right-2 h-8 w-8 p-0"
+            // >
             <Button
-            variant="ghost"
+              variant="ghost"
               onClick={handleBack}
               className="h-8 w-8 cursor-pointer text-foreground p-1"
             >
-              
               <ChevronLeft className="w-8 h-7 text-foreground cursor-pointer" />
             </Button>
           )}

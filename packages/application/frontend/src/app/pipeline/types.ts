@@ -1,9 +1,4 @@
-import type {
-  ClientStepName,
-  LoadingStepId,
-  PipelineRequestItem,
-  UploadKind,
-} from "@/api/types";
+import type { ClientStepName, LoadingStepId, PipelineRequestItem, UploadKind } from "@/api/types";
 
 // ---------------------------------------------------------------------------
 // Types

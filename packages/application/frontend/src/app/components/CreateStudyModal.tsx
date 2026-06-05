@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { DashedFileDropZone } from "./DashedFileDropZone";
 import { validateNiftiFile, validateDicomBaseFile } from "../utils/medicalFileTypes";
+import { FileType, MaskInput, SegmentationType, STUDY_MODES } from "../pipeline";
 import {
-  FileType,
-  MaskInput,
-  SegmentationType,
-  STUDY_MODES,
-} from "../pipeline";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "./ui/dialog";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "./ui/dialog";
 import { Button } from "./ui/button";
 
 export interface CreateStudyData {
@@ -26,23 +28,17 @@ interface CreateStudyModalProps {
 
 function generateDefaultStudyName(): string {
   const now = new Date();
-  const date = now.toISOString().split('T')[0]; 
-  const time = now.toTimeString().split(' ')[0].substring(0, 8);
-  return `visualization_${date}_${time}`
+  const date = now.toISOString().split("T")[0];
+  const time = now.toTimeString().split(" ")[0].substring(0, 8);
+  return `visualization_${date}_${time}`;
 }
 
-export function CreateStudyModal({
-  isOpen,
-  onClose,
-  onSubmit,
-}: CreateStudyModalProps) {
+export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModalProps) {
   const [studyName, setStudyName] = useState(generateDefaultStudyName());
   const [baseImageFile, setBaseImageFile] = useState<File | null>(null);
   const [baseFileError, setBaseFileError] = useState<string | null>(null);
   const [fileType, setFileType] = useState<FileType>(FileType.Nifti);
-  const [segmentationType, setSegmentationType] = useState<SegmentationType>(
-    SegmentationType.None,
-  );
+  const [segmentationType, setSegmentationType] = useState<SegmentationType>(SegmentationType.None);
   const [segmentationFile, setSegmentationFile] = useState<File | null>(null);
   const [segmentationFileError, setSegmentationFileError] = useState<string | null>(null);
 
@@ -56,7 +52,9 @@ export function CreateStudyModal({
     if (error) {
       setBaseImageFile(null);
       setBaseFileError(error);
-      if (input) input.value = "";
+      if (input) {
+        input.value = "";
+      }
     } else {
       setBaseFileError(null);
       setBaseImageFile(file);
@@ -76,7 +74,9 @@ export function CreateStudyModal({
     if (error) {
       setSegmentationFile(null);
       setSegmentationFileError(error);
-      if (input) input.value = "";
+      if (input) {
+        input.value = "";
+      }
     } else {
       setSegmentationFileError(null);
       setSegmentationFile(file);
@@ -101,34 +101,44 @@ export function CreateStudyModal({
       <DialogContent className="h-auto overflow-y-aut min-w-4xl">
         <DialogHeader>
           <DialogTitle>Create New Study</DialogTitle>
-          <DialogDescription>
-            Initialize a new patient scan analysis workflow.
-          </DialogDescription>
+          <DialogDescription>Initialize a new patient scan analysis workflow.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-4">
           {/* Study Name Field */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium uppercase tracking-wider text-foreground" htmlFor="studyName">Study Identifier</label>
+            <label
+              className="text-sm font-medium uppercase tracking-wider text-foreground"
+              htmlFor="studyName"
+            >
+              Study Identifier
+            </label>
             <div className="relative">
-              <input 
-                id="studyName" 
-                type="text" 
+              <input
+                id="studyName"
+                type="text"
                 value={studyName}
                 onChange={(e) => setStudyName(e.target.value)}
                 required
-                placeholder="e.g., Patient_Scan_2023_Axial" 
-                className="w-full px-4 py-2 bg-background border border-border rounded text-base text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all peer placeholder:text-muted-foreground" 
+                placeholder="e.g., Patient_Scan_2023_Axial"
+                className="w-full px-4 py-2 bg-background border border-border rounded text-base text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all peer placeholder:text-muted-foreground"
               />
             </div>
-            <p className="text-xs text-muted-foreground peer-focus:text-primary transition-colors">Use alphanumeric characters and underscores only.</p>
+            <p className="text-xs text-muted-foreground peer-focus:text-primary transition-colors">
+              Use alphanumeric characters and underscores only.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Base Medical Image Section */}
             <div className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4 h-[380px]">
               <div className="flex items-center gap-2 mb-1">
-                <span className="material-symbols-outlined text-primary text-[20px]" style={{fontVariationSettings: "'FILL' 1"}}>folder_open</span>
+                <span
+                  className="material-symbols-outlined text-primary text-[20px]"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  folder_open
+                </span>
                 <h3 className="text-sm font-medium uppercase text-foreground">Base Image Source</h3>
               </div>
 
@@ -170,32 +180,46 @@ export function CreateStudyModal({
                   <>
                     {file ? (
                       <>
-                        <span className="material-symbols-outlined text-[32px] text-primary mb-2">check_circle</span>
-                        <p className="text-sm text-foreground mb-1 font-medium truncate w-full px-2">{file.name}</p>
+                        <span className="material-symbols-outlined text-[32px] text-primary mb-2">
+                          check_circle
+                        </span>
+                        <p className="text-sm text-foreground mb-1 font-medium truncate w-full px-2">
+                          {file.name}
+                        </p>
                         <p className="text-xs text-primary">Click to replace</p>
                       </>
                     ) : (
                       <>
-                        <span className={`material-symbols-outlined text-[32px] transition-colors mb-2 ${isDropActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'}`}>upload_file</span>
+                        <span
+                          className={`material-symbols-outlined text-[32px] transition-colors mb-2 ${isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}
+                        >
+                          upload_file
+                        </span>
                         <p className="text-sm text-foreground mb-1">Drag & Drop file here</p>
                         <p className="text-xs text-muted-foreground">
-                          or click to browse ({fileType === FileType.Nifti ? ".nii, .nii.gz" : ".zip, .dcm"})
+                          or click to browse (
+                          {fileType === FileType.Nifti ? ".nii, .nii.gz" : ".zip, .dcm"})
                         </p>
                       </>
                     )}
                   </>
                 )}
               </DashedFileDropZone>
-              {baseFileError && (
-                <p className="text-xs text-destructive mt-1">{baseFileError}</p>
-              )}
+              {baseFileError && <p className="text-xs text-destructive mt-1">{baseFileError}</p>}
             </div>
 
             {/* Segmentation Method Section */}
             <div className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4 h-[380px] overflow-y-auto">
               <div className="flex items-center gap-2 mb-1">
-                <span className="material-symbols-outlined text-primary text-[20px]" style={{fontVariationSettings: "'FILL' 1"}}>layers</span>
-                <h3 className="text-sm font-medium uppercase text-foreground">Segmentation Pipeline</h3>
+                <span
+                  className="material-symbols-outlined text-primary text-[20px]"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  layers
+                </span>
+                <h3 className="text-sm font-medium uppercase text-foreground">
+                  Segmentation Pipeline
+                </h3>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -215,8 +239,16 @@ export function CreateStudyModal({
                         onChange={() => selectSegmentationType(mode.key)}
                       />
                       <div className="flex flex-col w-full">
-                        <span className={`text-sm font-medium ${selected ? "text-primary" : "text-foreground"}`}>{mode.label}</span>
-                        <span className={`text-xs text-muted-foreground${showMaskInput ? " mb-2" : ""}`}>{mode.hint}</span>
+                        <span
+                          className={`text-sm font-medium ${selected ? "text-primary" : "text-foreground"}`}
+                        >
+                          {mode.label}
+                        </span>
+                        <span
+                          className={`text-xs text-muted-foreground${showMaskInput ? " mb-2" : ""}`}
+                        >
+                          {mode.hint}
+                        </span>
 
                         {showMaskInput && (
                           <DashedFileDropZone
@@ -229,10 +261,14 @@ export function CreateStudyModal({
                           >
                             {({ isDropActive, file }) => (
                               <div className="flex flex-col items-center gap-2 w-full">
-                                <span className={`material-symbols-outlined text-[24px] ${file ? 'text-primary' : isDropActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'}`}>
-                                  {file ? 'check_circle' : 'upload_file'}
+                                <span
+                                  className={`material-symbols-outlined text-[24px] ${file ? "text-primary" : isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}
+                                >
+                                  {file ? "check_circle" : "upload_file"}
                                 </span>
-                                <span className={`text-xs truncate w-full px-2 ${file ? 'text-primary font-medium' : isDropActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                                <span
+                                  className={`text-xs truncate w-full px-2 ${file ? "text-primary font-medium" : isDropActive ? "text-primary" : "text-muted-foreground"}`}
+                                >
                                   {file ? file.name : "Click or drop mask file here"}
                                 </span>
                               </div>
@@ -252,7 +288,7 @@ export function CreateStudyModal({
 
           <DialogFooter className="items-center sm:justify-between mt-4">
             <span className="text-xs text-muted-foreground flex-1">
-              {(!studyName || !baseImageFile || missingMask)
+              {!studyName || !baseImageFile || missingMask
                 ? "Status: Waiting for required inputs"
                 : "Status: Ready"}
             </span>
@@ -260,10 +296,7 @@ export function CreateStudyModal({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={!studyName || !baseImageFile || missingMask}
-              >
+              <Button type="submit" disabled={!studyName || !baseImageFile || missingMask}>
                 <span className="material-symbols-outlined text-[18px]">add_box</span>
                 Create
               </Button>

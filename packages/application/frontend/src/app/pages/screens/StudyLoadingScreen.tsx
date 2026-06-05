@@ -59,7 +59,10 @@ export function StudyLoadingScreen({
           <span>Progress</span>
           <span>{pct}%</span>
         </div>
-        <Progress value={pct} className="h-2 bg-muted [&_[data-slot=progress-indicator]]:bg-primary" />
+        <Progress
+          value={pct}
+          className="h-2 bg-muted [&_[data-slot=progress-indicator]]:bg-primary"
+        />
       </div>
 
       {steps.length > 0 && (
@@ -78,7 +81,9 @@ export function StudyLoadingScreen({
                       : "border-border text-muted-foreground"
                 }`}
               >
-                <span className="w-5 shrink-0 text-center font-bold">{done ? "✓" : active ? "…" : "○"}</span>
+                <span className="w-5 shrink-0 text-center font-bold">
+                  {done ? "✓" : active ? "…" : "○"}
+                </span>
                 <span>{getLabelForStep(step)}</span>
               </li>
             );

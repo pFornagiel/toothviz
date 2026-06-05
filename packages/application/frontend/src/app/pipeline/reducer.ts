@@ -52,13 +52,9 @@ export type PipelineAction =
   | { type: PipelineActionType.ConnectionClosed }
   | { type: PipelineActionType.ClearConnectionLost };
 
-const CONNECTION_CLOSED_TEXT =
-  "Connection closed — check your network or reconnect.";
+const CONNECTION_CLOSED_TEXT = "Connection closed — check your network or reconnect.";
 
-export function pipelineReducer(
-  state: PipelineState,
-  action: PipelineAction,
-): PipelineState {
+export function pipelineReducer(state: PipelineState, action: PipelineAction): PipelineState {
   switch (action.type) {
     case PipelineActionType.Begin:
       return {
@@ -98,7 +94,9 @@ export function pipelineReducer(
 
     case PipelineActionType.CompleteStep: {
       const completedSteps = new Set(state.completedSteps);
-      for (let i = 0; i <= action.stepIndex; i++) completedSteps.add(i);
+      for (let i = 0; i <= action.stepIndex; i++) {
+        completedSteps.add(i);
+      }
       return {
         ...state,
         completedSteps,

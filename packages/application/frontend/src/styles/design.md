@@ -1,87 +1,87 @@
 ---
 name: Clinical Precision
 colors:
-  surface: '#f7f9fb'
-  surface-dim: '#d8dadc'
-  surface-bright: '#f7f9fb'
-  surface-container-lowest: '#ffffff'
-  surface-container-low: '#f2f4f6'
-  surface-container: '#eceef0'
-  surface-container-high: '#e6e8ea'
-  surface-container-highest: '#e0e3e5'
-  on-surface: '#191c1e'
-  on-surface-variant: '#424752'
-  inverse-surface: '#2d3133'
-  inverse-on-surface: '#eff1f3'
-  outline: '#727783'
-  outline-variant: '#c2c6d4'
-  surface-tint: '#005db6'
-  primary: '#00478d'
-  on-primary: '#ffffff'
-  primary-container: '#005eb8'
-  on-primary-container: '#c8daff'
-  inverse-primary: '#a9c7ff'
-  secondary: '#585f66'
-  on-secondary: '#ffffff'
-  secondary-container: '#dce3eb'
-  on-secondary-container: '#5e656c'
-  tertiary: '#3e4853'
-  on-tertiary: '#ffffff'
-  tertiary-container: '#56606c'
-  on-tertiary-container: '#d0dbe8'
-  error: '#ba1a1a'
-  on-error: '#ffffff'
-  error-container: '#ffdad6'
-  on-error-container: '#93000a'
-  primary-fixed: '#d6e3ff'
-  primary-fixed-dim: '#a9c7ff'
-  on-primary-fixed: '#001b3d'
-  on-primary-fixed-variant: '#00468c'
-  secondary-fixed: '#dce3eb'
-  secondary-fixed-dim: '#c0c7cf'
-  on-secondary-fixed: '#151c22'
-  on-secondary-fixed-variant: '#40484e'
-  tertiary-fixed: '#d9e3f1'
-  tertiary-fixed-dim: '#bdc7d5'
-  on-tertiary-fixed: '#121c26'
-  on-tertiary-fixed-variant: '#3e4853'
-  background: '#f7f9fb'
-  on-background: '#191c1e'
-  surface-variant: '#e0e3e5'
-  sidebar-bg: '#ebf2fa'
-  obsidian-text: '#1d2731'
+  surface: "#f7f9fb"
+  surface-dim: "#d8dadc"
+  surface-bright: "#f7f9fb"
+  surface-container-lowest: "#ffffff"
+  surface-container-low: "#f2f4f6"
+  surface-container: "#eceef0"
+  surface-container-high: "#e6e8ea"
+  surface-container-highest: "#e0e3e5"
+  on-surface: "#191c1e"
+  on-surface-variant: "#424752"
+  inverse-surface: "#2d3133"
+  inverse-on-surface: "#eff1f3"
+  outline: "#727783"
+  outline-variant: "#c2c6d4"
+  surface-tint: "#005db6"
+  primary: "#00478d"
+  on-primary: "#ffffff"
+  primary-container: "#005eb8"
+  on-primary-container: "#c8daff"
+  inverse-primary: "#a9c7ff"
+  secondary: "#585f66"
+  on-secondary: "#ffffff"
+  secondary-container: "#dce3eb"
+  on-secondary-container: "#5e656c"
+  tertiary: "#3e4853"
+  on-tertiary: "#ffffff"
+  tertiary-container: "#56606c"
+  on-tertiary-container: "#d0dbe8"
+  error: "#ba1a1a"
+  on-error: "#ffffff"
+  error-container: "#ffdad6"
+  on-error-container: "#93000a"
+  primary-fixed: "#d6e3ff"
+  primary-fixed-dim: "#a9c7ff"
+  on-primary-fixed: "#001b3d"
+  on-primary-fixed-variant: "#00468c"
+  secondary-fixed: "#dce3eb"
+  secondary-fixed-dim: "#c0c7cf"
+  on-secondary-fixed: "#151c22"
+  on-secondary-fixed-variant: "#40484e"
+  tertiary-fixed: "#d9e3f1"
+  tertiary-fixed-dim: "#bdc7d5"
+  on-tertiary-fixed: "#121c26"
+  on-tertiary-fixed-variant: "#3e4853"
+  background: "#f7f9fb"
+  on-background: "#191c1e"
+  surface-variant: "#e0e3e5"
+  sidebar-bg: "#ebf2fa"
+  obsidian-text: "#1d2731"
 typography:
   headline-lg:
     fontFamily: Inter
     fontSize: 28px
-    fontWeight: '600'
+    fontWeight: "600"
     lineHeight: 36px
     letterSpacing: -0.02em
   headline-md:
     fontFamily: Inter
     fontSize: 20px
-    fontWeight: '600'
+    fontWeight: "600"
     lineHeight: 28px
   body-lg:
     fontFamily: Inter
     fontSize: 16px
-    fontWeight: '400'
+    fontWeight: "400"
     lineHeight: 24px
   body-md:
     fontFamily: Inter
     fontSize: 14px
-    fontWeight: '400'
+    fontWeight: "400"
     lineHeight: 20px
   label-sm:
     fontFamily: Inter
     fontSize: 12px
-    fontWeight: '500'
+    fontWeight: "500"
     lineHeight: 16px
     letterSpacing: 0.05em
   mono-sm:
     fontFamily: jetbrainsMono
     fontSize: 12px
-    fontWeight: '400'
+    fontWeight: "400"
     lineHeight: 16px
 rounded:
   sm: 0.125rem
@@ -101,13 +101,13 @@ spacing:
 
 ## Brand & Style
 
-This design system is engineered for high-stakes medical environments, specifically dental NIfTI visualization. The brand personality is **clinical, precise, and authoritative**, yet highly accessible to reduce cognitive load during complex diagnostic tasks. 
+This design system is engineered for high-stakes medical environments, specifically dental NIfTI visualization. The brand personality is **clinical, precise, and authoritative**, yet highly accessible to reduce cognitive load during complex diagnostic tasks.
 
 We employ a **Corporate / Modern** style with a leaning toward **Minimalism**. The interface prioritizes data clarity and image fidelity over decorative elements. By utilizing a "Paper & Ink" philosophy—where the background is a pristine, neutral light and the primary interaction points are rendered in clinical blues—we evoke the sterility and professionalism of a modern dental clinic. The emotional response should be one of "calm focus" and "technological reliability."
 
 ## Colors
 
-The palette is anchored in **Clinical Blues** and **Sterile Whites**. 
+The palette is anchored in **Clinical Blues** and **Sterile Whites**.
 
 - **Primary (#005EB8):** A deep, trustworthy medical blue used for primary actions, active states, and critical indicators.
 - **Secondary (#EBF2FA):** A soft, "Ice Blue" used for subtle backgrounds, hover states, and to differentiate sidebars from the main workspace.
@@ -126,7 +126,7 @@ We use **Inter** for its exceptional legibility at small sizes and its neutral, 
 
 ## Layout & Spacing
 
-The layout utilizes a **Fixed Sidebar / Fluid Workspace** model. 
+The layout utilizes a **Fixed Sidebar / Fluid Workspace** model.
 
 - **Sidebar:** A 320px fixed-width panel on the left (or right) houses the "NiiVue Controls," using a light secondary background (#EBF2FA) to visually separate control logic from the viewport.
 - **Grid:** Content within modals and study browsers follows a 12-column grid. Table rows in the "Browse Studies" view use generous 1rem vertical padding to prevent mis-clicks.
@@ -143,7 +143,7 @@ To maintain a "Clinical" feel, we avoid heavy shadows. Instead, we use:
 
 ## Shapes
 
-We use **Soft (0.25rem)** roundedness. This provides a professional, "tooled" look that feels more modern than sharp corners but more serious than highly rounded "consumer" apps. 
+We use **Soft (0.25rem)** roundedness. This provides a professional, "tooled" look that feels more modern than sharp corners but more serious than highly rounded "consumer" apps.
 
 - **Buttons & Inputs:** Use the standard 0.25rem (4px) radius.
 - **Cards & Modals:** Use `rounded-lg` (0.5rem) to soften large surface areas.
