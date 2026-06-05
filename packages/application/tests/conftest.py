@@ -11,7 +11,7 @@ from backend.db.models import Base
 
 @pytest.fixture()
 def db_engine():
-    """In-memory SQLite engine with foreign keys — single shared connection."""
+    """In-memory SQLite engine with foreign keys - single shared connection."""
     eng = create_engine(
         "sqlite:///:memory:",
         future=True,

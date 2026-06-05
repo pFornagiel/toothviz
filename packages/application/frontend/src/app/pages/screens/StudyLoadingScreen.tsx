@@ -82,7 +82,7 @@ export function StudyLoadingScreen({
                 }`}
               >
                 <span className="w-5 shrink-0 text-center font-bold">
-                  {done ? "✓" : active ? "…" : "○"}
+                  {done ? "✓" : active ? "..." : "○"}
                 </span>
                 <span>{getLabelForStep(step)}</span>
               </li>

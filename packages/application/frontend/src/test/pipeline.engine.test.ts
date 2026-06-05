@@ -93,7 +93,7 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
 const findAction = <T extends PipelineActionType>(actions: PipelineAction[], type: T) =>
   actions.find((a) => a.type === type) as Extract<PipelineAction, { type: T }> | undefined;
 
-describe("PipelineEngine — start routing", () => {
+describe("PipelineEngine - start routing", () => {
   it("routes a failed study straight to an error", () => {
     const { engine, actions } = setup();
     engine.start({
@@ -130,7 +130,7 @@ describe("PipelineEngine — start routing", () => {
   });
 });
 
-describe("PipelineEngine — upload flow", () => {
+describe("PipelineEngine - upload flow", () => {
   it("uploads, globalises pipeline steps, and navigates on completion", async () => {
     const { engine, api, actions, onNavigateToViewer, ws } = setup();
     engine.start({
@@ -149,7 +149,7 @@ describe("PipelineEngine — upload flow", () => {
     ).toBe(true);
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
 
-    // Pipeline step_completed is globalised by the upload offset (0 → 2).
+    // Pipeline step_completed is globalised by the upload offset (0 -> 2).
     ws.onMessage({
       event: "step_completed",
       step: "segment",
@@ -202,7 +202,7 @@ describe("PipelineEngine — upload flow", () => {
       total_steps: 1,
       step_index: 0,
     });
-    // Pipeline step globalised by the upload offset (0 → 3).
+    // Pipeline step globalised by the upload offset (0 -> 3).
     expect(
       actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 3),
     ).toBe(true);
@@ -247,7 +247,7 @@ describe("PipelineEngine — upload flow", () => {
   });
 });
 
-describe("PipelineEngine — reconnect flow", () => {
+describe("PipelineEngine - reconnect flow", () => {
   const reconnectApi = () => ({
     getStudy: vi.fn(async () =>
       makeStudy({ status: "processing", steps: [PipelineStepName.SegmentNifti] }),

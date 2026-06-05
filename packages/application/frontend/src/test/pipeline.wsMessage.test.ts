@@ -17,7 +17,7 @@ function makeOptions(overrides: Partial<Parameters<typeof applyWsMessage>[1]> = 
   };
 }
 
-describe("applyWsMessage — non-terminal events", () => {
+describe("applyWsMessage - non-terminal events", () => {
   it("globalises step_started into a single PROGRESS dispatch", () => {
     const opts = makeOptions();
     applyWsMessage(
@@ -63,7 +63,7 @@ describe("applyWsMessage — non-terminal events", () => {
   });
 });
 
-describe("applyWsMessage — terminal events", () => {
+describe("applyWsMessage - terminal events", () => {
   it("pipeline_completed: marks finished, disconnects, dispatches FINISH(completed), calls onCompleted once", () => {
     const opts = makeOptions();
     applyWsMessage({ event: "pipeline_completed" }, opts);

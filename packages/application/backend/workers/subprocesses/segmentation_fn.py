@@ -34,7 +34,7 @@ _model = None
 
 
 def _init_segmentation(model_path: str, execution_providers: tuple[str, ...]) -> None:
-    """Process-level initializer — called once per worker process."""
+    """Process-level initializer - called once per worker process."""
     global _model
 
     from backend.logging import setup_logging
@@ -55,7 +55,7 @@ def run_segmentation(
     """
     if _model is None:
         raise RuntimeError(
-            "segmentation model not initialized — call _init_segmentation first"
+            "segmentation model not initialized - call _init_segmentation first"
         )
 
     out = Path(out_dir)

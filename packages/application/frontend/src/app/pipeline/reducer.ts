@@ -3,7 +3,7 @@ import type { PipelineError, PipelineState } from "./types";
 import { clamp01 } from "./progress";
 
 // ---------------------------------------------------------------------------
-// Reducer — one geometry, one formula. The loading screen shows
+// Reducer - one geometry, one formula. The loading screen shows
 // `N = steps.length` equal segments; the only truth is
 // `(currentStepIndex, fractionWithinStep)` and
 // `progress = clamp01((currentStepIndex + fractionWithinStep) / N)`.
@@ -52,7 +52,7 @@ export type PipelineAction =
   | { type: PipelineActionType.ConnectionClosed }
   | { type: PipelineActionType.ClearConnectionLost };
 
-const CONNECTION_CLOSED_TEXT = "Connection closed — check your network or reconnect.";
+const CONNECTION_CLOSED_TEXT = "Connection closed - check your network or reconnect.";
 
 export function pipelineReducer(state: PipelineState, action: PipelineAction): PipelineState {
   switch (action.type) {
@@ -63,7 +63,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         completedSteps: new Set(),
         currentStepIndex: 0,
         progress: 0,
-        statusText: "Starting upload…",
+        statusText: "Starting upload...",
         connectionLost: false,
         error: null,
       };
@@ -78,7 +78,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         ...state,
         currentStepIndex: idx,
         progress: idx != null && total > 0 ? clamp01(idx / total) : 0,
-        statusText: "Pipeline running…",
+        statusText: "Pipeline running...",
       };
     }
 
@@ -110,12 +110,12 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
             ...state,
             progress: 1,
             currentStepIndex: null,
-            statusText: "Opening viewer…",
+            statusText: "Opening viewer...",
           }
         : {
             ...state,
             progress: 1,
-            statusText: "Pipeline completed — loading…",
+            statusText: "Pipeline completed - loading...",
           };
 
     case PipelineActionType.SetError:

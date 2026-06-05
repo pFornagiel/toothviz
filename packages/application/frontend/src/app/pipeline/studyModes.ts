@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Study-mode registry — the single source of truth for the ways a study can be
+// Study-mode registry - the single source of truth for the ways a study can be
 // created. Each mode self-describes its label/hint, whether it collects a mask
 // file (and how to validate it), and the pipelines it requests. The registry is
 // built conditionally: dev-only modes are included only in dev builds, so
@@ -72,7 +72,7 @@ export const STUDY_MODES = {
     [SegmentationType.TestingStub]: {
       key: SegmentationType.TestingStub,
       label: "TESTING: Stub pipeline",
-      hint: "3×2s delays + passthrough, 4 steps",
+      hint: "3x2s delays + passthrough, 4 steps",
       maskInput: MaskInput.None,
       pipelines: [
         { name: PipelineStepName.Stub },

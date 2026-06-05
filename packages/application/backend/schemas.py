@@ -59,7 +59,7 @@ class RenameStudyRequest(BaseModel):
 
 
 class StudyResponse(BaseModel):
-    """Study row/detail. ``status`` is display-facing (processing, ready, failed, …)."""
+    """Study row/detail. ``status`` is display-facing (processing, ready, failed, ...)."""
 
     id: str
     name: str | None

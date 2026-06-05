@@ -66,7 +66,7 @@ export function StartPage() {
     <PageLayout title="ToothViz" mainClassName="flex items-center justify-center p-8">
       {busy ? (
         <div className="text-muted-foreground text-center max-w-md w-full mx-auto">
-          <div className="mb-4 text-lg">Creating study…</div>
+          <div className="mb-4 text-lg">Creating study...</div>
           <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
         </div>
       ) : (

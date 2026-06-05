@@ -164,7 +164,7 @@ export function VisualizationPage() {
         throw new Error("No file was provided. Go back and choose Open Raw File.");
       }
 
-      setStatusText("Loading volume…");
+      setStatusText("Loading volume...");
       const primaryUrl = URL.createObjectURL(primary);
       await nv.loadVolumes([
         {
@@ -175,7 +175,7 @@ export function VisualizationPage() {
       ]);
 
       if (mask) {
-        setStatusText("Loading overlay…");
+        setStatusText("Loading overlay...");
         const maskUrl = URL.createObjectURL(mask);
         await nv.addVolumeFromUrl({
           url: maskUrl,
@@ -185,7 +185,7 @@ export function VisualizationPage() {
         });
       }
 
-      setStatusText(`Volatile mode — ${primary.name}`);
+      setStatusText(`Volatile mode - ${primary.name}`);
 
       if (nv.volumes.length > 0) {
         const vol = nv.volumes[0];
@@ -244,7 +244,7 @@ export function VisualizationPage() {
     let cancelled = false;
     (async () => {
       setViewPhase("loading");
-      setStatusText("Loading…");
+      setStatusText("Loading...");
       try {
         await new Promise((r) => requestAnimationFrame(() => r(null)));
         const nv = initNiivue();
@@ -301,7 +301,7 @@ export function VisualizationPage() {
         disposeNv();
         const msg = err instanceof Error ? err.message : String(err);
         goError("Could not load study", msg, [
-          "The study may still be processing — try opening it again.",
+          "The study may still be processing - try opening it again.",
           "If the problem continues, delete the study and upload again.",
         ]);
       }

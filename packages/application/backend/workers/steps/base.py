@@ -8,7 +8,7 @@ from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
 
 
-# Registered keys for `StepContext.worker_pools` — must exist at app bootstrap.
+# Registered keys for `StepContext.worker_pools` - must exist at app bootstrap.
 WORKER_POOL_DICOM = "dicom"
 WORKER_POOL_SEGMENTATION = "segmentation"
 

@@ -44,7 +44,7 @@ describe("buildUploadPayload", () => {
     expect(payload.pipelines).toEqual([{ name: PipelineStepName.SegmentNifti }]);
   });
 
-  it("carries the testing-stub mode's stub×3 + passthrough pipeline", () => {
+  it("carries the testing-stub mode's stubx3 + passthrough pipeline", () => {
     const payload = buildUploadPayload(volume, STUDY_MODES[SegmentationType.TestingStub]);
     expect(payload.pipelines).toEqual([
       { name: PipelineStepName.Stub },

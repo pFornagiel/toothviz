@@ -2,7 +2,7 @@ import type { PipelineMessage } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
 
 // ---------------------------------------------------------------------------
-// Pure progress mappers — turn raw upload/pipeline events into the single
+// Pure progress mappers - turn raw upload/pipeline events into the single
 // `(stepIndex, fractionWithinStep)` shape the reducer's unified formula consumes
 // (`progress = (stepIndex + fraction) / steps.length`). All offsets/weights are
 // gone: the engine globalises pipeline indices, these mappers stay offset-free.
@@ -39,7 +39,7 @@ export function uploadStepProgress(
 ): StepProgress | null {
   switch (upload.phase) {
     case "begin":
-      return { stepIndex, fraction: 0, statusText: "Starting upload…" };
+      return { stepIndex, fraction: 0, statusText: "Starting upload..." };
 
     case "uploading": {
       if (!upload.totalChunks) {
@@ -55,13 +55,13 @@ export function uploadStepProgress(
 
     case "finalizing":
       return finalizeStepIndex != null
-        ? { stepIndex: finalizeStepIndex, fraction: 0.5, statusText: "Finalizing upload…" }
-        : { stepIndex, fraction: 1, statusText: "Finalizing upload…" };
+        ? { stepIndex: finalizeStepIndex, fraction: 0.5, statusText: "Finalizing upload..." }
+        : { stepIndex, fraction: 1, statusText: "Finalizing upload..." };
 
     case "done":
       return finalizeStepIndex != null
-        ? { stepIndex: finalizeStepIndex, fraction: 1, statusText: "Finalizing upload…" }
-        : { stepIndex, fraction: 1, statusText: "Finalizing upload…" };
+        ? { stepIndex: finalizeStepIndex, fraction: 1, statusText: "Finalizing upload..." }
+        : { stepIndex, fraction: 1, statusText: "Finalizing upload..." };
 
     default:
       return null;
@@ -70,7 +70,7 @@ export function uploadStepProgress(
 
 /** A non-terminal pipeline step update, with pipeline-relative `stepIndex`. */
 export interface PipelineStepProgress extends StepProgress {
-  /** True for `step_completed` — the engine also marks the step in the checklist. */
+  /** True for `step_completed` - the engine also marks the step in the checklist. */
   completed: boolean;
 }
 

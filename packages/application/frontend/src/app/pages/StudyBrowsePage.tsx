@@ -89,7 +89,7 @@ export function StudyBrowsePage() {
                   onClick={() => handleClick(study)}
                 >
                   <td className="px-6 py-4 text-sm text-foreground font-medium">
-                    {study.name ?? "—"}
+                    {study.name ?? "-"}
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <span

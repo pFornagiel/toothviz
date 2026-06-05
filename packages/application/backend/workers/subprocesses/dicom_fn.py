@@ -1,4 +1,4 @@
-"""Pure compute: DICOM (ZIP or single .dcm) → NIfTI conversion.
+"""Pure compute: DICOM (ZIP or single .dcm) -> NIfTI conversion.
 
 Runs in a subprocess via WorkerPool. Receives and returns plain strings only.
 """

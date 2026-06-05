@@ -1,4 +1,4 @@
-"""Tests for DICOM → NIfTI conversion and safe ZIP extraction."""
+"""Tests for DICOM -> NIfTI conversion and safe ZIP extraction."""
 
 from __future__ import annotations
 

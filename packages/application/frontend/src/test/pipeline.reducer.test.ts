@@ -3,7 +3,7 @@ import { pipelineReducer, PipelineActionType, FinishMode } from "@/app/pipeline/
 import { initialState, type PipelineState } from "@/app/pipeline/types";
 import { ClientStepName, PipelineStepName } from "@/api/types";
 
-// No-mask layout: [UploadVolume, FinalizeUpload, <pipeline>] → total 3.
+// No-mask layout: [UploadVolume, FinalizeUpload, <pipeline>] -> total 3.
 const noMaskSteps = [
   ClientStepName.UploadVolume,
   ClientStepName.FinalizeUpload,
@@ -14,7 +14,7 @@ function stateWithSteps(steps: PipelineState["steps"]): PipelineState {
   return { ...initialState, steps };
 }
 
-describe("pipelineReducer — lifecycle actions", () => {
+describe("pipelineReducer - lifecycle actions", () => {
   it("BEGIN resets progress, seeds the step list, and clears connection loss", () => {
     const next = pipelineReducer(
       { ...initialState, connectionLost: true, completedSteps: new Set([0]) },
@@ -24,7 +24,7 @@ describe("pipelineReducer — lifecycle actions", () => {
     expect(next.completedSteps).toEqual(new Set());
     expect(next.currentStepIndex).toBe(0);
     expect(next.progress).toBe(0);
-    expect(next.statusText).toBe("Starting upload…");
+    expect(next.statusText).toBe("Starting upload...");
     expect(next.connectionLost).toBe(false);
     expect(next.error).toBeNull();
   });
@@ -45,7 +45,7 @@ describe("pipelineReducer — lifecycle actions", () => {
     });
     expect(next.currentStepIndex).toBe(2);
     expect(next.progress).toBeCloseTo(2 / 3, 10);
-    expect(next.statusText).toBe("Pipeline running…");
+    expect(next.statusText).toBe("Pipeline running...");
   });
 
   it("ENTER_PIPELINE with stepIndex 0 starts the bar at zero (reconnect entry)", () => {
@@ -67,7 +67,7 @@ describe("pipelineReducer — lifecycle actions", () => {
   });
 });
 
-describe("pipelineReducer — PROGRESS (single formula)", () => {
+describe("pipelineReducer - PROGRESS (single formula)", () => {
   const base = stateWithSteps(noMaskSteps); // total 3
 
   it("computes progress = (stepIndex + fraction) / N", () => {
@@ -93,7 +93,7 @@ describe("pipelineReducer — PROGRESS (single formula)", () => {
   });
 });
 
-describe("pipelineReducer — COMPLETE_STEP", () => {
+describe("pipelineReducer - COMPLETE_STEP", () => {
   it("marks the whole prefix [0..stepIndex] for a monotonic checklist", () => {
     expect(
       pipelineReducer(initialState, {
@@ -133,7 +133,7 @@ describe("pipelineReducer — COMPLETE_STEP", () => {
   });
 });
 
-describe("pipelineReducer — FINISH", () => {
+describe("pipelineReducer - FINISH", () => {
   it("noPipeline jumps to the viewer-opening state", () => {
     const next = pipelineReducer(stateWithSteps(noMaskSteps), {
       type: PipelineActionType.Finish,
@@ -141,7 +141,7 @@ describe("pipelineReducer — FINISH", () => {
     });
     expect(next.progress).toBe(1);
     expect(next.currentStepIndex).toBeNull();
-    expect(next.statusText).toBe("Opening viewer…");
+    expect(next.statusText).toBe("Opening viewer...");
   });
 
   it("completed fills the bar and shows the loading message", () => {
@@ -150,11 +150,11 @@ describe("pipelineReducer — FINISH", () => {
       mode: FinishMode.Completed,
     });
     expect(next.progress).toBe(1);
-    expect(next.statusText).toBe("Pipeline completed — loading…");
+    expect(next.statusText).toBe("Pipeline completed - loading...");
   });
 });
 
-describe("pipelineReducer — error & connection transitions", () => {
+describe("pipelineReducer - error & connection transitions", () => {
   it("SET_ERROR records the error detail", () => {
     const error = { title: "T", message: "M", hints: ["h"] };
     const next = pipelineReducer(initialState, {
@@ -169,7 +169,7 @@ describe("pipelineReducer — error & connection transitions", () => {
       type: PipelineActionType.ConnectionClosed,
     });
     expect(next.connectionLost).toBe(true);
-    expect(next.statusText).toBe("Connection closed — check your network or reconnect.");
+    expect(next.statusText).toBe("Connection closed - check your network or reconnect.");
     expect(next.steps).toEqual(noMaskSteps);
   });
 

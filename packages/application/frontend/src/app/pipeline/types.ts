@@ -20,7 +20,7 @@ export interface UploadJob {
 }
 
 export interface UploadPayload {
-  /** Ordered upload phase: volume first, optional mask second, … */
+  /** Ordered upload phase: volume first, optional mask second, ... */
   uploads: UploadJob[];
   pipelines: PipelineRequestItem[];
 }
@@ -57,7 +57,7 @@ export const initialState: PipelineState = {
   completedSteps: new Set(),
   currentStepIndex: null,
   progress: 0,
-  statusText: "Connecting…",
+  statusText: "Connecting...",
   connectionLost: false,
   error: null,
 };

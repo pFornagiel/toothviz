@@ -17,12 +17,12 @@ import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
 
 // ---------------------------------------------------------------------------
-// PipelineEngine — framework-agnostic orchestration. It owns every piece of
+// PipelineEngine - framework-agnostic orchestration. It owns every piece of
 // mutable lifecycle state as a private field (no React, no react-router), so it
 // can be unit-tested by injecting a mock `api` and `onNavigateToViewer`.
 // ---------------------------------------------------------------------------
 
-/** The slice of the API the engine drives — injected so it can be mocked. */
+/** The slice of the API the engine drives - injected so it can be mocked. */
 export interface PipelineApi {
   getStudy: (studyId: string) => Promise<StudyResponse>;
   deleteStudy: (studyId: string) => Promise<void>;
@@ -100,7 +100,7 @@ export class PipelineEngine {
     if (!jobId && study.status !== "processing") {
       this.goError("Upload state was lost", "Please create the study again from the home page.", [
         "This can happen if you refreshed during the initial upload.",
-        "Use “Create a Study” again from home.",
+        "Use 'Create a Study' again from home.",
       ]);
       return;
     }
@@ -253,7 +253,7 @@ export class PipelineEngine {
 
   /**
    * Open the pipeline WebSocket, route every message through `applyWsMessage`,
-   * and store the disconnect fn. On close — while still processing — it
+   * and store the disconnect fn. On close - while still processing - it
    * dispatches `ConnectionClosed`; it does not auto-retry (the user drives that
    * via `reconnect()`).
    */

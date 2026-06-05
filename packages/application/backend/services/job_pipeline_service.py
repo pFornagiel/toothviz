@@ -28,7 +28,7 @@ class JobPipelineService:
     ---------------
     FastAPI/uvicorn runs a single asyncio event loop on the main thread.  Sync
     route handlers (and services they call) are offloaded to a thread-pool
-    executor — meaning ``dispatch`` and ``cancel`` execute on *worker threads*,
+    executor - meaning ``dispatch`` and ``cancel`` execute on *worker threads*,
     not on the event loop thread.
 
     ``run_pipeline`` is an async coroutine that must execute on the event loop
@@ -37,7 +37,7 @@ class JobPipelineService:
 
     ``asyncio.run_coroutine_threadsafe`` is the standard library's answer: it
     submits a coroutine to a *foreign* event loop from any thread and returns a
-    ``concurrent.futures.Future`` — a thread-safe handle that supports
+    ``concurrent.futures.Future`` - a thread-safe handle that supports
     ``.cancel()``, ``.result()``, and ``.add_done_callback``.  This is
     distinct from ``asyncio.ensure_future`` / ``asyncio.create_task``, which
     are *not* thread-safe and must only be called from the loop thread.

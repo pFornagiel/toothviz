@@ -31,7 +31,7 @@ async def run_pipeline(
     storage_service: StorageService,
     study_service: StudyService | None = None,
 ) -> None:
-    """Async orchestrator — runs steps sequentially, commits artifacts at the end.
+    """Async orchestrator - runs steps sequentially, commits artifacts at the end.
 
     Derived files are stored only after every step succeeds.
     If any step fails, no artifacts from this run are persisted (the job is

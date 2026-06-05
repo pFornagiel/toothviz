@@ -11,7 +11,7 @@ export function errorHints(failedStep?: string | null): string[] {
 
   if (failedStep === "dicom_to_nifti") {
     return [
-      "DICOM conversion failed — check that the ZIP is not corrupt and contains valid DICOM.",
+      "DICOM conversion failed - check that the ZIP is not corrupt and contains valid DICOM.",
       dicomArchive,
       precomputedMask,
       newStudy,
@@ -19,7 +19,7 @@ export function errorHints(failedStep?: string | null): string[] {
   }
   if (failedStep === PipelineStepName.SegmentNifti) {
     return [
-      "Segmentation failed — the volume may be unsupported or too small for the model.",
+      "Segmentation failed - the volume may be unsupported or too small for the model.",
       precomputedMask,
       newStudy,
     ];
