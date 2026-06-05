@@ -1,10 +1,11 @@
 // ---------------------------------------------------------------------------
 // Study-mode registry — the single source of truth for the ways a study can be
-// created. Each mode self-describes its label/hint, whether it's dev-only,
-// whether it collects a mask file (and how to validate it), and the pipelines
-// it requests. `CreateStudyModal` renders its radio options from this registry,
-// and `StartPage` builds the `UploadPayload` from it, so adding a new mode is a
-// data change in this one file.
+// created. Each mode self-describes its label/hint, whether it collects a mask
+// file (and how to validate it), and the pipelines it requests. The registry is
+// built conditionally: dev-only modes are included only in dev builds, so
+// `CreateStudyModal` can render `Object.values(STUDY_MODES)` as-is and `StartPage`
+// can build the `UploadPayload` from it. Adding a new mode is a data change in
+// this one file.
 // ---------------------------------------------------------------------------
 
 import {
@@ -13,6 +14,7 @@ import {
   UploadKind,
   type PipelineRequestItem,
 } from "@/api/types";
+import { IS_DEV } from "@/api/env";
 import { validateNiftiFile } from "../utils/medicalFileTypes";
 import type { UploadJob, UploadPayload } from "./types";
 
@@ -40,13 +42,16 @@ export interface StudyMode {
   key: SegmentationType;
   label: string;
   hint: string;
-  devOnly?: boolean;
   maskInput: MaskInput;
   validateMask?: (file: File | null) => string | null;
   pipelines: PipelineRequestItem[];
 }
 
-export const STUDY_MODES: Record<SegmentationType, StudyMode> = {
+// Dev-only modes are spread in only when `IS_DEV`, so they never reach a
+// production build. The cast keeps keyed lookups (`STUDY_MODES[segmentationType]`)
+// typed as `StudyMode`; a dev-only key is never selectable in prod, so it's
+// never indexed there.
+export const STUDY_MODES = {
   [SegmentationType.None]: {
     key: SegmentationType.None,
     label: "None",
@@ -69,20 +74,21 @@ export const STUDY_MODES: Record<SegmentationType, StudyMode> = {
     maskInput: MaskInput.None,
     pipelines: [{ name: PipelineStepName.SegmentNifti }],
   },
-  [SegmentationType.TestingStub]: {
-    key: SegmentationType.TestingStub,
-    label: "TESTING: Stub pipeline",
-    hint: "3×2s delays + passthrough, 4 steps",
-    devOnly: true,
-    maskInput: MaskInput.None,
-    pipelines: [
-      { name: PipelineStepName.Stub },
-      { name: PipelineStepName.Stub },
-      { name: PipelineStepName.Stub },
-      { name: PipelineStepName.Passthrough },
-    ],
-  },
-};
+  ...(IS_DEV && {
+    [SegmentationType.TestingStub]: {
+      key: SegmentationType.TestingStub,
+      label: "TESTING: Stub pipeline",
+      hint: "3×2s delays + passthrough, 4 steps",
+      maskInput: MaskInput.None,
+      pipelines: [
+        { name: PipelineStepName.Stub },
+        { name: PipelineStepName.Stub },
+        { name: PipelineStepName.Stub },
+        { name: PipelineStepName.Passthrough },
+      ],
+    },
+  }),
+} as Record<SegmentationType, StudyMode>;
 
 /** Shared N-upload builder: base volume (carries pipelines) + optional trailing mask. */
 export function buildUploadPayload(

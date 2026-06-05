@@ -18,10 +18,6 @@ export interface CreateStudyData {
   segmentationFile?: File;
 }
 
-const STUDY_MODE_OPTIONS = Object.values(STUDY_MODES).filter(
-  (m) => !m.devOnly || import.meta.env.DEV,
-);
-
 interface CreateStudyModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -203,7 +199,7 @@ export function CreateStudyModal({
               </div>
 
               <div className="flex flex-col gap-2">
-                {STUDY_MODE_OPTIONS.map((mode) => {
+                {Object.values(STUDY_MODES).map((mode) => {
                   const selected = segmentationType === mode.key;
                   const showMaskInput = selected && mode.maskInput === MaskInput.Required;
                   return (

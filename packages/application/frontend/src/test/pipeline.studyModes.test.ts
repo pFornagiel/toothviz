@@ -87,8 +87,19 @@ describe("STUDY_MODES registry", () => {
     expect(STUDY_MODES[SegmentationType.Precomputed].validateMask).toBeTypeOf("function");
   });
 
-  it("marks only the testing stub as dev-only", () => {
-    const devOnly = Object.values(STUDY_MODES).filter((m) => m.devOnly);
-    expect(devOnly.map((m) => m.key)).toEqual([SegmentationType.TestingStub]);
+  it("always registers the production modes", () => {
+    for (const key of [
+      SegmentationType.None,
+      SegmentationType.Precomputed,
+      SegmentationType.Automated,
+    ]) {
+      expect(STUDY_MODES[key]).toBeDefined();
+    }
+  });
+
+  it("includes the dev-only testing stub under a dev build", () => {
+    // Vitest runs with `import.meta.env.DEV === true`, so the dev-gated mode is
+    // present here; it is spread out of production builds.
+    expect(STUDY_MODES[SegmentationType.TestingStub]).toBeDefined();
   });
 });
