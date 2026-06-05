@@ -18,13 +18,11 @@ import { IS_DEV } from "@/api/env";
 import { validateNiftiFile } from "../utils/medicalFileTypes";
 import type { UploadJob, UploadPayload } from "./types";
 
-/** How a study's base image is provided. */
 export enum FileType {
   Nifti = "nifti",
   Dicom = "dicom",
 }
 
-/** Which segmentation strategy a study is created with. */
 export enum SegmentationType {
   None = "none",
   Precomputed = "precomputed",
@@ -32,7 +30,6 @@ export enum SegmentationType {
   TestingStub = "testing_stub",
 }
 
-/** Whether a mode collects a mask file from the user. */
 export enum MaskInput {
   None = "none",
   Required = "required",
@@ -47,10 +44,6 @@ export interface StudyMode {
   pipelines: PipelineRequestItem[];
 }
 
-// Dev-only modes are spread in only when `IS_DEV`, so they never reach a
-// production build. The cast keeps keyed lookups (`STUDY_MODES[segmentationType]`)
-// typed as `StudyMode`; a dev-only key is never selectable in prod, so it's
-// never indexed there.
 export const STUDY_MODES = {
   [SegmentationType.None]: {
     key: SegmentationType.None,
@@ -74,6 +67,7 @@ export const STUDY_MODES = {
     maskInput: MaskInput.None,
     pipelines: [{ name: PipelineStepName.SegmentNifti }],
   },
+  // DEV only
   ...(IS_DEV && {
     [SegmentationType.TestingStub]: {
       key: SegmentationType.TestingStub,
@@ -90,7 +84,6 @@ export const STUDY_MODES = {
   }),
 } as Record<SegmentationType, StudyMode>;
 
-/** Shared N-upload builder: base volume (carries pipelines) + optional trailing mask. */
 export function buildUploadPayload(
   base: { file: File; kind: UploadKind },
   mode: StudyMode,
