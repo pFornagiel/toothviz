@@ -1,16 +1,33 @@
 import { describe, it, expect } from "vitest";
 import { createLoadingSteps } from "@/app/pipeline/steps";
-import type { UploadPayload } from "@/app/pipeline";
+import type { UploadJob, UploadPayload } from "@/app/pipeline";
 import {
   ClientStepName,
   PipelineStepName,
   UploadKind,
 } from "@/api/types";
 
+function volumeJob(): UploadJob {
+  return {
+    file: new File(["x"], "volume.nii"),
+    kind: UploadKind.NiftiRaw,
+    stepId: ClientStepName.UploadVolume,
+    carriesPipelines: true,
+  };
+}
+
+function maskJob(): UploadJob {
+  return {
+    file: new File(["m"], "mask.nii"),
+    kind: UploadKind.NiftiMask,
+    stepId: ClientStepName.UploadMask,
+    carriesPipelines: false,
+  };
+}
+
 function makePayload(overrides: Partial<UploadPayload> = {}): UploadPayload {
   return {
-    baseImageFile: new File(["x"], "volume.nii"),
-    baseKind: UploadKind.NiftiRaw,
+    uploads: [volumeJob()],
     pipelines: [{ name: PipelineStepName.SegmentNifti }],
     ...overrides,
   };
@@ -26,9 +43,9 @@ describe("createLoadingSteps", () => {
     ]);
   });
 
-  it("inserts the mask upload step when a segmentation file is present", () => {
+  it("inserts the mask upload step when a mask upload is present", () => {
     const steps = createLoadingSteps(
-      makePayload({ segmentationFile: new File(["m"], "mask.nii") }),
+      makePayload({ uploads: [volumeJob(), maskJob()] }),
     );
     expect(steps).toEqual([
       ClientStepName.UploadVolume,

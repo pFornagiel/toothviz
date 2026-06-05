@@ -11,6 +11,7 @@ import {
 import { FromPage } from "@/app/pipeline/types";
 import { ApiError } from "@/api/client";
 import {
+  ClientStepName,
   UploadKind,
   PipelineStepName,
   type StudyResponse,
@@ -30,8 +31,32 @@ function makeStudy(overrides: Partial<StudyResponse> = {}): StudyResponse {
 }
 
 const uploadPayload = {
-  baseImageFile: new File(["x"], "volume.nii"),
-  baseKind: UploadKind.NiftiRaw,
+  uploads: [
+    {
+      file: new File(["x"], "volume.nii"),
+      kind: UploadKind.NiftiRaw,
+      stepId: ClientStepName.UploadVolume,
+      carriesPipelines: true,
+    },
+  ],
+  pipelines: [{ name: PipelineStepName.SegmentNifti }],
+};
+
+const uploadPayloadWithMask = {
+  uploads: [
+    {
+      file: new File(["x"], "volume.nii"),
+      kind: UploadKind.NiftiRaw,
+      stepId: ClientStepName.UploadVolume,
+      carriesPipelines: true,
+    },
+    {
+      file: new File(["m"], "mask.nii"),
+      kind: UploadKind.NiftiMask,
+      stepId: ClientStepName.UploadMask,
+      carriesPipelines: false,
+    },
+  ],
   pipelines: [{ name: PipelineStepName.SegmentNifti }],
 };
 
@@ -156,6 +181,52 @@ describe("PipelineEngine — upload flow", () => {
 
     await flush();
     expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Home);
+  });
+
+  it("uploads volume then mask, sharing the trailing finalize step", async () => {
+    const { engine, api, actions, ws } = setup();
+    engine.start({
+      studyId: "s1",
+      study: makeStudy(),
+      routeState: { uploadPayload: uploadPayloadWithMask, from: FromPage.Home },
+    });
+    await flush();
+
+    // Two uploads happened; only the volume (first) carried the pipelines.
+    expect(api.uploadFile).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(api.uploadFile).mock.calls[0][3]).toEqual([
+      { name: PipelineStepName.SegmentNifti },
+    ]);
+    expect(vi.mocked(api.uploadFile).mock.calls[1][3]).toEqual([]);
+    expect(vi.mocked(api.uploadFile).mock.calls[1][2]).toBe(UploadKind.NiftiMask);
+
+    // Volume finalizes in place on its own step (0); the mask owns the shared
+    // finalize step (2). Pipeline then enters at the upload-prefix length (3).
+    expect(
+      actions.some(
+        (a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 0,
+      ),
+    ).toBe(true);
+    expect(
+      actions.some(
+        (a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2,
+      ),
+    ).toBe(true);
+    expect(findAction(actions, PipelineActionType.EnterPipeline)?.stepIndex).toBe(3);
+
+    ws.onMessage({
+      event: "step_completed",
+      step: "segment",
+      progress: 1,
+      total_steps: 1,
+      step_index: 0,
+    });
+    // Pipeline step globalised by the upload offset (0 → 3).
+    expect(
+      actions.some(
+        (a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 3,
+      ),
+    ).toBe(true);
   });
 
   it("skips the pipeline and opens the viewer when finalize returns no job", async () => {

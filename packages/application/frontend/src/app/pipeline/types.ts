@@ -1,4 +1,9 @@
-import type { LoadingStepId, PipelineRequestItem, UploadKind } from "@/api/types";
+import type {
+  ClientStepName,
+  LoadingStepId,
+  PipelineRequestItem,
+  UploadKind,
+} from "@/api/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -9,11 +14,20 @@ export enum FromPage {
   Browse = "browse",
 }
 
+/** One file upload in the ordered upload phase. */
+export interface UploadJob {
+  file: File;
+  kind: UploadKind;
+  /** Loading-step label this upload shows under (e.g. UploadVolume, UploadMask). */
+  stepId: ClientStepName;
+  /** Exactly one job per payload is true: it sends `pipelines` on finalize and yields the job_id. */
+  carriesPipelines: boolean;
+}
+
 export interface UploadPayload {
-  baseImageFile: File;
-  baseKind: UploadKind;
+  /** Ordered upload phase: volume first, optional mask second, … */
+  uploads: UploadJob[];
   pipelines: PipelineRequestItem[];
-  segmentationFile?: File;
 }
 
 export interface LocationState {

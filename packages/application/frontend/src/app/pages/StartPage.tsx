@@ -3,13 +3,14 @@ import { useNavigate } from "react-router";
 import { OpenRawFileModal } from "../components/OpenRawFileModal";
 import { CreateStudyModal, type CreateStudyData } from "../components/CreateStudyModal";
 import { listStudies, createStudy, deleteStudy } from "@/api/studies";
-import {
-  UploadKind,
-  PipelineStepName,
-  type PipelineRequestItem,
-} from "@/api/types";
+import { UploadKind } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
-import { FromPage } from "../pipeline";
+import {
+  FromPage,
+  FileType,
+  STUDY_MODES,
+  buildUploadPayload,
+} from "../pipeline";
 
 export function StartPage() {
   const navigate = useNavigate();
@@ -41,30 +42,14 @@ export function StartPage() {
       const study = await createStudy(data.studyName);
       createdId = study.id;
 
-      const baseKind: UploadKind =
-        data.fileType === "dicom" ? UploadKind.DicomZip : UploadKind.NiftiRaw;
-
-      let pipelines: PipelineRequestItem[] = [];
-      if (data.segmentationType === "automated") {
-        pipelines = [{ name: PipelineStepName.SegmentNifti }];
-      } else if (data.segmentationType === "testing_stub") {
-        pipelines = [
-          { name: PipelineStepName.Stub },
-          { name: PipelineStepName.Stub },
-          { name: PipelineStepName.Stub },
-          { name: PipelineStepName.Passthrough },
-        ];
-      }
-
-      const uploadPayload = {
-        baseImageFile: data.baseImageFile,
-        baseKind,
-        pipelines,
-        segmentationFile:
-          data.segmentationType === "precomputed" && data.segmentationFile
-            ? data.segmentationFile
-            : undefined,
-      };
+      const baseKind =
+        data.fileType === FileType.Dicom ? UploadKind.DicomZip : UploadKind.NiftiRaw;
+      const mode = STUDY_MODES[data.segmentationType];
+      const uploadPayload = buildUploadPayload(
+        { file: data.baseImageFile, kind: baseKind },
+        mode,
+        data.segmentationFile,
+      );
 
       navigate(`/pipeline/${study.id}`, {
         state: { uploadPayload, from: FromPage.Home },

@@ -1,12 +1,12 @@
 import type { Dispatch } from "react";
 import { ApiError } from "@/api/client";
 import {
-  UploadKind,
   type FinalizeResponse,
   type LoadingStepId,
   type PipelineMessage,
   type PipelineRequestItem,
   type StudyResponse,
+  type UploadKind,
 } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
 import { FromPage, type LocationState, type UploadPayload } from "./types";
@@ -145,57 +145,56 @@ export class PipelineEngine {
   // Lifecycles
   // -------------------------------------------------------------------------
 
-  /** Fresh upload → (optional mask upload) → pipeline run over the WebSocket. */
+  /** Fresh upload → (optional further uploads) → pipeline run over the WebSocket. */
   private async runUpload(payload: UploadPayload): Promise<void> {
     const steps = createLoadingSteps(payload);
-    const hasMask = !!payload.segmentationFile;
-    const uploadPrefixLen = hasMask ? 3 : 2;
+    const { uploads, pipelines } = payload;
+    // The single trailing "Finalising" step sits right after every upload step.
+    const finalizeStepIndex = uploads.length;
+    // The whole upload prefix (each upload + the shared finalize) precedes the pipeline.
+    const uploadPrefixLen = uploads.length + 1;
 
     this.dispatch({ type: PipelineActionType.Begin, steps });
 
     try {
-      // With a mask, the dedicated finalize step (index 2) belongs to the
-      // combined finalize after the mask upload, so the volume's own finalize
-      // stays on its upload step (finalizeStepIndex = null).
-      const volumeLayout: UploadStepLayout = hasMask
-        ? { stepIndex: 0, finalizeStepIndex: null }
-        : { stepIndex: 0, finalizeStepIndex: 1 };
+      let jobId: string | null = null;
 
-      const baseResult = await this.api.uploadFile(
-        this.studyId,
-        payload.baseImageFile,
-        payload.baseKind,
-        payload.pipelines,
-        this.onUploadProgress(volumeLayout),
-      );
-      if (this.cancelled) return;
+      for (let i = 0; i < uploads.length; i++) {
+        const job = uploads[i];
+        const isLast = i === uploads.length - 1;
+        // The last upload owns the shared finalize step; earlier uploads
+        // finalize in place on their own upload step.
+        const layout: UploadStepLayout = {
+          stepIndex: i,
+          finalizeStepIndex: isLast ? finalizeStepIndex : null,
+        };
 
-      this.dispatch({
-        type: PipelineActionType.CompleteStep,
-        stepIndex: hasMask ? 0 : 1,
-      });
-
-      if (payload.segmentationFile) {
-        await this.api.uploadFile(
+        const result = await this.api.uploadFile(
           this.studyId,
-          payload.segmentationFile,
-          UploadKind.NiftiMask,
-          [],
-          this.onUploadProgress({ stepIndex: 1, finalizeStepIndex: 2 }),
+          job.file,
+          job.kind,
+          job.carriesPipelines ? pipelines : [],
+          this.onUploadProgress(layout),
         );
         if (this.cancelled) return;
-        this.dispatch({ type: PipelineActionType.CompleteStep, stepIndex: 2 });
+
+        if (job.carriesPipelines) jobId = result.job_id;
+
+        this.dispatch({
+          type: PipelineActionType.CompleteStep,
+          stepIndex: isLast ? finalizeStepIndex : i,
+        });
       }
 
-      if (!baseResult.job_id) {
+      if (!jobId) {
         this.dispatch({ type: PipelineActionType.Finish, mode: FinishMode.NoPipeline });
         this.navigateToViewer();
         return;
       }
 
-      this.jobId = baseResult.job_id;
+      this.jobId = jobId;
       this.dispatch({ type: PipelineActionType.EnterPipeline, stepIndex: uploadPrefixLen });
-      this.connect(baseResult.job_id, uploadPrefixLen);
+      this.connect(jobId, uploadPrefixLen);
     } catch (err: unknown) {
       if (this.cancelled) return;
       try {
