@@ -21,7 +21,7 @@
     "@tailwindcss/vite": "4.1.12",
     "@types/node": "^22.13.10",
     "@vitejs/plugin-react": "4.7.0",
-    "electron": "^35.0.3",
+    "electron": "^35.7.5",
     "electron-builder": "^25.1.8",
     "electron-vite": "^3.1.0",
     "tailwindcss": "4.1.12",
@@ -43,7 +43,9 @@
       {
         "from": "../frontend/dist",
         "to": "application/frontend/dist",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../backend",
@@ -52,18 +54,26 @@
       {
         "from": "../../../packages/models",
         "to": "models",
-        "filter": ["*.onnx"]
+        "filter": [
+          "*.onnx"
+        ]
       }
     ],
     "mac": {
       "category": "public.app-category.medical",
-      "target": ["dmg"]
+      "target": [
+        "dmg"
+      ]
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "linux": {
-      "target": ["AppImage"]
+      "target": [
+        "AppImage"
+      ]
     }
   }
 }

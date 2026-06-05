@@ -34,7 +34,7 @@ export function StudyBrowsePage() {
     refresh();
   };
 
-  const handleDoubleClick = (study: StudyResponse) => {
+  const handleClick = (study: StudyResponse) => {
     if (study.status === "processing" && study.job_id) {
       navigate(`/pipeline/${study.id}`, {
         state: { jobId: study.job_id, from: "browse" },
@@ -73,7 +73,7 @@ export function StudyBrowsePage() {
                 <tr
                   key={study.id}
                   className="hover:bg-muted/50 cursor-pointer transition-colors border-l-2 border-transparent hover:border-primary"
-                  onDoubleClick={() => handleDoubleClick(study)}
+                  onClick={() => handleClick(study)}
                 >
                   <td className="px-6 py-4 text-sm text-foreground font-medium">{study.name ?? "—"}</td>
                   <td className="px-6 py-4 text-sm">
