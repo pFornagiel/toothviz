@@ -67,7 +67,6 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     study.status,
     study.job_id,
     routeState.uploadPayload,
-    routeState.jobId,
     routeState.from,
     location.key,
     navigate,

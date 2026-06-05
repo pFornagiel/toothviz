@@ -18,7 +18,6 @@ export interface UploadPayload {
 
 export interface LocationState {
   uploadPayload?: UploadPayload;
-  jobId?: string | null;
   from?: FromPage;
 }
 

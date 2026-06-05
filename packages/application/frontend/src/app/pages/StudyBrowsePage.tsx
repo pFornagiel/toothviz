@@ -38,7 +38,7 @@ export function StudyBrowsePage() {
   const handleClick = (study: StudyResponse) => {
     if (study.status === "processing" && study.job_id) {
       navigate(`/pipeline/${study.id}`, {
-        state: { jobId: study.job_id, from: FromPage.Browse },
+        state: { from: FromPage.Browse },
       });
     } else {
       navigate(`/visualize/${study.id}`, { state: { from: FromPage.Browse } });

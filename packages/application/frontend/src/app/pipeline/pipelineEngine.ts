@@ -98,7 +98,7 @@ export class PipelineEngine {
       return;
     }
 
-    const jobId = routeState.jobId ?? study.job_id ?? null;
+    const jobId = study.job_id ?? null;
 
     // No job id and not actively processing → the initial upload state was lost
     // (e.g. a refresh during upload). Failed/cancelled already handled above.
@@ -148,7 +148,7 @@ export class PipelineEngine {
   /** Fresh upload → (optional mask upload) → pipeline run over the WebSocket. */
   private async runUpload(payload: UploadPayload): Promise<void> {
     const steps = createLoadingSteps(payload);
-    const hasMask = Boolean(payload.segmentationFile);
+    const hasMask = !!payload.segmentationFile;
     const uploadPrefixLen = hasMask ? 3 : 2;
 
     this.dispatch({ type: PipelineActionType.Begin, steps });
