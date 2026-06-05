@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { errorHints } from "@/app/hooks/usePipelineOrchestration";
+import { errorHints } from "@/app/pipeline/errorHints";
 import { PipelineStepName } from "@/api/types";
 
 describe("errorHints", () => {

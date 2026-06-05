@@ -3,7 +3,7 @@ import { useNavigate, useLoaderData, useRevalidator } from "react-router";
 import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
-import { FromPage } from "../hooks/usePipelineOrchestration";
+import { FromPage } from "../pipeline";
 
 export async function browseLoader() {
   return await listStudies();

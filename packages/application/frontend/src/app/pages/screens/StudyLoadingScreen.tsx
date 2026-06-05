@@ -2,6 +2,7 @@
 
 import { PipelineStepName, ClientStepName, BackendStepName, LoadingStepId } from "@/api/types";
 import { Progress } from "../../components/ui/progress";
+import { Button } from "../../components/ui/button";
 
 const DEFAULT_LABELS: Record<LoadingStepId, string> = {
   [BackendStepName.DicomToNifti]: "Converting DICOM to NIfTI",
@@ -23,6 +24,8 @@ export interface StudyLoadingScreenProps {
   currentStepIndex: number | null;
   progressFraction: number;
   statusLine: string;
+  /** When set, the connection was lost; render a Reconnect button. */
+  onReconnect?: () => void;
 }
 
 function getLabelForStep(step: LoadingStepId): string {
@@ -36,6 +39,7 @@ export function StudyLoadingScreen({
   currentStepIndex,
   progressFraction,
   statusLine,
+  onReconnect,
 }: StudyLoadingScreenProps) {
   const pct = Math.round(Math.min(1, Math.max(0, progressFraction)) * 100);
 
@@ -43,6 +47,12 @@ export function StudyLoadingScreen({
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
       <h1 className="text-2xl text-foreground font-semibold tracking-tight mb-2">{title}</h1>
       <p className="text-sm text-muted-foreground mb-6 max-w-md">{statusLine}</p>
+
+      {onReconnect && (
+        <Button type="button" onClick={onReconnect} className="mb-6">
+          Reconnect
+        </Button>
+      )}
 
       <div className="w-full max-w-md mb-8">
         <div className="flex justify-between text-xs font-medium text-muted-foreground mb-2">

@@ -5,7 +5,7 @@ import { Niivue } from "@niivue/niivue";
 import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
 import { ApiError } from "@/api/client";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
-import { FromPage } from "../hooks/usePipelineOrchestration";
+import { FromPage } from "../pipeline";
 
 export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) return null;

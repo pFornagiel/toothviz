@@ -1,20 +1,14 @@
-import {
-  useNavigate,
-  useParams,
-  useLocation,
-  redirect,
-  useLoaderData,
-} from "react-router";
+import { useNavigate, useLocation, redirect } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { getStudy } from "@/api/studies";
-import type { StudyResponse } from "@/api/types";
 import { StudyLoadingScreen } from "./screens/StudyLoadingScreen";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import {
-  usePipelineOrchestration,
+  PipelineProvider,
+  usePipeline,
   FromPage,
   type LocationState,
-} from "../hooks/usePipelineOrchestration";
+} from "../pipeline";
 
 export async function pipelineLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) return redirect("/");
@@ -31,27 +25,28 @@ export async function pipelineLoader({ params }: LoaderFunctionArgs) {
 export type { LocationState };
 
 export function PipelinePage() {
+  return (
+    <PipelineProvider>
+      <PipelineScreens />
+    </PipelineProvider>
+  );
+}
+
+function PipelineScreens() {
   const navigate = useNavigate();
-  const { studyId } = useParams();
   const location = useLocation();
   const routeState = (location.state ?? {}) as LocationState;
 
-  const study = useLoaderData() as StudyResponse;
-
   const {
+    error,
     steps,
     completedSteps,
     currentStepIndex,
     progress,
     statusText,
-    error,
-  } = usePipelineOrchestration(
-    studyId,
-    study,
-    routeState,
-    location.key,
-    navigate,
-  );
+    connectionLost,
+    reconnect,
+  } = usePipeline();
 
   const handleBack = () => {
     const from = routeState.from ?? FromPage.Home;
@@ -86,6 +81,7 @@ export function PipelinePage() {
         currentStepIndex={currentStepIndex}
         progressFraction={progress ?? 0}
         statusLine={statusText}
+        onReconnect={connectionLost ? reconnect : undefined}
       />
     </div>
   );

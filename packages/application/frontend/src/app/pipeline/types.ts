@@ -22,13 +22,26 @@ export interface LocationState {
   from?: FromPage;
 }
 
+export interface PipelineError {
+  title: string;
+  message: string;
+  hints: string[];
+}
+
 export interface PipelineState {
   steps: LoadingStepId[];
   completedSteps: Set<number>;
   currentStepIndex: number | null;
   progress: number | null;
   statusText: string;
-  error: { title: string; message: string; hints: string[] } | null;
+  /** True once the pipeline WebSocket closed mid-run; drives the Reconnect UI. */
+  connectionLost: boolean;
+  error: PipelineError | null;
+}
+
+/** What `usePipeline()` returns: the reducer state plus the imperative actions. */
+export interface PipelineContextValue extends PipelineState {
+  reconnect: () => void;
 }
 
 export const initialState: PipelineState = {
@@ -37,5 +50,6 @@ export const initialState: PipelineState = {
   currentStepIndex: null,
   progress: 0,
   statusText: "Connecting…",
+  connectionLost: false,
   error: null,
 };

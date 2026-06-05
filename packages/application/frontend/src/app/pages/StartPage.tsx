@@ -9,7 +9,7 @@ import {
   type PipelineRequestItem,
 } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
-import { FromPage } from "../hooks/usePipelineOrchestration";
+import { FromPage } from "../pipeline";
 
 export function StartPage() {
   const navigate = useNavigate();

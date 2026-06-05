@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  createLoadingSteps,
-  type UploadPayload,
-} from "@/app/hooks/usePipelineOrchestration";
+import { createLoadingSteps } from "@/app/pipeline/steps";
+import type { UploadPayload } from "@/app/pipeline";
 import {
   ClientStepName,
   PipelineStepName,

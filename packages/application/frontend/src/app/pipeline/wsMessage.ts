@@ -1,16 +1,17 @@
 import type { Dispatch } from "react";
 import type { PipelineMessage } from "@/api/types";
-import { PipelineActionType, type PipelineAction } from "./reducer";
+import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
+import { pipelineStepProgress } from "./progress";
 
 // ---------------------------------------------------------------------------
-// WebSocket message handling — shared by the upload and reconnect flows.
-// Terminal events drive the side-effect callbacks; non-terminal events emit a
-// single PIPELINE_UPDATE dispatch.
+// WebSocket message handling. Terminal events drive the side-effect callbacks;
+// non-terminal events become a `Progress` (+ `CompleteStep` on step completion).
+// The only option besides the callbacks is `stepOffset`, used to globalise the
+// pipeline-relative `step_index` onto the combined step list.
 // ---------------------------------------------------------------------------
 
-interface WsHandlerOptions {
-  uploadWeight: number;
-  idxOffset: number;
+export interface WsHandlerOptions {
+  stepOffset: number;
   dispatch: Dispatch<PipelineAction>;
   getPipelineFinished: () => boolean;
   markPipelineFinished: () => void;
@@ -23,8 +24,7 @@ interface WsHandlerOptions {
 export function applyWsMessage(
   msg: PipelineMessage,
   {
-    uploadWeight,
-    idxOffset,
+    stepOffset,
     dispatch,
     getPipelineFinished,
     markPipelineFinished,
@@ -38,7 +38,7 @@ export function applyWsMessage(
     if (getPipelineFinished()) return;
     markPipelineFinished();
     disconnect();
-    dispatch({ type: PipelineActionType.PipelineCompletedPending });
+    dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
     onPipelineCompleted();
     return;
   }
@@ -59,5 +59,17 @@ export function applyWsMessage(
     return;
   }
 
-  dispatch({ type: PipelineActionType.PipelineUpdate, msg, uploadWeight, idxOffset });
+  const step = pipelineStepProgress(msg);
+  if (!step) return;
+
+  const stepIndex = step.stepIndex + stepOffset;
+  dispatch({
+    type: PipelineActionType.Progress,
+    stepIndex,
+    fraction: step.fraction,
+    statusText: step.statusText,
+  });
+  if (step.completed) {
+    dispatch({ type: PipelineActionType.CompleteStep, stepIndex });
+  }
 }
