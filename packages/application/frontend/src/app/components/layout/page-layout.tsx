@@ -1,7 +1,8 @@
 import * as React from "react";
 import { useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
-
+import { ChevronLeft  } from "lucide-react";
+import { Button } from "../ui/button";
 interface PageLayoutProps {
   title?: string;
   showBackButton?: boolean;
@@ -32,12 +33,19 @@ export function PageLayout({
       <header className="border-b border-border bg-card px-6 py-4 shadow-sm">
         <div className="flex items-center gap-4">
           {showBackButton && (
-            <button
+
+              // <Button
+              // variant="ghost"
+              // className="absolute top-2 right-2 h-8 w-8 p-0"
+              // >
+            <Button
+            variant="ghost"
               onClick={handleBack}
-              className="text-muted-foreground hover:text-foreground transition-colors p-1"
+              className="h-8 w-8 cursor-pointer text-foreground p-1"
             >
-              &larr;
-            </button>
+              
+              <ChevronLeft className="w-8 h-7 text-foreground cursor-pointer" />
+            </Button>
           )}
           <h1 className="text-xl text-foreground font-semibold tracking-tight">{title}</h1>
         </div>
