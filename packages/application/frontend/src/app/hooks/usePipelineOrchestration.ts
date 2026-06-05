@@ -4,11 +4,14 @@ import { deleteStudy, getStudy } from "@/api/studies";
 import { uploadFile, type UploadProgress } from "@/api/upload";
 import { establishWebsocketConnection } from "@/api/ws";
 import { ApiError } from "@/api/client";
-import type {
-  PipelineMessage,
-  StudyResponse,
+import {
+  ClientStepName,
+  LoadingStepId,
+  PipelineStepName,
   UploadKind,
-  PipelineRequestItem,
+  type PipelineMessage,
+  type PipelineRequestItem,
+  type StudyResponse,
 } from "@/api/types";
 
 export type FromPage = "home" | "browse";
@@ -30,7 +33,7 @@ type PipelinePhase = "uploading" | "connecting" | "running" | "error";
 
 export interface PipelineState {
   phase: PipelinePhase;
-  steps: string[];
+  steps: LoadingStepId[];
   completedSteps: Set<number>;
   currentStepIndex: number | null;
   progress: number | null;
@@ -50,7 +53,7 @@ const initialState: PipelineState = {
 
 type PipelineAction =
   | { type: "SET_PHASE"; phase: PipelinePhase }
-  | { type: "SET_STEPS"; steps: string[] }
+  | { type: "SET_STEPS"; steps: LoadingStepId[] }
   | { type: "SET_COMPLETED_STEPS"; completedSteps: Set<number> }
   | { type: "ADD_COMPLETED_STEP"; index: number }
   | { type: "SET_CURRENT_STEP_INDEX"; index: number | null }
@@ -64,7 +67,7 @@ type PipelineAction =
     }
   | {
       type: "START_UPLOAD";
-      steps: string[];
+      steps: LoadingStepId[];
     }
   | {
       type: "START_RUNNING_AFTER_UPLOAD";
@@ -167,7 +170,7 @@ export function errorHints(failedStep?: string | null): string[] {
       newStudy,
     ];
   }
-  if (failedStep === "segment_nifti") {
+  if (failedStep === PipelineStepName.SegmentNifti) {
     return [
       "Segmentation failed — the volume may be unsupported or too small for the model.",
       precomputedMask,
@@ -177,11 +180,11 @@ export function errorHints(failedStep?: string | null): string[] {
   return [validFormat, dicomArchive, precomputedMask, newStudy];
 }
 
-export function createLoadingSteps(payload: UploadPayload): string[] {
+export function createLoadingSteps(payload: UploadPayload): LoadingStepId[] {
   const hasMask = !!payload.segmentationFile;
   const uploadPrefix = hasMask
-    ? ["upload_volume", "upload_mask", "finalize_upload"]
-    : ["upload_volume", "finalize_upload"];
+    ? [ClientStepName.UploadVolume, ClientStepName.UploadMask, ClientStepName.FinalizeUpload]
+    : [ClientStepName.UploadVolume, ClientStepName.FinalizeUpload];
   const pipelineNames = payload.pipelines.map((p) => p.name);
   return [...uploadPrefix, ...pipelineNames];
 }
@@ -444,7 +447,7 @@ export function usePipelineOrchestration(
             await uploadFile(
               studyId,
               uploadPayload.segmentationFile,
-              "nifti_mask",
+              UploadKind.NiftiMask,
               [],
               maskOnProgress,
             );
@@ -564,7 +567,7 @@ export function usePipelineOrchestration(
     const uploadWeight = 0;
 
     void (async () => {
-      let stepNames: string[] = [];
+      let stepNames: LoadingStepId[] = [];
       try {
         const fresh = await getStudy(studyId);
         if (cancelled) return;

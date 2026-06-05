@@ -3,7 +3,11 @@ import { useNavigate } from "react-router";
 import { OpenRawFileModal } from "../components/OpenRawFileModal";
 import { CreateStudyModal, type CreateStudyData } from "../components/CreateStudyModal";
 import { listStudies, createStudy, deleteStudy } from "@/api/studies";
-import type { UploadKind, PipelineRequestItem } from "@/api/types";
+import {
+  UploadKind,
+  PipelineStepName,
+  type PipelineRequestItem,
+} from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 
 export function StartPage() {
@@ -37,17 +41,17 @@ export function StartPage() {
       createdId = study.id;
 
       const baseKind: UploadKind =
-        data.fileType === "dicom" ? "dicom_zip" : "nifti_raw";
+        data.fileType === "dicom" ? UploadKind.DicomZip : UploadKind.NiftiRaw;
 
       let pipelines: PipelineRequestItem[] = [];
       if (data.segmentationType === "automated") {
-        pipelines = [{ name: "segment_nifti" }];
+        pipelines = [{ name: PipelineStepName.SegmentNifti }];
       } else if (data.segmentationType === "testing_stub") {
         pipelines = [
-          { name: "stub" },
-          { name: "stub" },
-          { name: "stub" },
-          { name: "passthrough" },
+          { name: PipelineStepName.Stub },
+          { name: PipelineStepName.Stub },
+          { name: PipelineStepName.Stub },
+          { name: PipelineStepName.Passthrough },
         ];
       }
 

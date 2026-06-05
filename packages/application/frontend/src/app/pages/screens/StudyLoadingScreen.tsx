@@ -1,23 +1,24 @@
 "use client";
 
+import { PipelineStepName, ClientStepName, BackendStepName, LoadingStepId } from "@/api/types";
 import { Progress } from "../../components/ui/progress";
 
-const DEFAULT_LABELS: Record<string, string> = {
-  dicom_to_nifti: "Converting DICOM to NIfTI",
-  segment_nifti: "Running segmentation",
-  anonymyse_dicom: "Anonymising DICOM",
-  stub: "Stub (testing)",
-  passthrough: "Passthrough to viewer",
-  upload_volume: "Uploading volume",
-  upload_mask: "Uploading segmentation mask",
-  finalize_upload: "Finalising on server",
-  load_volume: "Loading volume",
-  load_mask: "Loading overlay",
+const DEFAULT_LABELS: Record<LoadingStepId, string> = {
+  [BackendStepName.DicomToNifti]: "Converting DICOM to NIfTI",
+  [BackendStepName.AnonymiseDicom]: "Anonymising DICOM",
+  [PipelineStepName.SegmentNifti]: "Running segmentation",
+  [PipelineStepName.Stub]: "Stub (testing)",
+  [PipelineStepName.Passthrough]: "Passthrough to viewer",
+  [ClientStepName.UploadVolume]: "Uploading volume",
+  [ClientStepName.UploadMask]: "Uploading segmentation mask",
+  [ClientStepName.FinalizeUpload]: "Finalising on server",
+  [ClientStepName.LoadVolume]: "Loading volume",
+  [ClientStepName.LoadMask]: "Loading overlay",
 };
 
 export interface StudyLoadingScreenProps {
   title?: string;
-  steps: string[];
+  steps: LoadingStepId[];
   completedSteps: Set<number>;
   currentStepIndex: number | null;
   /** 0–1 from backend; optional if deriving from steps only */
@@ -25,7 +26,7 @@ export interface StudyLoadingScreenProps {
   statusLine: string;
 }
 
-function getLabelForStep(step: string): string {
+function getLabelForStep(step: LoadingStepId): string {
   return DEFAULT_LABELS[step] ?? step.replace(/_/g, " ");
 }
 

@@ -5,7 +5,7 @@ export interface StudyResponse {
   created_at: string;
   job_id?: string | null;
   pipeline_status?: string | null;
-  steps?: string[];
+  steps?: LoadingStepId[];
   error?: string | null;
   source_file_id?: string | null;
 }
@@ -18,7 +18,39 @@ export interface RenameStudyRequest {
   name: string;
 }
 
-export type UploadKind = "dicom_zip" | "nifti_raw" | "nifti_mask";
+export enum UploadKind {
+  DicomZip = "dicom_zip",
+  NiftiRaw = "nifti_raw",
+  NiftiMask = "nifti_mask",
+}
+
+export enum PipelineStepName {
+  SegmentNifti = "segment_nifti",
+  Stub = "stub",
+  Passthrough = "passthrough",
+}
+
+export enum ClientStepName {
+  UploadVolume = "upload_volume",
+  UploadMask = "upload_mask",
+  FinalizeUpload = "finalize_upload",
+  LoadVolume = "load_volume",
+  LoadMask = "load_mask",
+}
+
+export enum BackendStepName {
+  DicomToNifti = "dicom_to_nifti",
+  AnonymiseDicom = "anonymyse_dicom",
+}
+
+export type LoadingStepId = PipelineStepName | ClientStepName | BackendStepName;
+
+export enum PipelineStatus {
+  Running = "running",
+  Completed = "completed",
+  Failed = "failed",
+  Cancelled = "cancelled",
+}
 
 export interface BeginUploadRequest {
   kind: UploadKind;
@@ -42,7 +74,7 @@ export interface UploadStatusResponse {
 }
 
 export interface PipelineRequestItem {
-  name: "segment_nifti" | "stub" | "passthrough";
+  name: PipelineStepName;
   config?: Record<string, unknown>;
 }
 
@@ -71,7 +103,7 @@ export interface FileRecordResponse {
 export interface PipelineMessage {
   event?: string;
   job_id?: string;
-  status?: "running" | "completed" | "failed" | "cancelled";
+  status?: PipelineStatus;
   step?: string;
   progress?: number;
   error?: string;
