@@ -4,30 +4,21 @@ import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 import { FromPage } from "../pipeline";
+import { EllipsisVertical, Folder } from "lucide-react";
+import { Button } from "../components/ui/button";
 
 export async function browseLoader() {
   return await listStudies();
 }
 
-export function StudyBrowsePage() {
+function StudyItem({ study }: { study: StudyResponse }) {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
-  const studies = useLoaderData() as StudyResponse[];
-
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     revalidator.revalidate();
   }, [revalidator]);
-
-  const handleDeleteStudy = async (id: string) => {
-    if (!confirm("Delete this study?")) {
-      return;
-    }
-    setActiveDropdown(null);
-    await deleteStudy(id);
-    refresh();
-  };
 
   const handleRename = async (study: StudyResponse) => {
     const newName = prompt("New study name:", study.name ?? "");
@@ -39,6 +30,13 @@ export function StudyBrowsePage() {
     refresh();
   };
 
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
   const handleClick = (study: StudyResponse) => {
     if (study.status === "processing" && study.job_id) {
       navigate(`/pipeline/${study.id}`, {
@@ -49,21 +47,95 @@ export function StudyBrowsePage() {
     }
   };
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+  const handleDeleteStudy = async (id: string) => {
+    if (!confirm("Delete this study?")) {
+      return;
+    }
+    setActiveDropdown(null);
+    await deleteStudy(id);
+    refresh();
+  };
 
   return (
-    <PageLayout title="Browse Studies" showBackButton mainClassName="p-8">
+    <tr
+      key={study.id}
+      className="hover:bg-muted/50 transition-colors border-l-2 border-transparent hover:border-l-primary"
+      onClick={() => handleClick(study)}
+    >
+      <td className="px-6 py-4 text-sm text-foreground font-medium flex items-center content-center gap-4">
+        <Folder className="size-10 bg-accent rounded-b-md p-2" />
+        {study.name}
+      </td>
+      <td className="px-6 py-4 text-sm">
+        <span
+          className={
+            study.status === "ready"
+              ? "text-emerald-600 font-medium"
+              : study.status === "processing"
+                ? "text-amber-600 font-medium"
+                : study.status === "failed"
+                  ? "text-destructive font-medium"
+                  : study.status === "cancelled"
+                    ? "text-orange-500 font-medium"
+                    : "text-muted-foreground"
+          }
+        >
+          {study.status}
+        </span>
+      </td>
+      <td className="px-6 py-4 text-sm text-muted-foreground font-mono">
+        {formatDate(study.created_at)}
+      </td>
+      <td className="px-6 py-4 text-sm text-muted-foreground">
+        <div className="relative">
+          <Button
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveDropdown(activeDropdown === study.id ? null : study.id);
+            }}
+            className="p-1 w-8 h-8 cursor-pointer hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <EllipsisVertical className="size-5" />
+          </Button>
+
+          {activeDropdown === study.id && (
+            <div className="absolute right-0 mt-2 w-48 bg-popover border border-border rounded-md shadow-lg z-10 overflow-hidden">
+              <button
+                onClick={() => handleRename(study)}
+                className="w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors"
+              >
+                Edit Name
+              </button>
+              <button
+                onClick={() => handleDeleteStudy(study.id)}
+                className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors border-t border-border"
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+export function StudyBrowsePage() {
+  const studies = useLoaderData() as StudyResponse[];
+
+  return (
+    <PageLayout
+      title="Browse Studies"
+      showBackButton
+      mainClassName="p-8 flex items-center flex-col"
+    >
       {studies.length === 0 ? (
         <div className="text-center text-muted-foreground py-12">
           No studies found. Create one from the start page.
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden max-w-5xl w-full">
           <table className="w-full">
             <thead className="border-b border-border bg-muted/30">
               <tr>
@@ -83,73 +155,16 @@ export function StudyBrowsePage() {
             </thead>
             <tbody className="divide-y divide-border">
               {studies.map((study) => (
-                <tr
-                  key={study.id}
-                  className="hover:bg-muted/50 cursor-pointer transition-colors border-l-2 border-transparent hover:border-primary"
-                  onClick={() => handleClick(study)}
-                >
-                  <td className="px-6 py-4 text-sm text-foreground font-medium">
-                    {study.name ?? "-"}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span
-                      className={
-                        study.status === "ready"
-                          ? "text-emerald-600 font-medium"
-                          : study.status === "processing"
-                            ? "text-amber-600 font-medium"
-                            : study.status === "failed"
-                              ? "text-destructive font-medium"
-                              : study.status === "cancelled"
-                                ? "text-orange-500 font-medium"
-                                : "text-muted-foreground"
-                      }
-                    >
-                      {study.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground font-mono">
-                    {formatDate(study.created_at)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">
-                    <div className="relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveDropdown(activeDropdown === study.id ? null : study.id);
-                        }}
-                        className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        &#x22EE;
-                      </button>
-
-                      {activeDropdown === study.id && (
-                        <div className="absolute right-0 mt-2 w-48 bg-popover border border-border rounded-md shadow-lg z-10 overflow-hidden">
-                          <button
-                            onClick={() => handleRename(study)}
-                            className="w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors"
-                          >
-                            Edit Name
-                          </button>
-                          <button
-                            onClick={() => handleDeleteStudy(study.id)}
-                            className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors border-t border-border"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                <StudyItem key={study.id} study={study} />
               ))}
             </tbody>
           </table>
+          
         </div>
+       
       )}
-
-      <div className="mt-4 text-sm text-muted-foreground text-center">
-        Double-click to open study
+       <div className="mt-4 text-sm text-muted-foreground w-full max-w-5xl text-right">
+        Click to open study
       </div>
     </PageLayout>
   );
