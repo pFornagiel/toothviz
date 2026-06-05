@@ -201,7 +201,7 @@ export class PipelineEngine {
 
   /** Reconnect to an in-flight pipeline after a reload or a dropped socket. */
   private async runReconnect(jobId: string): Promise<void> {
-    let stepNames: LoadingStepId[] = [];
+    let stepNames: LoadingStepId[];
     try {
       const fresh = await this.api.getStudy(this.studyId);
       if (this.cancelled) {
