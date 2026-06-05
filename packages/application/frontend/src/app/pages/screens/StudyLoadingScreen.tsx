@@ -1,6 +1,6 @@
 "use client";
 
-import { Progress } from "./ui/progress";
+import { Progress } from "../../components/ui/progress";
 
 const DEFAULT_LABELS: Record<string, string> = {
   dicom_to_nifti: "Converting DICOM to NIfTI",
@@ -25,7 +25,7 @@ export interface StudyLoadingScreenProps {
   statusLine: string;
 }
 
-function labelForStep(step: string): string {
+function getLabelForStep(step: string): string {
   return DEFAULT_LABELS[step] ?? step.replace(/_/g, " ");
 }
 
@@ -76,7 +76,7 @@ export function StudyLoadingScreen({
                 }`}
               >
                 <span className="w-5 shrink-0 text-center font-bold">{done ? "✓" : active ? "…" : "○"}</span>
-                <span>{labelForStep(step)}</span>
+                <span>{getLabelForStep(step)}</span>
               </li>
             );
           })}

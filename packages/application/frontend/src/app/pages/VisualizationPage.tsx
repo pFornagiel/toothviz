@@ -4,7 +4,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { Niivue } from "@niivue/niivue";
 import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
 import { ApiError } from "@/api/client";
-import { StudyErrorScreen } from "../components/StudyErrorScreen";
+import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 
 export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) return null;

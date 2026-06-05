@@ -8,8 +8,8 @@ import {
 import type { LoaderFunctionArgs } from "react-router";
 import { getStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
-import { StudyLoadingScreen } from "../components/StudyLoadingScreen";
-import { StudyErrorScreen } from "../components/StudyErrorScreen";
+import { StudyLoadingScreen } from "./screens/StudyLoadingScreen";
+import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import {
   usePipelineOrchestration,
   type LocationState,
