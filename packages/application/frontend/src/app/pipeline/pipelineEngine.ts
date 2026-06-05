@@ -10,12 +10,8 @@ import {
 } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
 import { FromPage, type LocationState, type UploadPayload } from "./types";
-import {
-  FinishMode,
-  PipelineActionType,
-  type PipelineAction,
-} from "./reducer";
-import { createLoadingSteps } from "./steps";
+import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
+import { createLoadingSteps as getLoadingSteps } from "./steps";
 import { CANCELLED_HINTS, errorHints } from "./errorHints";
 import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
@@ -59,7 +55,10 @@ export interface PipelineStartParams {
 export class PipelineEngine {
   private readonly dispatch: Dispatch<PipelineAction>;
   private readonly api: PipelineApi;
-  private readonly onNavigateToViewer: (studyId: string, from: FromPage) => void;
+  private readonly onNavigateToViewer: (
+    studyId: string,
+    from: FromPage,
+  ) => void;
 
   private cancelled = false;
   private finished = false;
@@ -100,8 +99,7 @@ export class PipelineEngine {
 
     const jobId = study.job_id ?? null;
 
-    // No job id and not actively processing → the initial upload state was lost
-    // (e.g. a refresh during upload). Failed/cancelled already handled above.
+    // No job id and not actively processing -> the initial upload state was lost which means error
     if (!jobId && study.status !== "processing") {
       this.goError(
         "Upload state was lost",
@@ -114,6 +112,7 @@ export class PipelineEngine {
       return;
     }
 
+    // Check whether there is a job that has to be run - if not simply skip
     if (!jobId) {
       this.navigateToViewer();
       return;
@@ -124,9 +123,7 @@ export class PipelineEngine {
   }
 
   /**
-   * User-driven retry after a connection loss. Repeatable (unlike the old
-   * one-shot hack): guards against an already-live socket, clears the
-   * connection-lost flag, and re-runs the reconnect lifecycle.
+   * User-driven retry after a connection loss
    */
   reconnect(): void {
     if (this.cancelled || this.finished || this.connected) return;
@@ -145,13 +142,11 @@ export class PipelineEngine {
   // Lifecycles
   // -------------------------------------------------------------------------
 
-  /** Fresh upload → (optional further uploads) → pipeline run over the WebSocket. */
+  /** Fresh upload -> (optional further uploads) -> pipeline run over the WebSocket. */
   private async runUpload(payload: UploadPayload): Promise<void> {
-    const steps = createLoadingSteps(payload);
+    const steps = getLoadingSteps(payload);
     const { uploads, pipelines } = payload;
-    // The single trailing "Finalising" step sits right after every upload step.
     const finalizeStepIndex = uploads.length;
-    // The whole upload prefix (each upload + the shared finalize) precedes the pipeline.
     const uploadPrefixLen = uploads.length + 1;
 
     this.dispatch({ type: PipelineActionType.Begin, steps });
@@ -162,8 +157,6 @@ export class PipelineEngine {
       for (let i = 0; i < uploads.length; i++) {
         const job = uploads[i];
         const isLast = i === uploads.length - 1;
-        // The last upload owns the shared finalize step; earlier uploads
-        // finalize in place on their own upload step.
         const layout: UploadStepLayout = {
           stepIndex: i,
           finalizeStepIndex: isLast ? finalizeStepIndex : null,
@@ -187,13 +180,19 @@ export class PipelineEngine {
       }
 
       if (!jobId) {
-        this.dispatch({ type: PipelineActionType.Finish, mode: FinishMode.NoPipeline });
+        this.dispatch({
+          type: PipelineActionType.Finish,
+          mode: FinishMode.NoPipeline,
+        });
         this.navigateToViewer();
         return;
       }
 
       this.jobId = jobId;
-      this.dispatch({ type: PipelineActionType.EnterPipeline, stepIndex: uploadPrefixLen });
+      this.dispatch({
+        type: PipelineActionType.EnterPipeline,
+        stepIndex: uploadPrefixLen,
+      });
       this.connect(jobId, uploadPrefixLen);
     } catch (err: unknown) {
       if (this.cancelled) return;
@@ -293,7 +292,9 @@ export class PipelineEngine {
   // -------------------------------------------------------------------------
 
   /** Build a cancellation-guarded upload progress handler for one file. */
-  private onUploadProgress(layout: UploadStepLayout): (p: UploadProgress) => void {
+  private onUploadProgress(
+    layout: UploadStepLayout,
+  ): (p: UploadProgress) => void {
     return (p: UploadProgress) => {
       if (this.cancelled) return;
       const step = uploadStepProgress(p, layout);
@@ -324,12 +325,19 @@ export class PipelineEngine {
         return;
       }
       const msg = e instanceof Error ? e.message : String(e);
-      this.goError("Could not load study after pipeline", msg, errorHints(null));
+      this.goError(
+        "Could not load study after pipeline",
+        msg,
+        errorHints(null),
+      );
     }
   }
 
   private navigateToViewer(): void {
-    this.onNavigateToViewer(this.studyId, this.routeState.from ?? FromPage.Home);
+    this.onNavigateToViewer(
+      this.studyId,
+      this.routeState.from ?? FromPage.Home,
+    );
   }
 
   private goError(title: string, message: string, hints: string[]): void {
