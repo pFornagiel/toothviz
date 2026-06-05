@@ -1,5 +1,5 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "ToothViz",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -7,6 +7,7 @@
     "build": "vite build",
     "dev": "vite",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write ."
