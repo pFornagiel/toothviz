@@ -89,7 +89,7 @@ export function OpenRawFileModal({ isOpen, onClose, onSubmit }: OpenRawFileModal
               activeClassName="border-primary bg-primary/10"
               inactiveClassName="border-border hover:border-primary/50 hover:bg-accent"
             >
-              {({ isDropActive, file }) => (
+              {({ file }) => (
                 <>
                   {file ? (
                     <>

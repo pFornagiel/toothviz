@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { Niivue } from "@niivue/niivue";
-import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
-import { ApiError } from "@/api/client";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import { FromPage } from "../pipeline";
+import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
 
 export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) {
