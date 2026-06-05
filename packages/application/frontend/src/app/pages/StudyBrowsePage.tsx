@@ -3,6 +3,7 @@ import { useNavigate, useLoaderData, useRevalidator } from "react-router";
 import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
+import { FromPage } from "../hooks/usePipelineOrchestration";
 
 export async function browseLoader() {
   return await listStudies();
@@ -37,10 +38,10 @@ export function StudyBrowsePage() {
   const handleClick = (study: StudyResponse) => {
     if (study.status === "processing" && study.job_id) {
       navigate(`/pipeline/${study.id}`, {
-        state: { jobId: study.job_id, from: "browse" },
+        state: { jobId: study.job_id, from: FromPage.Browse },
       });
     } else {
-      navigate(`/visualize/${study.id}`, { state: { from: "browse" } });
+      navigate(`/visualize/${study.id}`, { state: { from: FromPage.Browse } });
     }
   };
 

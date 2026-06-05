@@ -5,6 +5,7 @@ import { Niivue } from "@niivue/niivue";
 import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
 import { ApiError } from "@/api/client";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
+import { FromPage } from "../hooks/usePipelineOrchestration";
 
 export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) return null;
@@ -16,7 +17,7 @@ export async function visualizationLoader({ params }: LoaderFunctionArgs) {
 interface LocationState {
   primary?: File;
   mask?: File;
-  from?: "home" | "browse";
+  from?: FromPage;
 }
 
 type ViewPhase = "loading" | "ready" | "error";
@@ -201,8 +202,8 @@ export function VisualizationPage() {
   );
 
   const handleBackFromError = useCallback(() => {
-    const from = routeState.from ?? "home";
-    if (from === "browse") navigate("/browse");
+    const from = routeState.from ?? FromPage.Home;
+    if (from === FromPage.Browse) navigate("/browse");
     else navigate("/");
   }, [navigate, routeState.from]);
 
@@ -553,7 +554,11 @@ export function VisualizationPage() {
               title={errorTitle}
               message={errorMessage}
               hints={errorHintsList}
-              backLabel={routeState.from === "browse" ? "Back to studies" : "Back to home"}
+              backLabel={
+                routeState.from === FromPage.Browse
+                  ? "Back to studies"
+                  : "Back to home"
+              }
               onBack={handleBackFromError}
             />
           </div>

@@ -12,6 +12,7 @@ import { StudyLoadingScreen } from "./screens/StudyLoadingScreen";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import {
   usePipelineOrchestration,
+  FromPage,
   type LocationState,
 } from "../hooks/usePipelineOrchestration";
 
@@ -38,7 +39,6 @@ export function PipelinePage() {
   const study = useLoaderData() as StudyResponse;
 
   const {
-    phase,
     steps,
     completedSteps,
     currentStepIndex,
@@ -54,12 +54,12 @@ export function PipelinePage() {
   );
 
   const handleBack = () => {
-    const from = routeState.from ?? "home";
-    if (from === "browse") navigate("/browse");
+    const from = routeState.from ?? FromPage.Home;
+    if (from === FromPage.Browse) navigate("/browse");
     else navigate("/");
   };
 
-  if (phase === "error" && error) {
+  if (error) {
     return (
       <div className="min-h-screen bg-background flex flex-col font-sans">
         <StudyErrorScreen
@@ -67,7 +67,9 @@ export function PipelinePage() {
           message={error.message}
           hints={error.hints}
           backLabel={
-            routeState.from === "browse" ? "Back to studies" : "Back to home"
+            routeState.from === FromPage.Browse
+              ? "Back to studies"
+              : "Back to home"
           }
           onBack={handleBack}
         />

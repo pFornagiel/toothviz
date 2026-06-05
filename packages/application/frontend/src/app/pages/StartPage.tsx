@@ -9,6 +9,7 @@ import {
   type PipelineRequestItem,
 } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
+import { FromPage } from "../hooks/usePipelineOrchestration";
 
 export function StartPage() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export function StartPage() {
 
   const handleOpenRawFile = (primary: File, mask?: File) => {
     setShowOpenRawModal(false);
-    navigate("/visualize", { state: { primary, mask, from: "home" } });
+    navigate("/visualize", { state: { primary, mask, from: FromPage.Home } });
   };
 
   const handleCreateStudy = async (data: CreateStudyData) => {
@@ -66,7 +67,7 @@ export function StartPage() {
       };
 
       navigate(`/pipeline/${study.id}`, {
-        state: { uploadPayload, from: "home" as const },
+        state: { uploadPayload, from: FromPage.Home },
       });
     } catch (err: unknown) {
       if (createdId) {
