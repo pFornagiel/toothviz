@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DashedFileDropZone } from "./DashedFileDropZone";
-import { validateNiftiFile } from "./medicalFileTypes";
+import { validateNiftiFile } from "../utils/medicalFileTypes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
 

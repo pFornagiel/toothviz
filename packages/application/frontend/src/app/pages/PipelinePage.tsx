@@ -13,7 +13,7 @@ import { StudyErrorScreen } from "../components/StudyErrorScreen";
 import {
   usePipelineOrchestration,
   type LocationState,
-} from "./usePipelineOrchestration";
+} from "../hooks/usePipelineOrchestration";
 
 export async function pipelineLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) return redirect("/");
