@@ -82,7 +82,7 @@ export function PipelinePage() {
         steps={steps}
         completedSteps={completedSteps}
         currentStepIndex={currentStepIndex}
-        progressFraction={progress}
+        progressFraction={progress ?? 0}
         statusLine={statusText}
       />
     </div>

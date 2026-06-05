@@ -21,8 +21,7 @@ export interface StudyLoadingScreenProps {
   steps: LoadingStepId[];
   completedSteps: Set<number>;
   currentStepIndex: number | null;
-  /** 0–1 from backend; optional if deriving from steps only */
-  progressFraction: number | null;
+  progressFraction: number;
   statusLine: string;
 }
 
@@ -38,14 +37,7 @@ export function StudyLoadingScreen({
   progressFraction,
   statusLine,
 }: StudyLoadingScreenProps) {
-  const derived =
-    steps.length > 0
-      ? Array.from(completedSteps).length / steps.length
-      : 0;
-  const pct =
-    progressFraction != null
-      ? Math.round(Math.min(1, Math.max(0, progressFraction)) * 100)
-      : Math.round(derived * 100);
+  const pct = Math.round(Math.min(1, Math.max(0, progressFraction)) * 100);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
