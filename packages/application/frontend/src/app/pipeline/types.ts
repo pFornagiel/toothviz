@@ -1,9 +1,5 @@
 import type { ClientStepName, LoadingStepId, PipelineRequestItem, UploadKind } from "@/api/types";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export enum FromPage {
   Home = "home",
   Browse = "browse",
@@ -13,14 +9,11 @@ export enum FromPage {
 export interface UploadJob {
   file: File;
   kind: UploadKind;
-  /** Loading-step label this upload shows under (e.g. UploadVolume, UploadMask). */
   stepId: ClientStepName;
-  /** Exactly one job per payload is true: it sends `pipelines` on finalize and yields the job_id. */
   carriesPipelines: boolean;
 }
 
 export interface UploadPayload {
-  /** Ordered upload phase: volume first, optional mask second, ... */
   uploads: UploadJob[];
   pipelines: PipelineRequestItem[];
 }
@@ -42,7 +35,6 @@ export interface PipelineState {
   currentStepIndex: number | null;
   progress: number | null;
   statusText: string;
-  /** True once the pipeline WebSocket closed mid-run; drives the Reconnect UI. */
   connectionLost: boolean;
   error: PipelineError | null;
 }

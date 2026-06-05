@@ -1,13 +1,3 @@
-// ---------------------------------------------------------------------------
-// Study-mode registry - the single source of truth for the ways a study can be
-// created. Each mode self-describes its label/hint, whether it collects a mask
-// file (and how to validate it), and the pipelines it requests. The registry is
-// built conditionally: dev-only modes are included only in dev builds, so
-// `CreateStudyModal` can render `Object.values(STUDY_MODES)` as-is and `StartPage`
-// can build the `UploadPayload` from it. Adding a new mode is a data change in
-// this one file.
-// ---------------------------------------------------------------------------
-
 import {
   ClientStepName,
   PipelineStepName,

@@ -3,13 +3,6 @@ import type { PipelineMessage } from "@/api/types";
 import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
 import { pipelineStepProgress } from "./progress";
 
-// ---------------------------------------------------------------------------
-// WebSocket message handling. Terminal events drive the side-effect callbacks;
-// non-terminal events become a `Progress` (+ `CompleteStep` on step completion).
-// The only option besides the callbacks is `stepOffset`, used to globalise the
-// pipeline-relative `step_index` onto the combined step list.
-// ---------------------------------------------------------------------------
-
 export interface WsHandlerOptions {
   stepOffset: number;
   dispatch: Dispatch<PipelineAction>;

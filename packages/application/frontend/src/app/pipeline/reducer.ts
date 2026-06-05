@@ -2,16 +2,6 @@ import type { LoadingStepId } from "@/api/types";
 import type { PipelineError, PipelineState } from "./types";
 import { clamp01 } from "./progress";
 
-// ---------------------------------------------------------------------------
-// Reducer - one geometry, one formula. The loading screen shows
-// `N = steps.length` equal segments; the only truth is
-// `(currentStepIndex, fractionWithinStep)` and
-// `progress = clamp01((currentStepIndex + fractionWithinStep) / N)`.
-//
-// The engine globalises every pipeline `step_index` (adds the upload-prefix
-// length) before dispatching, so the reducer never sees offsets or weights.
-// ---------------------------------------------------------------------------
-
 export enum PipelineActionType {
   Begin = "BEGIN",
   SetSteps = "SET_STEPS",
@@ -25,27 +15,20 @@ export enum PipelineActionType {
 }
 
 export enum FinishMode {
-  /** Pipeline ran to completion; fill the bar and wait for the viewer to load. */
   Completed = "completed",
-  /** Upload finished with no pipeline to run; jump straight to the viewer. */
   NoPipeline = "noPipeline",
 }
 
 export type PipelineAction =
-  // Fresh upload: reset everything and seed the combined step list.
   | { type: PipelineActionType.Begin; steps: LoadingStepId[] }
-  // Reconnect: adopt the server's step list (pure replace).
   | { type: PipelineActionType.SetSteps; steps: LoadingStepId[] }
-  // Enter the pipeline phase at `stepIndex` (upload-prefix length, or 0/null on reconnect).
   | { type: PipelineActionType.EnterPipeline; stepIndex: number | null }
-  // The universal non-terminal update for both upload and pipeline steps.
   | {
       type: PipelineActionType.Progress;
       stepIndex: number;
       fraction: number;
       statusText: string;
     }
-  // Mark `[0..stepIndex]` complete in the checklist (steps finish in order).
   | { type: PipelineActionType.CompleteStep; stepIndex: number; statusText?: string }
   | { type: PipelineActionType.Finish; mode: FinishMode }
   | { type: PipelineActionType.SetError; error: PipelineError }

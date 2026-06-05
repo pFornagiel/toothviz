@@ -16,12 +16,6 @@ import { CANCELLED_HINTS, errorHints } from "./errorHints";
 import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
 
-// ---------------------------------------------------------------------------
-// PipelineEngine - framework-agnostic orchestration. It owns every piece of
-// mutable lifecycle state as a private field (no React, no react-router), so it
-// can be unit-tested by injecting a mock `api` and `onNavigateToViewer`.
-// ---------------------------------------------------------------------------
-
 /** The slice of the API the engine drives - injected so it can be mocked. */
 export interface PipelineApi {
   getStudy: (studyId: string) => Promise<StudyResponse>;
@@ -135,10 +129,6 @@ export class PipelineEngine {
     this.disconnect?.();
   }
 
-  // -------------------------------------------------------------------------
-  // Lifecycles
-  // -------------------------------------------------------------------------
-
   /** Fresh upload -> (optional further uploads) -> pipeline run over the WebSocket. */
   private async runUpload(payload: UploadPayload): Promise<void> {
     const steps = getLoadingSteps(payload);
@@ -247,15 +237,10 @@ export class PipelineEngine {
     this.connect(jobId, 0);
   }
 
-  // -------------------------------------------------------------------------
-  // WebSocket wiring
-  // -------------------------------------------------------------------------
-
   /**
    * Open the pipeline WebSocket, route every message through `applyWsMessage`,
    * and store the disconnect fn. On close - while still processing - it
-   * dispatches `ConnectionClosed`; it does not auto-retry (the user drives that
-   * via `reconnect()`).
+   * dispatches `ConnectionClosed`
    */
   private connect(jobId: string, stepOffset: number): void {
     const disconnect = this.api.establishWebsocketConnection(
@@ -293,10 +278,6 @@ export class PipelineEngine {
     }
     this.dispatch({ type: PipelineActionType.ConnectionClosed });
   }
-
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
 
   /** Build a cancellation-guarded upload progress handler for one file. */
   private onUploadProgress(layout: UploadStepLayout): (p: UploadProgress) => void {
