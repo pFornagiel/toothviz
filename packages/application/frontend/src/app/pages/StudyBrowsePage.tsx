@@ -112,7 +112,7 @@ function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: 
           <Button
             variant="ghost"
             onClick={handleEditClick}
-            className="p-1 w-8 h-8 cursor-pointer hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
+            className={`p-1 w-8 h-8 cursor-pointer rounded text-muted-foreground hover:text-foreground transition-colors ${isSelected ? "hover:bg-primary/20" : "hover:bg-accent"}`}
           >
             <EllipsisVertical className="!size-5" />
           </Button>
