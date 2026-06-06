@@ -98,7 +98,7 @@ export function StartPage() {
             <button
               type="button"
               onClick={() => setShowCreateStudyModal(true)}
-              className="group relative overflow-hidden flex flex-col items-start text-left h-full min-h-[260px] bg-card border border-border rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-primary hover:shadow-[0_4px_24px_rgba(0,94,184,0.10)]"
+              className="group relative overflow-hidden flex flex-col items-start text-left h-full min-h-[260px] bg-card border border-border rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-primary"
             >
               
               <div className="relative w-12 h-12 rounded-lg bg-primary text-primary-foreground flex items-center justify-center mb-6 transition-colors">
@@ -116,7 +116,7 @@ export function StartPage() {
             <button
               type="button"
               onClick={() => navigate("/browse")}
-              className="group flex flex-col items-start text-left h-full min-h-[260px] bg-card border border-border rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-primary hover:shadow-[0_4px_24px_rgba(0,94,184,0.10)]"
+              className="group flex flex-col items-start text-left h-full min-h-[260px] bg-card border border-border rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-primary"
             >
               <div className="w-12 h-12 rounded-lg bg-muted text-primary flex items-center justify-center mb-6 transition-colors group-hover:bg-secondary">
                 <Table2 className="size-6" />
