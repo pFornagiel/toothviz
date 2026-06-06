@@ -7,6 +7,7 @@ import { FromPage } from "../pipeline";
 import { Folder, EllipsisVertical, Dot } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { EditStudyModal } from "../components/EditStudyModal";
+import { StudyStatusIndicator } from "../components/StudyStatusIndicator";
 
 export async function browseLoader() {
   return await listStudies();
@@ -66,22 +67,6 @@ function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: 
     validatorRefresher();
   };
 
-  const getStatusColor = (status: string) => {
-    if (status === "ready") {
-      return "text-emerald-600 font-medium";
-    }
-    if (status === "processing") {
-      return "text-amber-600 font-medium";
-    }
-    if (status === "failed") {
-      return "text-destructive font-medium";
-    }
-    if (status === "cancelled") {
-      return "text-orange-500 font-medium";
-    }
-    return "text-muted-foreground";
-  };
-
   return (
     <tr
       key={study.id}
@@ -102,7 +87,7 @@ function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: 
         {study.name}
       </td>
       <td className="px-6 py-4 text-sm">
-        <span className={getStatusColor(study.status)}>{study.status}</span>
+        <StudyStatusIndicator status={study.status} />
       </td>
       <td className="px-6 py-4 text-sm text-muted-foreground font-mono">
         {formatDate(study.created_at)}
