@@ -33,7 +33,7 @@ class Study(Base):
     __tablename__ = "studies"
 
     id = Column(String, primary_key=True, default=_new_id)
-    name = Column(String, nullable=True, index=True)
+    name = Column(String, index=True)
     created_at = Column(DateTime, default=_time_now)
 
     files = relationship(

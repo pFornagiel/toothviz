@@ -56,6 +56,22 @@ function StudyItem({ study }: { study: StudyResponse }) {
     refresh();
   };
 
+  const getStatusColor = (status: string) => {
+    if (status === "ready") {
+      return "text-emerald-600 font-medium";
+    }
+    if (status === "processing") {
+      return "text-amber-600 font-medium";
+    }
+    if (status === "failed") {
+      return "text-destructive font-medium";
+    }
+    if (status === "cancelled") {
+      return "text-orange-500 font-medium";
+    }
+    return "text-muted-foreground";
+  };
+
   return (
     <tr
       key={study.id}
@@ -63,23 +79,11 @@ function StudyItem({ study }: { study: StudyResponse }) {
       onClick={() => handleClick(study)}
     >
       <td className="px-6 py-4 text-sm text-foreground font-medium flex items-center content-center gap-4">
-        <Folder className="size-10 bg-accent rounded-b-md p-2" />
+        <Folder className="size-10 bg-accent rounded-md p-2" />
         {study.name}
       </td>
       <td className="px-6 py-4 text-sm">
-        <span
-          className={
-            study.status === "ready"
-              ? "text-emerald-600 font-medium"
-              : study.status === "processing"
-                ? "text-amber-600 font-medium"
-                : study.status === "failed"
-                  ? "text-destructive font-medium"
-                  : study.status === "cancelled"
-                    ? "text-orange-500 font-medium"
-                    : "text-muted-foreground"
-          }
-        >
+        <span className={getStatusColor(study.status)}>
           {study.status}
         </span>
       </td>
