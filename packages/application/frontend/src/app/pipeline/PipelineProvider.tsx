@@ -47,15 +47,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     const engine = new PipelineEngine({
       dispatch,
       api,
-      onNavigateToViewer: (id, from, derived) =>
-        navigate(`/visualize/${id}`, {
-          state: {
-            from,
-            volumeId: derived?.volumeId,
-            overlayId: derived?.overlayId,
-          },
-          replace: true,
-        }),
+      onNavigateToViewer: (id, from) =>
+        navigate(`/visualize/${id}`, { state: { from }, replace: true }),
     });
     engineRef.current = engine;
     engine.start({ studyId, study, routeState });

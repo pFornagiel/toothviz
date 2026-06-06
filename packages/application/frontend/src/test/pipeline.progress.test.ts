@@ -111,4 +111,53 @@ describe("pipelineStepProgress", () => {
   it("returns null for a message without a step index", () => {
     expect(pipelineStepProgress({ event: "step_started", step: "x" })).toBeNull();
   });
+
+  it("uses friendly labels for segment_nifti", () => {
+    expect(
+      pipelineStepProgress({
+        event: "step_started",
+        step: "segment_nifti",
+        progress: 0,
+        total_steps: 1,
+        step_index: 0,
+      }),
+    ).toEqual({
+      stepIndex: 0,
+      fraction: 0,
+      statusText: "Started: segment_nifti",
+      completed: false,
+    });
+
+    expect(
+      pipelineStepProgress({
+        event: "step_completed",
+        step: "segment_nifti",
+        progress: 1,
+        total_steps: 1,
+        step_index: 0,
+      }),
+    ).toEqual({
+      stepIndex: 0,
+      fraction: 1,
+      statusText: "Finished step: segment_nifti",
+      completed: true,
+    });
+  });
+
+  it("step_progress updates overall fraction with started status text", () => {
+    const msg: PipelineMessage = {
+      event: "step_progress",
+      step: "segment_nifti",
+      progress: 0.75,
+      step_progress: 0.5,
+      total_steps: 2,
+      step_index: 1,
+    };
+    expect(pipelineStepProgress(msg)).toEqual({
+      stepIndex: 1,
+      fraction: 0.5,
+      statusText: "Started: segment_nifti",
+      completed: false,
+    });
+  });
 });

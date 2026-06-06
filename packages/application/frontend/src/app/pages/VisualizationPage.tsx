@@ -18,8 +18,6 @@ export async function visualizationLoader({ params }: LoaderFunctionArgs) {
 interface LocationState {
   primary?: File;
   mask?: File;
-  volumeId?: string;
-  overlayId?: string;
   from?: FromPage;
 }
 
@@ -111,21 +109,11 @@ export function VisualizationPage() {
         return;
       }
       setStatusText("Loading files...");
-      const { volumeId, overlayId } = routeState;
-      const files =
-        volumeId || overlayId
-          ? []
-          : await listFiles(studyId, "viewer_volume,viewer_overlay");
+      const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
 
       const volumes: { url: string; name: string; opacity?: number; colormap?: string }[] = [];
-      const volume: { id: string; display_name: string | null } | undefined =
-        volumeId != null
-          ? { id: volumeId, display_name: "volume.nii" }
-          : files.find((f) => f.viewer_purpose === "viewer_volume");
-      const overlay: { id: string; display_name: string | null } | undefined =
-        overlayId != null
-          ? { id: overlayId, display_name: "overlay.nii" }
-          : files.find((f) => f.viewer_purpose === "viewer_overlay");
+      const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
+      const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
 
       if (volume) {
         volumes.push({
@@ -165,7 +153,7 @@ export function VisualizationPage() {
         throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
-    [studyId, routeState],
+    [studyId],
   );
 
   const loadVolatileFiles = useCallback(

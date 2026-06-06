@@ -82,8 +82,6 @@ async def run_pipeline(
                 collected[artifact.purpose] = artifact
 
             if total:
-                # Ensure the final progress of the step is visible even when the
-                # step doesn't emit fine-grained progress updates.
                 await step_ctx.broadcast_progress(
                     step_name=step.name,
                     step_progress=1.0,
@@ -102,17 +100,14 @@ async def run_pipeline(
                     },
                 )
 
-        derived_files: dict[str, str] = {}
         for artifact in collected.values():
-            record = storage_service.store_derived(
+            storage_service.store_derived(
                 src_path=artifact.path,
                 study_id=ctx.study_id,
                 filename=artifact.path.name,
                 kind=artifact.kind,
                 viewer_purpose=artifact.purpose,
             )
-            if artifact.purpose in ("viewer_volume", "viewer_overlay"):
-                derived_files[artifact.purpose] = record.id
 
         with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")
@@ -124,7 +119,6 @@ async def run_pipeline(
                 "job_id": job_id,
                 "status": "completed",
                 "progress": 1.0,
-                "derived_files": derived_files or None,
             },
         )
 

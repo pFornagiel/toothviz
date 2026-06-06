@@ -1,6 +1,5 @@
 import type { PipelineMessage } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
-
 /** A non-terminal progress update for one step of the combined step list. */
 export interface StepProgress {
   stepIndex: number;

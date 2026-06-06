@@ -76,19 +76,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dicom-anonymizer"
-version = "1.0.13.post1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pydicom" },
-    { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c2/93/e84cf78f2317851d9d3443b8fcb4ba95c217355250fd211f4248a05ad888/dicom_anonymizer-1.0.13.post1.tar.gz", hash = "sha256:fc5763235c0115f47475acf1a84902c407ad781f5f9425ed65cd1322fb0d76f4", size = 30928, upload-time = "2024-09-17T11:24:19.569Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/5e/c1f75bb8fd467269abc7f78abf0392ec2b7f7b303579bb1a8ea23419cdde/dicom_anonymizer-1.0.13.post1-py3-none-any.whl", hash = "sha256:cd4ddb656f96ebb67a987d2245a9de7d871f9e6942ab807989586a3131862392", size = 29962, upload-time = "2024-09-17T11:24:18.128Z" },
-]
-
-[[package]]
 name = "dicom2nifti"
 version = "2.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -869,7 +856,6 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "colorlog" },
-    { name = "dicom-anonymizer" },
     { name = "dicom2nifti" },
     { name = "fastapi" },
     { name = "nibabel" },
@@ -891,7 +877,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "colorlog", specifier = ">=6.10.1" },
-    { name = "dicom-anonymizer", specifier = ">=1.0.13.post1,<2" },
     { name = "dicom2nifti", specifier = ">=2.5,<2.6" },
     { name = "fastapi", specifier = ">=0.135.2" },
     { name = "nibabel", specifier = ">=5.4.2" },
@@ -908,18 +893,6 @@ dev = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=0.23.0" },
-]
-
-[[package]]
-name = "tqdm"
-version = "4.67.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd8dac228323f2777d886cb206987444e4bce66338dd4/tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb", size = 169598, upload-time = "2026-02-03T17:35:53.048Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/e1/3079a9ff9b8e11b846c6ac5c8b5bfb7ff225eee721825310c91b3b50304f/tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf", size = 78374, upload-time = "2026-02-03T17:35:50.982Z" },
 ]
 
 [[package]]

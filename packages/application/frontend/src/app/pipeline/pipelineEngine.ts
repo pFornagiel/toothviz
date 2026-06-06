@@ -37,11 +37,7 @@ export interface PipelineApi {
 export interface PipelineEngineDeps {
   dispatch: Dispatch<PipelineAction>;
   api: PipelineApi;
-  onNavigateToViewer: (
-    studyId: string,
-    from: FromPage,
-    derived?: { volumeId?: string; overlayId?: string },
-  ) => void;
+  onNavigateToViewer: (studyId: string, from: FromPage) => void;
 }
 
 export interface PipelineStartParams {
@@ -53,11 +49,7 @@ export interface PipelineStartParams {
 export class PipelineEngine {
   private readonly dispatch: Dispatch<PipelineAction>;
   private readonly api: PipelineApi;
-  private readonly onNavigateToViewer: (
-    studyId: string,
-    from: FromPage,
-    derived?: { volumeId?: string; overlayId?: string },
-  ) => void;
+  private readonly onNavigateToViewer: (studyId: string, from: FromPage) => void;
 
   private cancelled = false;
   private finished = false;
@@ -262,17 +254,7 @@ export class PipelineEngine {
             this.finished = true;
           },
           disconnect: () => this.disconnect?.(),
-          onPipelineCompleted: (msg) => {
-            const derived = msg.derived_files ?? {};
-            if (derived.viewer_volume || derived.viewer_overlay) {
-              this.onNavigateToViewer(this.studyId, this.routeState.from ?? FromPage.Home, {
-                volumeId: derived.viewer_volume,
-                overlayId: derived.viewer_overlay,
-              });
-              return;
-            }
-            void this.finishOk();
-          },
+          onPipelineCompleted: () => void this.finishOk(),
           onPipelineFailed: (m) =>
             this.goError(
               "Processing failed",

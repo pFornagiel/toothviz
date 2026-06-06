@@ -68,7 +68,7 @@ def run_segmentation(
             progress_queue.put(1.0)
         except Exception:
             pass
-    
+
     logger.info(f"[DUMMY MODE] Dummy segmentation completed instantly!")
     return str(output_path)
 

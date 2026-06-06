@@ -17,6 +17,7 @@ vi.mock("@niivue/niivue", () => ({
     sliceTypeRender: 4,
     setSliceType: vi.fn(),
     setMultiplanarLayout: vi.fn(),
+    setClipPlane: vi.fn(),
     close: vi.fn(),
     volumes: [],
     setOpacity: vi.fn(),

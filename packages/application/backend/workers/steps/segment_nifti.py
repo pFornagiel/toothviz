@@ -52,8 +52,6 @@ class SegmentNiftiStep:
         out_dir = ctx.work_dir / "segmentation_output"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # Stream progress from the subprocess via a multiprocessing.Manager queue.
-        # Best-effort: if proxy creation fails, segmentation still runs (just no % updates).
         progress_queue = None
         manager = None
         try:
@@ -74,7 +72,6 @@ class SegmentNiftiStep:
                 while not stop_evt.is_set():
                     v = _drain_progress_queue(progress_queue)
                     if v is not None:
-                        # Throttle to 2 Hz max.
                         now = time.monotonic()
                         if last_value is None or v >= 1.0 or (now - last_emit) >= 0.5:
                             last_emit = now
@@ -85,7 +82,6 @@ class SegmentNiftiStep:
                             )
                     await asyncio.sleep(0.1)
             except Exception:
-                # Best-effort: never fail the step due to progress broadcasting.
                 return
 
         pump_task = asyncio.create_task(progress_pump())
