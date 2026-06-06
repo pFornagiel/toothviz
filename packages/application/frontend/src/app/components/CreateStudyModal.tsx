@@ -284,10 +284,10 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                 : "Status: Ready"}
             </span>
             <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" className="cursor-pointer" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!studyName || !baseImageFile || missingMask}>
+              <Button type="submit" className="cursor-pointer" disabled={!studyName || !baseImageFile || missingMask}>
                 <SquarePlus size={18} />
                 Create
               </Button>

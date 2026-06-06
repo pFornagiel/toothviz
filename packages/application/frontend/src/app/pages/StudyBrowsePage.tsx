@@ -4,7 +4,7 @@ import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 import { FromPage } from "../pipeline";
-import { Folder, Settings } from "lucide-react";
+import { Folder, EllipsisVertical } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { EditStudyModal } from "../components/EditStudyModal";
 
@@ -101,9 +101,9 @@ function StudyItem({ study, onEdit, validatorRefresher }: StudyItemProps) {
           <Button
             variant="ghost"
             onClick={handleEditClick}
-            className="p-1 w-8 h-8 cursor-pointer hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 w-8 h-8 cursor-pointer hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
           >
-            <Settings className="size-5" />
+            <EllipsisVertical className="!size-5" />
           </Button>
 
           {activeDropdown === study.id && (

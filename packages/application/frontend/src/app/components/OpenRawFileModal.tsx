@@ -164,10 +164,10 @@ export function OpenRawFileModal({ isOpen, onClose, onSubmit }: OpenRawFileModal
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" className="cursor-pointer" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!primaryFile}>
+            <Button type="submit" className="cursor-pointer" disabled={!primaryFile}>
               Open File
             </Button>
           </DialogFooter>
