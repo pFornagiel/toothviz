@@ -1,10 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLoaderData, useRevalidator } from "react-router";
 import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 import { FromPage } from "../pipeline";
-import { Folder, EllipsisVertical } from "lucide-react";
+import { Folder, EllipsisVertical, Dot } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { EditStudyModal } from "../components/EditStudyModal";
 
@@ -16,9 +16,11 @@ interface StudyItemProps {
   study: StudyResponse;
   onEdit: (study: StudyResponse) => void;
   validatorRefresher: () => Promise<void>;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
 }
 
-function StudyItem({ study, onEdit, validatorRefresher }: StudyItemProps) {
+function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: StudyItemProps) {
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
@@ -45,7 +47,7 @@ function StudyItem({ study, onEdit, validatorRefresher }: StudyItemProps) {
       day: "numeric",
     });
 
-  const handleClick = (study: StudyResponse) => {
+  const handleNavigate = (study: StudyResponse) => {
     if (study.status === "processing" && study.job_id) {
       navigate(`/pipeline/${study.id}`, {
         state: { from: FromPage.Browse },
@@ -83,11 +85,20 @@ function StudyItem({ study, onEdit, validatorRefresher }: StudyItemProps) {
   return (
     <tr
       key={study.id}
-      className="hover:bg-muted/50 transition-colors border-l-2 border-transparent hover:border-l-primary"
-      onClick={() => handleClick(study)}
+      className={`transition-colors border-l-2 cursor-pointer select-none ${
+        isSelected
+          ? "bg-primary/10 border-l-primary"
+          : "even:bg-muted/20 hover:bg-muted/50 border-transparent hover:border-l-primary"
+      }`}
+      onClick={(e) => { e.stopPropagation(); onSelect(study.id); }}
+      onDoubleClick={() => handleNavigate(study)}
     >
       <td className="px-6 py-4 text-sm text-foreground font-medium flex items-center content-center gap-4">
-        <Folder className="size-10 bg-accent rounded-md p-2" />
+        <Folder
+          className={`size-10 rounded-md p-2 transition-colors ${
+            isSelected ? "bg-primary text-primary-foreground" : "bg-accent"
+          }`}
+        />
         {study.name}
       </td>
       <td className="px-6 py-4 text-sm">
@@ -131,7 +142,14 @@ function StudyItem({ study, onEdit, validatorRefresher }: StudyItemProps) {
 export function StudyBrowsePage() {
   const studies = useLoaderData() as StudyResponse[];
   const [openEditStudyModal, setOpenEditStudyModal] = useState(false);
-  const [selectedStudy, setSelectedStudy] = useState<StudyResponse | null>(null);
+  const [editedStudy, setEditedStudy] = useState<StudyResponse | null>(null);
+  const [selectedStudyId, setSelectedStudyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleDocumentClick = () => setSelectedStudyId(null);
+    document.addEventListener("click", handleDocumentClick);
+    return () => document.removeEventListener("click", handleDocumentClick);
+  }, []);
 
   const revalidator = useRevalidator();
   const refresh = useCallback(async () => {
@@ -140,11 +158,11 @@ export function StudyBrowsePage() {
 
   const onCloseEditModal = () => {
     setOpenEditStudyModal(false);
-    setSelectedStudy(null);
+    setEditedStudy(null);
   };
 
   const onEdit = (study: StudyResponse) => {
-    setSelectedStudy(study);
+    setEditedStudy(study);
     setOpenEditStudyModal(true);
   };
 
@@ -193,6 +211,8 @@ export function StudyBrowsePage() {
                   study={study}
                   onEdit={onEdit}
                   validatorRefresher={refresh}
+                  isSelected={selectedStudyId === study.id}
+                  onSelect={setSelectedStudyId}
                 />
               ))}
             </tbody>
@@ -200,15 +220,15 @@ export function StudyBrowsePage() {
         </div>
       )}
       <div className="mt-4 text-sm text-muted-foreground w-full max-w-5xl text-right">
-        Click to open study
+        Click to select <Dot className="inline" /> Double-click to open
       </div>
 
-      {selectedStudy && (
+      {editedStudy && (
         <EditStudyModal
-          study={selectedStudy}
+          study={editedStudy}
           isOpen={openEditStudyModal}
           onClose={onCloseEditModal}
-          onDelete={() => onDelete(selectedStudy)}
+          onDelete={() => onDelete(editedStudy)}
           onSave={refresh}
         />
       )}
