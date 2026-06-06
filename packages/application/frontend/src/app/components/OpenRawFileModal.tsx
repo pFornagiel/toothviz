@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Braces, CircleCheck, FileUp, FolderOpen } from "lucide-react";
+import { Braces, CircleCheck, FileUp } from "lucide-react";
 import { DashedFileDropZone } from "./DashedFileDropZone";
 import { validateNiftiFile } from "../utils/medicalFileTypes";
 import {
@@ -64,9 +64,6 @@ export function OpenRawFileModal({ isOpen, onClose, onSubmit }: OpenRawFileModal
       <DialogContent className="min-w-3xl">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <FolderOpen size={20} className="text-primary" />
-            </div>
             <DialogTitle>Open Raw File</DialogTitle>
           </div>
           <DialogDescription className="sr-only">
