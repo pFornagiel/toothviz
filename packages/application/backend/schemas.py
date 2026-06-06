@@ -51,7 +51,7 @@ class FinalizeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class CreateStudyRequest(BaseModel):
-    name: str | None = None
+    name: str
 
 
 class RenameStudyRequest(BaseModel):
@@ -62,7 +62,7 @@ class StudyResponse(BaseModel):
     """Study row/detail. ``status`` is display-facing (processing, ready, failed, ...)."""
 
     id: str
-    name: str | None
+    name: str
     created_at: datetime
     status: str
 

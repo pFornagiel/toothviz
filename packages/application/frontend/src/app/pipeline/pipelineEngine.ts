@@ -88,7 +88,7 @@ export class PipelineEngine {
       return;
     }
 
-    const jobId = study.job_id ?? null;
+    const jobId = study.job_id;
 
     // No job id and not actively processing -> the initial upload state was lost which means error
     if (!jobId && study.status !== "processing") {

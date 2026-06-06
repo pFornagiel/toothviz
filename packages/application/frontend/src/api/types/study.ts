@@ -4,14 +4,14 @@ import type { LoadingStepId } from "./pipeline";
 
 export interface StudyResponse {
   id: string;
-  name: string | null;
+  name: string;
   status: string;
   created_at: string;
-  job_id?: string | null;
-  pipeline_status?: string | null;
-  steps?: LoadingStepId[];
-  error?: string | null;
-  source_file_id?: string | null;
+  job_id: string;
+  pipeline_status: string;
+  steps: LoadingStepId[];
+  error: string;
+  source_file_id: string;
 }
 
 // --- Requests ---

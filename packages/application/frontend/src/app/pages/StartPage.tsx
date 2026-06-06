@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { ArrowRight, FileUp, FolderPlus, Table2 } from "lucide-react";
 import { OpenRawFileModal } from "../components/OpenRawFileModal";
 import { CreateStudyModal, type CreateStudyData } from "../components/CreateStudyModal";
 import { listStudies, createStudy, deleteStudy } from "@/api/studies";
@@ -80,37 +81,53 @@ export function StartPage() {
             <button
               type="button"
               onClick={() => setShowOpenRawModal(true)}
-              className="bg-card border border-border rounded-lg p-12 hover:border-primary hover:shadow-md transition-all flex flex-col items-center justify-center gap-4 min-h-[240px] group cursor-pointer"
+              className="group flex flex-col items-start text-left h-full min-h-[260px] bg-card border border-border rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-primary "
             >
-              <div className="w-16 h-16 border-2 border-primary/20 rounded flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors" />
-              <div className="text-center">
-                <h2 className="text-base text-foreground font-semibold mb-2">Open Raw File</h2>
-                <p className="text-sm text-muted-foreground">Volatile workspace</p>
+              <div className="w-12 h-12 rounded-lg bg-muted text-primary flex items-center justify-center mb-6 transition-colors group-hover:bg-secondary">
+                <FileUp className="size-6" />
               </div>
+              <h2 className="text-xl font-semibold tracking-tight text-primary mb-2">Open Raw File</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-6 flex-1">
+                Open workspace for NIfTI images visualization. No record saved.
+              </p>
+              <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-primary group-hover:gap-2 transition-all">
+                Select File <ArrowRight className="size-4" />
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowCreateStudyModal(true)}
-              className="bg-card border border-border rounded-lg p-12 hover:border-primary hover:shadow-md transition-all flex flex-col items-center justify-center gap-4 min-h-[240px] group cursor-pointer"
+              className="group relative overflow-hidden flex flex-col items-start text-left h-full min-h-[260px] bg-card border border-border rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-primary"
             >
-              <div className="w-16 h-16 border-2 border-primary/20 rounded flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors" />
-              <div className="text-center">
-                <h2 className="text-base text-foreground font-semibold mb-2">Create a Study</h2>
-                <p className="text-sm text-muted-foreground">Persistent workspace</p>
+              
+              <div className="relative w-12 h-12 rounded-lg bg-primary text-primary-foreground flex items-center justify-center mb-6 transition-colors">
+                <FolderPlus className="size-6" />
               </div>
+              <h2 className="relative text-xl font-semibold tracking-tight text-primary mb-2">Create a Study</h2>
+              <p className="relative text-sm text-muted-foreground leading-relaxed mb-6 flex-1">
+                Save record of NIfTI images and run automated segmentation or manual mask upload.
+              </p>
+              <span className="relative flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-primary group-hover:gap-2 transition-all">
+                Open Wizard <ArrowRight className="size-4" />
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => navigate("/browse")}
-              className="bg-card border border-border rounded-lg p-12 hover:border-primary hover:shadow-md transition-all flex flex-col items-center justify-center gap-4 min-h-[240px] group cursor-pointer"
+              className="group flex flex-col items-start text-left h-full min-h-[260px] bg-card border border-border rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-primary"
             >
-              <div className="w-16 h-16 border-2 border-primary/20 rounded flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors" />
-              <div className="text-center">
-                <h2 className="text-base text-foreground font-semibold mb-2">Browse Studies</h2>
-                <p className="text-sm text-muted-foreground">Saved studies</p>
+              <div className="w-12 h-12 rounded-lg bg-muted text-primary flex items-center justify-center mb-6 transition-colors group-hover:bg-secondary">
+                <Table2 className="size-6" />
               </div>
+              <h2 className="text-xl font-semibold tracking-tight text-primary mb-2">Browse Studies</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-6 flex-1">
+                Browse and manage the archive of saved studies.
+              </p>
+              <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-primary group-hover:gap-2 transition-all">
+                View files <ArrowRight className="size-4" />
+              </span>
             </button>
           </div>
         </div>

@@ -1,24 +1,35 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLoaderData, useRevalidator } from "react-router";
 import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 import { FromPage } from "../pipeline";
-import { EllipsisVertical, Folder } from "lucide-react";
+import { Folder, EllipsisVertical, Dot } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { EditStudyModal } from "../components/EditStudyModal";
+import { StudyStatusIndicator } from "../components/StudyStatusIndicator";
 
 export async function browseLoader() {
   return await listStudies();
 }
 
-function StudyItem({ study }: { study: StudyResponse }) {
+interface StudyItemProps {
+  study: StudyResponse;
+  onEdit: (study: StudyResponse) => void;
+  validatorRefresher: () => Promise<void>;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+}
+
+function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: StudyItemProps) {
   const navigate = useNavigate();
-  const revalidator = useRevalidator();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    revalidator.revalidate();
-  }, [revalidator]);
+  const handleEditClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onEdit(study);
+  };
 
   const handleRename = async (study: StudyResponse) => {
     const newName = prompt("New study name:", study.name ?? "");
@@ -27,7 +38,7 @@ function StudyItem({ study }: { study: StudyResponse }) {
     }
     setActiveDropdown(null);
     await renameStudy(study.id, newName);
-    refresh();
+    validatorRefresher();
   };
 
   const formatDate = (iso: string) =>
@@ -37,7 +48,7 @@ function StudyItem({ study }: { study: StudyResponse }) {
       day: "numeric",
     });
 
-  const handleClick = (study: StudyResponse) => {
+  const handleNavigate = (study: StudyResponse) => {
     if (study.status === "processing" && study.job_id) {
       navigate(`/pipeline/${study.id}`, {
         state: { from: FromPage.Browse },
@@ -53,35 +64,30 @@ function StudyItem({ study }: { study: StudyResponse }) {
     }
     setActiveDropdown(null);
     await deleteStudy(id);
-    refresh();
+    validatorRefresher();
   };
 
   return (
     <tr
       key={study.id}
-      className="hover:bg-muted/50 transition-colors border-l-2 border-transparent hover:border-l-primary"
-      onClick={() => handleClick(study)}
+      className={`transition-colors border-l-2 cursor-pointer select-none ${
+        isSelected
+          ? "bg-primary/10 border-l-primary"
+          : "even:bg-muted/20 hover:bg-muted/50 border-transparent hover:border-l-primary"
+      }`}
+      onClick={(e) => { e.stopPropagation(); onSelect(study.id); }}
+      onDoubleClick={() => handleNavigate(study)}
     >
       <td className="px-6 py-4 text-sm text-foreground font-medium flex items-center content-center gap-4">
-        <Folder className="size-10 bg-accent rounded-b-md p-2" />
+        <Folder
+          className={`size-10 rounded-md p-2 transition-colors ${
+            isSelected ? "bg-primary text-primary-foreground" : "bg-accent"
+          }`}
+        />
         {study.name}
       </td>
       <td className="px-6 py-4 text-sm">
-        <span
-          className={
-            study.status === "ready"
-              ? "text-emerald-600 font-medium"
-              : study.status === "processing"
-                ? "text-amber-600 font-medium"
-                : study.status === "failed"
-                  ? "text-destructive font-medium"
-                  : study.status === "cancelled"
-                    ? "text-orange-500 font-medium"
-                    : "text-muted-foreground"
-          }
-        >
-          {study.status}
-        </span>
+        <StudyStatusIndicator status={study.status} />
       </td>
       <td className="px-6 py-4 text-sm text-muted-foreground font-mono">
         {formatDate(study.created_at)}
@@ -90,13 +96,10 @@ function StudyItem({ study }: { study: StudyResponse }) {
         <div className="relative">
           <Button
             variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveDropdown(activeDropdown === study.id ? null : study.id);
-            }}
-            className="p-1 w-8 h-8 cursor-pointer hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+            onClick={handleEditClick}
+            className={`p-1 w-8 h-8 cursor-pointer rounded text-muted-foreground hover:text-foreground transition-colors ${isSelected ? "hover:bg-primary/20" : "hover:bg-accent"}`}
           >
-            <EllipsisVertical className="size-5" />
+            <EllipsisVertical className="!size-5" />
           </Button>
 
           {activeDropdown === study.id && (
@@ -123,10 +126,33 @@ function StudyItem({ study }: { study: StudyResponse }) {
 
 export function StudyBrowsePage() {
   const studies = useLoaderData() as StudyResponse[];
+  const [openEditStudyModal, setOpenEditStudyModal] = useState(false);
+  const [editedStudy, setEditedStudy] = useState<StudyResponse | null>(null);
+  const [selectedStudyId, setSelectedStudyId] = useState<string | null>(null);
 
+  useEffect(() => {
+    const handleDocumentClick = () => setSelectedStudyId(null);
+    document.addEventListener("click", handleDocumentClick);
+    return () => document.removeEventListener("click", handleDocumentClick);
+  }, []);
+
+  const revalidator = useRevalidator();
+  const refresh = useCallback(async () => {
+    revalidator.revalidate();
+  }, [revalidator]);
+
+  const onCloseEditModal = () => {
+    setOpenEditStudyModal(false);
+    setEditedStudy(null);
+  };
+
+  const onEdit = (study: StudyResponse) => {
+    setEditedStudy(study);
+    setOpenEditStudyModal(true);
+  };
+  
   return (
     <PageLayout
-      title="Browse Studies"
       showBackButton
       mainClassName="p-8 flex items-center flex-col"
     >
@@ -155,17 +181,31 @@ export function StudyBrowsePage() {
             </thead>
             <tbody className="divide-y divide-border">
               {studies.map((study) => (
-                <StudyItem key={study.id} study={study} />
+                <StudyItem
+                  key={study.id}
+                  study={study}
+                  onEdit={onEdit}
+                  validatorRefresher={refresh}
+                  isSelected={selectedStudyId === study.id}
+                  onSelect={setSelectedStudyId}
+                />
               ))}
             </tbody>
           </table>
-          
         </div>
-       
       )}
-       <div className="mt-4 text-sm text-muted-foreground w-full max-w-5xl text-right">
-        Click to open study
+      <div className="mt-4 text-sm text-muted-foreground w-full max-w-5xl text-right">
+        Click to select <Dot className="inline" /> Double-click to open
       </div>
+
+      {editedStudy && (
+        <EditStudyModal
+          study={editedStudy}
+          isOpen={openEditStudyModal}
+          onClose={onCloseEditModal}
+          onSave={refresh}
+        />
+      )}
     </PageLayout>
   );
 }
