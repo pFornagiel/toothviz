@@ -16,7 +16,6 @@ export enum ClientStepName {
 
 export enum BackendStepName {
   DicomToNifti = "dicom_to_nifti",
-  AnonymiseDicom = "anonymyse_dicom",
 }
 
 export enum PipelineStatus {
