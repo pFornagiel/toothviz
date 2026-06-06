@@ -11,7 +11,7 @@ import {
 } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { StudyResponse } from "@/api/types";
-import { renameStudy } from "@/api/studies";
+import { renameStudy, deleteStudy } from "@/api/studies";
 
 export interface EditStudyData {
   studyName: string;
@@ -25,11 +25,10 @@ interface EditStudyModalProps {
   study: StudyResponse;
   isOpen: boolean;
   onClose: () => void;
-  onDelete: () => void;
   onSave: () => void;
 }
 
-export function EditStudyModal({ study, isOpen, onClose, onDelete, onSave }: EditStudyModalProps) {
+export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModalProps) {
   const [studyName, setStudyName] = useState(study.name);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -38,6 +37,15 @@ export function EditStudyModal({ study, isOpen, onClose, onDelete, onSave }: Edi
       await renameStudy(study.id, studyName);
       onSave();
     }
+    onClose();
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this study?")) {
+      return;
+    }
+    await deleteStudy(study.id);
+    onSave();
     onClose();
   };
 
@@ -82,7 +90,7 @@ export function EditStudyModal({ study, isOpen, onClose, onDelete, onSave }: Edi
             type="button"
             className="w-fit self-center cursor-pointer"
             variant="destructive"
-            onClick={onDelete}
+            onClick={handleDelete}
           >
             <Trash size={18} />
             Delete Study

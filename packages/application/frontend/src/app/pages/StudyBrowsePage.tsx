@@ -165,16 +165,7 @@ export function StudyBrowsePage() {
     setEditedStudy(study);
     setOpenEditStudyModal(true);
   };
-
-  const onDelete = (study: StudyResponse) => {
-    if (!confirm("Delete this study?")) {
-      return;
-    }
-    deleteStudy(study.id);
-    onCloseEditModal();
-    refresh();
-  };
-
+  
   return (
     <PageLayout
       title="Browse Studies"
@@ -228,7 +219,6 @@ export function StudyBrowsePage() {
           study={editedStudy}
           isOpen={openEditStudyModal}
           onClose={onCloseEditModal}
-          onDelete={() => onDelete(editedStudy)}
           onSave={refresh}
         />
       )}
