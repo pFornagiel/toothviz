@@ -153,7 +153,6 @@ export function StudyBrowsePage() {
   
   return (
     <PageLayout
-      title="Browse Studies"
       showBackButton
       mainClassName="p-8 flex items-center flex-col"
     >
