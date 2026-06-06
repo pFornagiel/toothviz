@@ -44,7 +44,7 @@ export function PageLayout({
             {showBackButton ? (
               <ChevronLeft className="w-8 h-7 text-foreground cursor-pointer" />
             ) : (
-              <Tooth className="!w-7 !h-7 text-foreground cursor-pointer" />
+              <Tooth className="!w-7 !h-7 text-foreground cursor-pointer text-primary" />
             )}
           </Button>
 
