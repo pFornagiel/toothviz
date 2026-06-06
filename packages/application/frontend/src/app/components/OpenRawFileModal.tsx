@@ -1,7 +1,15 @@
 import { useState } from "react";
-
 import { DashedFileDropZone } from "./DashedFileDropZone";
-import { isNiftiFileName, NIFTI_EXTENSIONS } from "./medicalFileTypes";
+import { validateNiftiFile } from "../utils/medicalFileTypes";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
 
 interface OpenRawFileModalProps {
   isOpen: boolean;
@@ -9,62 +17,38 @@ interface OpenRawFileModalProps {
   onSubmit: (primary: File, mask?: File) => void;
 }
 
-export function OpenRawFileModal({
-  isOpen,
-  onClose,
-  onSubmit,
-}: OpenRawFileModalProps) {
+export function OpenRawFileModal({ isOpen, onClose, onSubmit }: OpenRawFileModalProps) {
   const [primaryFile, setPrimaryFile] = useState<File | null>(null);
   const [primaryFileError, setPrimaryFileError] = useState<string | null>(null);
   const [segmentationFile, setSegmentationFile] = useState<File | null>(null);
-  const [segmentationFileError, setSegmentationFileError] = useState<
-    string | null
-  >(null);
+  const [segmentationFileError, setSegmentationFileError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
-  function applyPrimaryFile(
-    file: File | null,
-    input?: HTMLInputElement | null,
-  ): void {
-    if (!file) {
+  function applyPrimaryFile(file: File | null, input?: HTMLInputElement | null): void {
+    const error = validateNiftiFile(file);
+    if (error) {
       setPrimaryFile(null);
+      setPrimaryFileError(error);
+      if (input) {
+        input.value = "";
+      }
+    } else {
       setPrimaryFileError(null);
-      if (input) input.value = "";
-      return;
+      setPrimaryFile(file);
     }
-    if (!isNiftiFileName(file.name)) {
-      setPrimaryFile(null);
-      setPrimaryFileError(
-        `Choose a NIfTI file (${NIFTI_EXTENSIONS.join(" or ")}).`,
-      );
-      if (input) input.value = "";
-      return;
-    }
-    setPrimaryFileError(null);
-    setPrimaryFile(file);
   }
 
-  function applyMaskFile(
-    file: File | null,
-    input?: HTMLInputElement | null,
-  ): void {
-    if (!file) {
+  function applyMaskFile(file: File | null, input?: HTMLInputElement | null): void {
+    const error = validateNiftiFile(file);
+    if (error) {
       setSegmentationFile(null);
+      setSegmentationFileError(error);
+      if (input) {
+        input.value = "";
+      }
+    } else {
       setSegmentationFileError(null);
-      if (input) input.value = "";
-      return;
+      setSegmentationFile(file);
     }
-    if (!isNiftiFileName(file.name)) {
-      setSegmentationFile(null);
-      setSegmentationFileError(
-        `Choose a NIfTI mask (${NIFTI_EXTENSIONS.join(" or ")}).`,
-      );
-      if (input) input.value = "";
-      return;
-    }
-    setSegmentationFileError(null);
-    setSegmentationFile(file);
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -75,78 +59,122 @@ export function OpenRawFileModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-      <div className="bg-gray-800 border border-gray-700 rounded max-w-2xl w-full mx-4">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-700 px-6 py-4">
-          <h2 className="text-base text-gray-200">Open Raw File</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-300"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="min-w-3xl">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary text-[20px]">
+                folder_open
+              </span>
+            </div>
+            <DialogTitle>Open Raw File</DialogTitle>
+          </div>
+          <DialogDescription className="sr-only">
+            Open a NIfTI file and an optional segmentation mask for volatile visualization.
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Primary NIfTI File */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6 pt-4">
+          {/* Primary NIfTI Input */}
           <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              Primary NIfTI File *
+            <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-1 uppercase tracking-wide">
+              Primary NIfTI File <span className="text-destructive">*</span>
             </label>
 
-            <p className="text-xs text-gray-500">
-              Allowed: {NIFTI_EXTENSIONS.join(", ")}
-            </p>
             <DashedFileDropZone
               selectedFile={primaryFile}
               onFileChange={(file, input) => applyPrimaryFile(file, input)}
-              emptyText="Drop a NIfTI here or click to browse"
-            />
+              className="border border-dashed rounded-lg bg-card flex flex-col items-center justify-center p-8 cursor-pointer transition-colors group relative overflow-hidden"
+              activeClassName="border-primary bg-primary/10"
+              inactiveClassName="border-border hover:border-primary/50 hover:bg-accent"
+            >
+              {({ file }) => (
+                <>
+                  {file ? (
+                    <>
+                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                        <span className="material-symbols-outlined text-primary text-[24px]">
+                          check_circle
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground font-medium mb-1 truncate w-full text-center px-4">
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-primary">Click to replace</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                        <span className="material-symbols-outlined text-primary text-[24px]">
+                          upload_file
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground font-medium mb-1">
+                        Click to browse or drag file here
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Supported formats: .nii, .nii.gz
+                      </p>
+                    </>
+                  )}
+                </>
+              )}
+            </DashedFileDropZone>
             {primaryFileError && (
-              <p className="text-xs text-red-400">{primaryFileError}</p>
+              <p className="text-xs text-destructive mt-2">{primaryFileError}</p>
             )}
           </div>
 
-          {/* Optional Segmentation Mask */}
+          {/* Segmentation Mask Input */}
           <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              Segmentation Mask (Optional)
+            <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-1 uppercase tracking-wide">
+              Segmentation Mask{" "}
+              <span className="font-normal normal-case opacity-75">(Optional)</span>
             </label>
 
-            <p className="text-xs text-gray-500">
-              Allowed: {NIFTI_EXTENSIONS.join(", ")}
-            </p>
             <DashedFileDropZone
               selectedFile={segmentationFile}
               onFileChange={(file, input) => applyMaskFile(file, input)}
-              emptyText="Drop a mask here or click to browse (optional)"
-            />
+              className="border border-dashed rounded-lg bg-card flex flex-col items-center justify-center p-6 cursor-pointer transition-colors group relative overflow-hidden"
+              activeClassName="border-primary bg-primary/10"
+              inactiveClassName="border-border hover:border-primary/50 hover:bg-accent"
+            >
+              {({ isDropActive, file }) => (
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`material-symbols-outlined transition-colors text-[28px] ${file ? "text-primary" : isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}
+                  >
+                    {file ? "check_circle" : "data_object"}
+                  </span>
+                  <div className="text-left">
+                    <p
+                      className={`text-sm transition-colors truncate max-w-[400px] ${file ? "text-primary font-medium" : isDropActive ? "text-primary font-medium" : "text-foreground font-medium group-hover:text-primary"}`}
+                    >
+                      {file ? file.name : "Add matching mask file"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {file ? "Click to replace" : "Drop an overlay NIfTI file"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </DashedFileDropZone>
             {segmentationFileError && (
-              <p className="text-xs text-red-400">{segmentationFileError}</p>
+              <p className="text-xs text-destructive mt-2">{segmentationFileError}</p>
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-700 rounded text-gray-400 hover:bg-gray-700"
-            >
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!primaryFile}
-              className="px-4 py-2 bg-gray-700 text-gray-200 rounded hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600"
-            >
-              Open
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" disabled={!primaryFile}>
+              Open File
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

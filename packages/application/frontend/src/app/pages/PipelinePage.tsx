@@ -1,22 +1,14 @@
-import {
-  useNavigate,
-  useParams,
-  useLocation,
-  redirect,
-  useLoaderData,
-} from "react-router";
+import { useNavigate, useLocation, redirect } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { getStudy } from "@/api/studies";
-import type { StudyResponse } from "@/api/types";
-import { StudyLoadingScreen } from "../components/StudyLoadingScreen";
-import { StudyErrorScreen } from "../components/StudyErrorScreen";
-import {
-  usePipelineOrchestration,
-  type LocationState,
-} from "./usePipelineOrchestration";
+import { StudyLoadingScreen } from "./screens/StudyLoadingScreen";
+import { StudyErrorScreen } from "./screens/StudyErrorScreen";
+import { PipelineProvider, usePipeline, FromPage, type LocationState } from "../pipeline";
 
 export async function pipelineLoader({ params }: LoaderFunctionArgs) {
-  if (!params.studyId) return redirect("/");
+  if (!params.studyId) {
+    return redirect("/");
+  }
 
   const study = await getStudy(params.studyId);
 
@@ -30,45 +22,46 @@ export async function pipelineLoader({ params }: LoaderFunctionArgs) {
 export type { LocationState };
 
 export function PipelinePage() {
+  return (
+    <PipelineProvider>
+      <PipelineScreens />
+    </PipelineProvider>
+  );
+}
+
+function PipelineScreens() {
   const navigate = useNavigate();
-  const { studyId } = useParams();
   const location = useLocation();
   const routeState = (location.state ?? {}) as LocationState;
 
-  const study = useLoaderData() as StudyResponse;
-
   const {
-    phase,
+    error,
     steps,
     completedSteps,
     currentStepIndex,
     progress,
     statusText,
-    error,
-  } = usePipelineOrchestration(
-    studyId,
-    study,
-    routeState,
-    location.key,
-    navigate,
-  );
+    connectionLost,
+    reconnect,
+  } = usePipeline();
 
   const handleBack = () => {
-    const from = routeState.from ?? "home";
-    if (from === "browse") navigate("/browse");
-    else navigate("/");
+    const from = routeState.from ?? FromPage.Home;
+    if (from === FromPage.Browse) {
+      navigate("/browse");
+    } else {
+      navigate("/");
+    }
   };
 
-  if (phase === "error" && error) {
+  if (error) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col">
+      <div className="min-h-screen bg-background flex flex-col font-sans">
         <StudyErrorScreen
           title={error.title}
           message={error.message}
           hints={error.hints}
-          backLabel={
-            routeState.from === "browse" ? "Back to studies" : "Back to home"
-          }
+          backLabel={routeState.from === FromPage.Browse ? "Back to studies" : "Back to home"}
           onBack={handleBack}
         />
       </div>
@@ -76,14 +69,15 @@ export function PipelinePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col font-sans">
       <StudyLoadingScreen
         title="Processing study"
         steps={steps}
         completedSteps={completedSteps}
         currentStepIndex={currentStepIndex}
-        progressFraction={progress}
+        progressFraction={progress ?? 0}
         statusLine={statusText}
+        onReconnect={connectionLost ? reconnect : undefined}
       />
     </div>
   );

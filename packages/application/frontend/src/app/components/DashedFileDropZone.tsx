@@ -5,31 +5,33 @@ import {
   useState,
   type ChangeEvent,
   type DragEvent,
+  type ReactNode,
 } from "react";
 
 const triggerBaseClasses =
   "cursor-pointer rounded border border-dashed px-4 text-center text-sm transition-colors duration-150 select-none";
 
-const inactiveClasses =
+const defaultInactiveClasses =
   "border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300";
 
-const activeClasses =
+const defaultActiveClasses =
   "border-cyan-400 bg-cyan-950/35 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]";
 
 export interface DashedFileDropZoneProps {
   selectedFile: File | null;
   /** Second argument is the hidden file input (for clearing `value` on validation errors). */
-  onFileChange: (
-    file: File | null,
-    input: HTMLInputElement | null,
-  ) => void;
-  emptyText: string;
+  onFileChange: (file: File | null, input: HTMLInputElement | null) => void;
+  emptyText?: string;
   trigger?: "label" | "button";
   accept?: string;
   inputKey?: React.Key;
   fileInputRef?: React.RefObject<HTMLInputElement | null>;
   triggerClassName?: string;
+  activeClassName?: string;
+  inactiveClassName?: string;
+  className?: string; // If provided, completely overrides the default layout/base classes
   id?: string;
+  children?: ReactNode | ((props: { isDropActive: boolean; file: File | null }) => ReactNode);
 }
 
 export function DashedFileDropZone({
@@ -41,7 +43,11 @@ export function DashedFileDropZone({
   inputKey,
   fileInputRef: fileInputRefProp,
   triggerClassName = "",
+  activeClassName = defaultActiveClasses,
+  inactiveClassName = defaultInactiveClasses,
+  className,
   id: idProp,
+  children,
 }: DashedFileDropZoneProps) {
   const generatedId = useId();
   const inputId = idProp ?? generatedId;
@@ -75,7 +81,9 @@ export function DashedFileDropZone({
   function handleDragEnter(e: DragEvent<HTMLElement>): void {
     e.preventDefault();
     e.stopPropagation();
-    if (!hasFilePayload(e)) return;
+    if (!hasFilePayload(e)) {
+      return;
+    }
     dropEnterCountRef.current += 1;
     setIsDropActive(true);
   }
@@ -83,7 +91,9 @@ export function DashedFileDropZone({
   function handleDragLeave(e: DragEvent<HTMLElement>): void {
     e.preventDefault();
     e.stopPropagation();
-    if (!hasFilePayload(e)) return;
+    if (!hasFilePayload(e)) {
+      return;
+    }
     dropEnterCountRef.current -= 1;
     if (dropEnterCountRef.current <= 0) {
       resetDropVisualState();
@@ -105,7 +115,9 @@ export function DashedFileDropZone({
     const file = e.dataTransfer.files?.[0] ?? null;
     onFileChange(file, getInput());
     const input = getInput();
-    if (input) input.value = "";
+    if (input) {
+      input.value = "";
+    }
   }
 
   function handleInputChange(e: ChangeEvent<HTMLInputElement>): void {
@@ -113,19 +125,27 @@ export function DashedFileDropZone({
     onFileChange(input.files?.[0] ?? null, input);
   }
 
-  const layoutClasses =
-    trigger === "button" ? "block w-full py-4" : "block py-6";
+  const layoutClasses = trigger === "button" ? "block w-full py-4" : "block py-6";
 
-  const triggerClass = [
-    layoutClasses,
-    triggerBaseClasses,
-    triggerClassName,
-    isDropActive ? activeClasses : inactiveClasses,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const triggerClass =
+    className !== undefined
+      ? [className, isDropActive ? activeClassName : inactiveClassName].filter(Boolean).join(" ")
+      : [
+          layoutClasses,
+          triggerBaseClasses,
+          triggerClassName,
+          isDropActive ? activeClassName : inactiveClassName,
+        ]
+          .filter(Boolean)
+          .join(" ");
 
-  const displayText = selectedFile ? selectedFile.name : emptyText;
+  const content = children
+    ? typeof children === "function"
+      ? children({ isDropActive, file: selectedFile })
+      : children
+    : selectedFile
+      ? selectedFile.name
+      : emptyText;
 
   const input = (
     <input
@@ -151,7 +171,7 @@ export function DashedFileDropZone({
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          {displayText}
+          {content}
         </button>
         {input}
       </>
@@ -168,7 +188,7 @@ export function DashedFileDropZone({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        {displayText}
+        {content}
       </label>
       {input}
     </>

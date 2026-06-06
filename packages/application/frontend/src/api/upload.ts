@@ -50,16 +50,13 @@ export async function uploadFile(
 
   onProgress?.({ phase: "finalizing" });
 
-  const result = await fetchJson<FinalizeResponse>(
-    `/storage/uploads/${upload_id}:finalize`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        expected_size: file.size,
-        pipelines,
-      }),
-    },
-  );
+  const result = await fetchJson<FinalizeResponse>(`/storage/uploads/${upload_id}:finalize`, {
+    method: "POST",
+    body: JSON.stringify({
+      expected_size: file.size,
+      pipelines,
+    }),
+  });
 
   onProgress?.({ phase: "done" });
 

@@ -1,4 +1,4 @@
-"""Integration test fixtures — full app with TestClient."""
+"""Integration test fixtures - full app with TestClient."""
 
 import pytest
 import pytest_asyncio
@@ -50,7 +50,7 @@ async def integration_app(tmp_path):
     storage_service = StorageService(storage_engine, session_factory)
     broadcaster = WSBroadcaster()
 
-    # No real process pool in integration tests — return valid NIfTI stubs if a
+    # No real process pool in integration tests - return valid NIfTI stubs if a
     # pipeline runs so ``run_pipeline`` can complete ``store_derived``.
     dicom_pool = MagicMock(spec=WorkerPool)
     seg_pool = MagicMock(spec=WorkerPool)

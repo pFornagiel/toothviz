@@ -14,7 +14,26 @@ export function isDicomBaseFile(file: File): boolean {
     name_lower_case.endsWith(".zip") ||
     name_lower_case.endsWith(".dcm") ||
     mime === "application/dicom" ||
-    mime === "application/zip" ||
-    mime === "application/x-zip-compressed"
+    mime === "application/zip"
   );
+}
+
+export function validateNiftiFile(file: File | null): string | null {
+  if (!file) {
+    return null;
+  }
+  if (!isNiftiFileName(file.name)) {
+    return `Choose a NIfTI file (${NIFTI_EXTENSIONS.join(" or ")}).`;
+  }
+  return null;
+}
+
+export function validateDicomBaseFile(file: File | null): string | null {
+  if (!file) {
+    return null;
+  }
+  if (!isDicomBaseFile(file)) {
+    return "Choose a ZIP of a DICOM directory or a .dcm file.";
+  }
+  return null;
 }

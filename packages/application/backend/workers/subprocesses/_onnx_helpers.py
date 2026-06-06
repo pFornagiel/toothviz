@@ -1,4 +1,4 @@
-"""Shared ONNX model loading helper — used by subprocess initializers."""
+"""Shared ONNX model loading helper - used by subprocess initializers."""
 from __future__ import annotations
 
 import logging

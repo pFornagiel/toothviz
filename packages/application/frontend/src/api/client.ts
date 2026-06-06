@@ -8,10 +8,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function fetchJson<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
+export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
     headers: {
@@ -25,6 +22,9 @@ export async function fetchJson<T>(
     throw new ApiError(res.status, body.detail ?? res.statusText);
   }
 
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   return res.json();
 }

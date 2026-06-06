@@ -2,7 +2,7 @@ import pytest
 
 
 def _do_upload(client, study_id, kind="nifti_raw", filename="scan.nii", chunks=None):
-    """Helper to begin → chunk → finalize an upload."""
+    """Helper to begin -> chunk -> finalize an upload."""
     if chunks is None:
         chunks = [b"chunk0", b"chunk1", b"chunk2"]
 
