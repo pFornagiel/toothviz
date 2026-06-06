@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Braces, CircleCheck, FileUp, FolderOpen } from "lucide-react";
 import { DashedFileDropZone } from "./DashedFileDropZone";
 import { validateNiftiFile } from "../utils/medicalFileTypes";
 import {
@@ -64,9 +65,7 @@ export function OpenRawFileModal({ isOpen, onClose, onSubmit }: OpenRawFileModal
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="material-symbols-outlined text-primary text-[20px]">
-                folder_open
-              </span>
+              <FolderOpen size={20} className="text-primary" />
             </div>
             <DialogTitle>Open Raw File</DialogTitle>
           </div>
@@ -94,9 +93,7 @@ export function OpenRawFileModal({ isOpen, onClose, onSubmit }: OpenRawFileModal
                   {file ? (
                     <>
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                        <span className="material-symbols-outlined text-primary text-[24px]">
-                          check_circle
-                        </span>
+                        <CircleCheck size={24} className="text-primary" />
                       </div>
                       <p className="text-sm text-foreground font-medium mb-1 truncate w-full text-center px-4">
                         {file.name}
@@ -106,9 +103,7 @@ export function OpenRawFileModal({ isOpen, onClose, onSubmit }: OpenRawFileModal
                   ) : (
                     <>
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <span className="material-symbols-outlined text-primary text-[24px]">
-                          upload_file
-                        </span>
+                        <FileUp size={24} className="text-primary" />
                       </div>
                       <p className="text-sm text-foreground font-medium mb-1">
                         Click to browse or drag file here
@@ -142,11 +137,14 @@ export function OpenRawFileModal({ isOpen, onClose, onSubmit }: OpenRawFileModal
             >
               {({ isDropActive, file }) => (
                 <div className="flex items-center gap-3">
-                  <span
-                    className={`material-symbols-outlined transition-colors text-[28px] ${file ? "text-primary" : isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}
-                  >
-                    {file ? "check_circle" : "data_object"}
-                  </span>
+                  {file ? (
+                    <CircleCheck size={28} className="transition-colors text-primary" />
+                  ) : (
+                    <Braces
+                      size={28}
+                      className={`transition-colors ${isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}
+                    />
+                  )}
                   <div className="text-left">
                     <p
                       className={`text-sm transition-colors truncate max-w-[400px] ${file ? "text-primary font-medium" : isDropActive ? "text-primary font-medium" : "text-foreground font-medium group-hover:text-primary"}`}

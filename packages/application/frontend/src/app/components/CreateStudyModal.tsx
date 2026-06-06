@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CircleCheck, FileUp, FolderOpen, Layers, SquarePlus } from "lucide-react";
 import { DashedFileDropZone } from "./DashedFileDropZone";
 import { validateNiftiFile, validateDicomBaseFile } from "../utils/medicalFileTypes";
 import { FileType, MaskInput, SegmentationType, STUDY_MODES } from "../pipeline";
@@ -133,12 +134,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
             {/* Base Medical Image Section */}
             <div className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4 h-[380px]">
               <div className="flex items-center gap-2 mb-1">
-                <span
-                  className="material-symbols-outlined text-primary text-[20px]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  folder_open
-                </span>
+                <FolderOpen size={20} className="text-primary" />
                 <h3 className="text-sm font-medium uppercase text-foreground">Base Image Source</h3>
               </div>
 
@@ -180,9 +176,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                   <>
                     {file ? (
                       <>
-                        <span className="material-symbols-outlined text-[32px] text-primary mb-2">
-                          check_circle
-                        </span>
+                        <CircleCheck size={32} className="text-primary mb-2" />
                         <p className="text-sm text-foreground mb-1 font-medium truncate w-full px-2">
                           {file.name}
                         </p>
@@ -190,11 +184,10 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                       </>
                     ) : (
                       <>
-                        <span
-                          className={`material-symbols-outlined text-[32px] transition-colors mb-2 ${isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}
-                        >
-                          upload_file
-                        </span>
+                        <FileUp
+                          size={32}
+                          className={`transition-colors mb-2 ${isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}
+                        />
                         <p className="text-sm text-foreground mb-1">Drag & Drop file here</p>
                         <p className="text-xs text-muted-foreground">
                           or click to browse (
@@ -211,12 +204,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
             {/* Segmentation Method Section */}
             <div className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4 h-[380px] overflow-y-auto">
               <div className="flex items-center gap-2 mb-1">
-                <span
-                  className="material-symbols-outlined text-primary text-[20px]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  layers
-                </span>
+                <Layers size={20} className="text-primary" />
                 <h3 className="text-sm font-medium uppercase text-foreground">
                   Segmentation Pipeline
                 </h3>
@@ -261,11 +249,14 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                           >
                             {({ isDropActive, file }) => (
                               <div className="flex flex-col items-center gap-2 w-full">
-                                <span
-                                  className={`material-symbols-outlined text-[24px] ${file ? "text-primary" : isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}
-                                >
-                                  {file ? "check_circle" : "upload_file"}
-                                </span>
+                                {file ? (
+                                  <CircleCheck size={24} className="text-primary" />
+                                ) : (
+                                  <FileUp
+                                    size={24}
+                                    className={isDropActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}
+                                  />
+                                )}
                                 <span
                                   className={`text-xs truncate w-full px-2 ${file ? "text-primary font-medium" : isDropActive ? "text-primary" : "text-muted-foreground"}`}
                                 >
@@ -297,7 +288,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                 Cancel
               </Button>
               <Button type="submit" disabled={!studyName || !baseImageFile || missingMask}>
-                <span className="material-symbols-outlined text-[18px]">add_box</span>
+                <SquarePlus size={18} />
                 Create
               </Button>
             </div>
