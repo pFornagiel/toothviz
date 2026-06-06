@@ -4,21 +4,29 @@ import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 import { FromPage } from "../pipeline";
-import { EllipsisVertical, Folder } from "lucide-react";
+import { Folder, Settings } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { EditStudyModal } from "../components/EditStudyModal";
 
 export async function browseLoader() {
   return await listStudies();
 }
 
-function StudyItem({ study }: { study: StudyResponse }) {
+interface StudyItemProps {
+  study: StudyResponse;
+  onEdit: (study: StudyResponse) => void;
+  validatorRefresher: () => Promise<void>;
+}
+
+function StudyItem({ study, onEdit, validatorRefresher }: StudyItemProps) {
   const navigate = useNavigate();
-  const revalidator = useRevalidator();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    revalidator.revalidate();
-  }, [revalidator]);
+  const handleEditClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onEdit(study);
+  };
 
   const handleRename = async (study: StudyResponse) => {
     const newName = prompt("New study name:", study.name ?? "");
@@ -27,7 +35,7 @@ function StudyItem({ study }: { study: StudyResponse }) {
     }
     setActiveDropdown(null);
     await renameStudy(study.id, newName);
-    refresh();
+    validatorRefresher();
   };
 
   const formatDate = (iso: string) =>
@@ -53,7 +61,7 @@ function StudyItem({ study }: { study: StudyResponse }) {
     }
     setActiveDropdown(null);
     await deleteStudy(id);
-    refresh();
+    validatorRefresher();
   };
 
   const getStatusColor = (status: string) => {
@@ -83,9 +91,7 @@ function StudyItem({ study }: { study: StudyResponse }) {
         {study.name}
       </td>
       <td className="px-6 py-4 text-sm">
-        <span className={getStatusColor(study.status)}>
-          {study.status}
-        </span>
+        <span className={getStatusColor(study.status)}>{study.status}</span>
       </td>
       <td className="px-6 py-4 text-sm text-muted-foreground font-mono">
         {formatDate(study.created_at)}
@@ -94,13 +100,10 @@ function StudyItem({ study }: { study: StudyResponse }) {
         <div className="relative">
           <Button
             variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveDropdown(activeDropdown === study.id ? null : study.id);
-            }}
+            onClick={handleEditClick}
             className="p-1 w-8 h-8 cursor-pointer hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
           >
-            <EllipsisVertical className="size-5" />
+            <Settings className="size-5" />
           </Button>
 
           {activeDropdown === study.id && (
@@ -127,6 +130,32 @@ function StudyItem({ study }: { study: StudyResponse }) {
 
 export function StudyBrowsePage() {
   const studies = useLoaderData() as StudyResponse[];
+  const [openEditStudyModal, setOpenEditStudyModal] = useState(false);
+  const [selectedStudy, setSelectedStudy] = useState<StudyResponse | null>(null);
+
+  const revalidator = useRevalidator();
+  const refresh = useCallback(async () => {
+    revalidator.revalidate();
+  }, [revalidator]);
+
+  const onCloseEditModal = () => {
+    setOpenEditStudyModal(false);
+    setSelectedStudy(null);
+  };
+
+  const onEdit = (study: StudyResponse) => {
+    setSelectedStudy(study);
+    setOpenEditStudyModal(true);
+  };
+
+  const onDelete = (study: StudyResponse) => {
+    if (!confirm("Delete this study?")) {
+      return;
+    }
+    deleteStudy(study.id);
+    onCloseEditModal();
+    refresh();
+  };
 
   return (
     <PageLayout
@@ -159,17 +188,30 @@ export function StudyBrowsePage() {
             </thead>
             <tbody className="divide-y divide-border">
               {studies.map((study) => (
-                <StudyItem key={study.id} study={study} />
+                <StudyItem
+                  key={study.id}
+                  study={study}
+                  onEdit={onEdit}
+                  validatorRefresher={refresh}
+                />
               ))}
             </tbody>
           </table>
-          
         </div>
-       
       )}
-       <div className="mt-4 text-sm text-muted-foreground w-full max-w-5xl text-right">
+      <div className="mt-4 text-sm text-muted-foreground w-full max-w-5xl text-right">
         Click to open study
       </div>
+
+      {selectedStudy && (
+        <EditStudyModal
+          study={selectedStudy}
+          isOpen={openEditStudyModal}
+          onClose={onCloseEditModal}
+          onDelete={() => onDelete(selectedStudy)}
+          onSave={refresh}
+        />
+      )}
     </PageLayout>
   );
 }
