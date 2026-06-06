@@ -6,7 +6,6 @@ import { Button } from "../../components/ui/button";
 
 const DEFAULT_LABELS: Record<LoadingStepId, string> = {
   [BackendStepName.DicomToNifti]: "Converting DICOM to NIfTI",
-  [BackendStepName.AnonymiseDicom]: "Anonymising DICOM",
   [PipelineStepName.SegmentNifti]: "Running segmentation",
   [PipelineStepName.Stub]: "Stub (testing)",
   [PipelineStepName.Passthrough]: "Passthrough to viewer",
