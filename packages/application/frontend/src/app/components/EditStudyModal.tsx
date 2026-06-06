@@ -66,9 +66,9 @@ export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModa
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="h-auto gap-0 p-0 sm:max-w-2xl">
         <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle className="text-xl font-semibold">Edit Study Details</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">Edit Scan Details</DialogTitle>
           <DialogDescription>
-            Modify persistent study metadata and configuration.
+            Modify volume metadata and configuration.
           </DialogDescription>
         </DialogHeader>
 
@@ -80,7 +80,7 @@ export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModa
                 className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
                 htmlFor="studyName"
               >
-                Study Identifier
+                Scan Identifier
               </label>
               <input
                 id="studyName"
@@ -131,7 +131,7 @@ export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModa
               onClick={handleDelete}
             >
               <Trash2 size={18} />
-              Delete Study
+              Delete Scan
             </Button>
             <div className="flex flex-col-reverse gap-3 sm:flex-row">
               <Button type="button" className="cursor-pointer px-6" variant="outline" onClick={onClose}>

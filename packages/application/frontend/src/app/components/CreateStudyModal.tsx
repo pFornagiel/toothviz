@@ -31,7 +31,7 @@ function generateDefaultStudyName(): string {
   const now = new Date();
   const date = now.toISOString().split("T")[0];
   const time = now.toTimeString().split(" ")[0].substring(0, 8);
-  return `visualization_${date}_${time}`;
+  return `Scan_${date}_${time}`;
 }
 
 export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModalProps) {
@@ -101,7 +101,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="h-auto overflow-y-aut min-w-4xl">
         <DialogHeader>
-          <DialogTitle>Create New Study</DialogTitle>
+          <DialogTitle>Import Scan</DialogTitle>
           <DialogDescription>Initialize a new patient scan analysis workflow.</DialogDescription>
         </DialogHeader>
 
@@ -112,7 +112,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
               className="text-sm font-medium uppercase tracking-wider text-foreground"
               htmlFor="studyName"
             >
-              Study Identifier
+              Scan Identifier
             </label>
             <div className="relative">
               <input
