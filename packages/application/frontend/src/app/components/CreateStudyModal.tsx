@@ -147,7 +147,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                     setBaseImageFile(null);
                     setBaseFileError(null);
                   }}
-                  className={`flex-1 py-1.5 text-center text-sm transition-all rounded ${fileType === FileType.Nifti ? "bg-background text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground border border-transparent"}`}
+                  className={`flex-1 py-1.5 text-center text-sm transition-all rounded cursor-pointer ${fileType === FileType.Nifti ? "bg-background text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground border border-transparent"}`}
                 >
                   NIfTI File
                 </button>
@@ -158,7 +158,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                     setBaseImageFile(null);
                     setBaseFileError(null);
                   }}
-                  className={`flex-1 py-1.5 text-center text-sm transition-all rounded ${fileType === FileType.Dicom ? "bg-background text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground border border-transparent"}`}
+                  className={`flex-1 py-1.5 text-center text-sm transition-all rounded cursor-pointer ${fileType === FileType.Dicom ? "bg-background text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground border border-transparent"}`}
                 >
                   DICOM Dir
                 </button>
@@ -248,7 +248,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                             inactiveClassName=""
                           >
                             {({ isDropActive, file }) => (
-                              <div className="flex flex-col items-center gap-2 w-full">
+                              <div className="flex flex-col items-center gap-2 w-full cursor-pointer">
                                 {file ? (
                                   <CircleCheck size={24} className="text-primary" />
                                 ) : (
