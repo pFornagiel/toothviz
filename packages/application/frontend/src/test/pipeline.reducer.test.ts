@@ -149,7 +149,16 @@ describe("pipelineReducer - FINISH", () => {
       mode: FinishMode.Completed,
     });
     expect(next.progress).toBe(1);
-    expect(next.statusText).toBe("Pipeline completed - loading...");
+    expect(next.pipelineFinished).toBe(true);
+    expect(next.statusText).toBe("Processing complete — loading results in viewer…");
+  });
+
+  it("SET_VOLUME_PREVIEW stores the preview file id", () => {
+    const next = pipelineReducer(initialState, {
+      type: PipelineActionType.SetVolumePreview,
+      fileId: "vol-1",
+    });
+    expect(next.volumePreviewFileId).toBe("vol-1");
   });
 });
 

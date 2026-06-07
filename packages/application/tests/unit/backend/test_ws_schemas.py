@@ -39,6 +39,22 @@ def test_validate_pipeline_ws_payload_normalizes_step_progress():
     assert validated["job_id"] == "j1"
 
 
+def test_step_completed_accepts_volume_file_id():
+    raw = {
+        "event": "step_completed",
+        "job_id": "j1",
+        "step": "dicom_to_nifti",
+        "step_index": 0,
+        "total_steps": 2,
+        "progress": 0.5,
+        "step_progress": 1.0,
+        "volume_file_id": "vol-1",
+    }
+    validated = validate_pipeline_ws_payload(raw)
+    assert validated["volume_file_id"] == "vol-1"
+    PipelineWsStepCompletedMessage.model_validate(validated)
+
+
 def test_step_completed_has_no_pipeline_status():
     raw = {
         "event": "step_completed",

@@ -1,6 +1,8 @@
 "use client";
 
 import { PipelineStepName, ClientStepName, BackendStepName, LoadingStepId } from "@/api/types";
+import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
 import { Progress } from "../../components/ui/progress";
 
 const DEFAULT_LABELS: Record<LoadingStepId, string> = {
@@ -22,6 +24,9 @@ export interface StudyLoadingScreenProps {
   currentStepIndex: number | null;
   progressFraction: number;
   statusLine: string;
+  previewAvailable?: boolean;
+  pipelineFinished?: boolean;
+  onPreviewRawScan?: () => void;
 }
 
 function getLabelForStep(step: LoadingStepId): string {
@@ -35,13 +40,41 @@ export function StudyLoadingScreen({
   currentStepIndex,
   progressFraction,
   statusLine,
+  previewAvailable = false,
+  pipelineFinished = false,
+  onPreviewRawScan,
 }: StudyLoadingScreenProps) {
   const pct = Math.round(Math.min(1, Math.max(0, progressFraction)) * 100);
+  const showPreviewChoice = previewAvailable && !pipelineFinished && onPreviewRawScan != null;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
       <h1 className="text-2xl text-foreground font-semibold tracking-tight mb-2">{title}</h1>
       <p className="text-sm text-muted-foreground mb-6 max-w-md">{statusLine}</p>
+
+      {pipelineFinished && (
+        <Alert className="w-full max-w-md mb-6 border-primary/30 bg-primary/5 text-left">
+          <AlertTitle>Processing complete</AlertTitle>
+          <AlertDescription>
+            Segmentation and other pipeline steps finished. Loading results in the viewer now.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {showPreviewChoice && (
+        <Alert className="w-full max-w-md mb-6 text-left">
+          <AlertTitle>Scan preview</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              The volume is available while remaining steps run. Open a preview now and results
+              will load automatically when processing finishes.
+            </p>
+            <Button type="button" variant="outline" onClick={onPreviewRawScan}>
+              Open scan preview
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="w-full max-w-md mb-8">
         <div className="flex justify-between text-xs font-medium text-muted-foreground mb-2">

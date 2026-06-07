@@ -6,9 +6,10 @@ import {
   type PipelineMessage,
   type PipelineRequestItem,
   type StudyResponse,
-  type UploadKind,
+  UploadKind,
 } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
+import type { FileRecordResponse } from "@/api/types";
 import { FromPage, type LocationState, type UploadPayload, type ViewerNavigationOptions } from "./types";
 import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
 import { createLoadingSteps as getLoadingSteps } from "./steps";
@@ -23,6 +24,7 @@ const TERMINAL_POLL_MS = 5_000;
 export interface PipelineApi {
   getStudy: (studyId: string) => Promise<StudyResponse>;
   deleteStudy: (studyId: string) => Promise<void>;
+  listFiles: (studyId: string, viewerPurpose?: string) => Promise<FileRecordResponse[]>;
   uploadFile: (
     studyId: string,
     file: File,
@@ -152,6 +154,13 @@ export class PipelineEngine {
           jobId = result.job_id;
         }
 
+        if (job.kind === UploadKind.NiftiRaw) {
+          this.dispatch({
+            type: PipelineActionType.SetVolumePreview,
+            fileId: result.file_id,
+          });
+        }
+
         this.dispatch({
           type: PipelineActionType.CompleteStep,
           stepIndex: isLast ? finalizeStepIndex : i,
@@ -211,6 +220,7 @@ export class PipelineEngine {
 
       stepNames = fresh.steps ?? [];
       this.dispatch({ type: PipelineActionType.SetSteps, steps: stepNames });
+      await this.restorePreviewVolume();
     } catch (e: unknown) {
       if (this.cancelled) {
         return;
@@ -397,6 +407,21 @@ export class PipelineEngine {
       volumeFileId: msg?.volume_file_id,
       overlayFileId: msg?.overlay_file_id,
     });
+  }
+
+  private async restorePreviewVolume(): Promise<void> {
+    try {
+      const files = await this.api.listFiles(this.studyId, "viewer_volume");
+      const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
+      if (volume?.id) {
+        this.dispatch({
+          type: PipelineActionType.SetVolumePreview,
+          fileId: volume.id,
+        });
+      }
+    } catch {
+      /* preview is optional */
+    }
   }
 
   private goError(title: string, message: string, hints: string[]): void {

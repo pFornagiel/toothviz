@@ -78,6 +78,26 @@ describe("applyWsMessage - non-terminal events", () => {
     });
   });
 
+  it("stores preview volume id when step_completed includes volume_file_id", () => {
+    const opts = makeOptions({ stepOffset: 0 });
+    applyWsMessage(
+      {
+        event: "step_completed",
+        step: "dicom_to_nifti",
+        progress: 0.5,
+        total_steps: 2,
+        step_index: 0,
+        volume_file_id: "vol-1",
+      },
+      opts,
+    );
+
+    expect(opts.dispatch).toHaveBeenCalledWith({
+      type: PipelineActionType.SetVolumePreview,
+      fileId: "vol-1",
+    });
+  });
+
   it("ignores a non-terminal message with no step index", () => {
     const opts = makeOptions();
     applyWsMessage({ event: "step_started", step: "x" }, opts);

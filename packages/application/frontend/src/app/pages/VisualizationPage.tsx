@@ -3,6 +3,10 @@ import { useNavigate, useParams, useLocation } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { Niivue } from "@niivue/niivue";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
+import {
+  ProcessingNoticeBar,
+  type ProcessingNotice,
+} from "./screens/ProcessingNoticeBar";
 import { FromPage } from "../pipeline";
 import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
 
@@ -21,9 +25,13 @@ interface LocationState {
   from?: FromPage;
   volumeFileId?: string | null;
   overlayFileId?: string | null;
+  previewWhileProcessing?: boolean;
 }
 
 type ViewPhase = "loading" | "ready" | "error";
+
+const PIPELINE_POLL_MS = 5_000;
+const SUCCESS_BANNER_DISMISS_MS = 5_000;
 
 export function VisualizationPage() {
   const navigate = useNavigate();
@@ -36,6 +44,8 @@ export function VisualizationPage() {
 
   const [statusText, setStatusText] = useState("Ready");
   const [viewPhase, setViewPhase] = useState<ViewPhase>("loading");
+  const [processingNotice, setProcessingNotice] = useState<ProcessingNotice>("none");
+  const overlayLoadedRef = useRef(false);
 
   const [errorTitle, setErrorTitle] = useState("Something went wrong");
   const [errorMessage, setErrorMessage] = useState("");
@@ -112,13 +122,14 @@ export function VisualizationPage() {
       }
       setStatusText("Loading files...");
 
-      const { volumeFileId, overlayFileId } = routeState;
+      const { volumeFileId, overlayFileId, previewWhileProcessing } = routeState;
       let volumeId = volumeFileId ?? undefined;
       let overlayId = overlayFileId ?? undefined;
       let volumeName = "volume.nii";
       let overlayName = "overlay.nii";
+      const skipOverlay = previewWhileProcessing === true;
 
-      if (volumeId == null || overlayId == null) {
+      if (volumeId == null || (!skipOverlay && overlayId == null)) {
         const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
         const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
         const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
@@ -126,7 +137,7 @@ export function VisualizationPage() {
           volumeId = volume.id;
           volumeName = volume.display_name ?? volumeName;
         }
-        if (overlayId == null && overlay) {
+        if (!skipOverlay && overlayId == null && overlay) {
           overlayId = overlay.id;
           overlayName = overlay.display_name ?? overlayName;
         }
@@ -141,7 +152,7 @@ export function VisualizationPage() {
           colormap: "gray",
         });
       }
-      if (overlayId) {
+      if (!skipOverlay && overlayId) {
         volumes.push({
           url: fileContentUrl(studyId, overlayId),
           name: overlayName,
@@ -152,6 +163,11 @@ export function VisualizationPage() {
 
       if (volumes.length > 0) {
         await nv.loadVolumes(volumes);
+        if (skipOverlay) {
+          setProcessingNotice("preview-waiting");
+        } else if (overlayId) {
+          overlayLoadedRef.current = true;
+        }
         setStatusText(`Loaded ${volumes.length} volume(s)`);
 
         // Update UI state based on loaded volume
@@ -172,8 +188,53 @@ export function VisualizationPage() {
         throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
-    [studyId, routeState.volumeFileId, routeState.overlayFileId],
+    [studyId, routeState.volumeFileId, routeState.overlayFileId, routeState.previewWhileProcessing],
   );
+
+  const loadOverlayArtifact = useCallback(async () => {
+    if (!studyId || overlayLoadedRef.current) {
+      return;
+    }
+    const nv = nvRef.current;
+    if (!nv) {
+      return;
+    }
+
+    setProcessingNotice("loading-artifacts");
+    setStatusText("Loading overlay...");
+
+    const { overlayFileId } = routeState;
+    let overlayId = overlayFileId ?? undefined;
+    let overlayName = "overlay.nii";
+
+    if (overlayId == null) {
+      const files = await listFiles(studyId, "viewer_overlay");
+      const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
+      if (overlay) {
+        overlayId = overlay.id;
+        overlayName = overlay.display_name ?? overlayName;
+      }
+    }
+
+    if (!overlayId) {
+      setProcessingNotice("preview-waiting");
+      return;
+    }
+
+    await nv.addVolumeFromUrl({
+      url: fileContentUrl(studyId, overlayId),
+      name: overlayName,
+      opacity: 0.5,
+      colormap: "red",
+    });
+
+    overlayLoadedRef.current = true;
+    setVolumeVisibility(nv.volumes.map(() => true));
+    setVolumeOpacities(nv.volumes.map((v) => v.opacity));
+    setProcessingNotice("artifacts-ready");
+    setStatusText(`Loaded ${nv.volumes.length} volume(s)`);
+    nv.drawScene();
+  }, [studyId, routeState.overlayFileId]);
 
   const loadVolatileFiles = useCallback(
     async (nv: Niivue) => {
@@ -253,6 +314,23 @@ export function VisualizationPage() {
     }
   }, [navigate, routeState.from]);
 
+  const handleReturnToProgress = useCallback(() => {
+    if (!studyId) {
+      return;
+    }
+    navigate(`/pipeline/${studyId}`, {
+      state: {
+        from: routeState.from ?? FromPage.Home,
+        volumePreviewFileId: routeState.volumeFileId ?? undefined,
+      },
+    });
+  }, [navigate, studyId, routeState.from, routeState.volumeFileId]);
+
+  const showReturnToProgressLink =
+    routeState.previewWhileProcessing === true &&
+    studyId != null &&
+    (processingNotice === "preview-waiting" || processingNotice === "loading-artifacts");
+
   /** Volatile (no persisted study) */
   useEffect(() => {
     if (studyId) {
@@ -331,6 +409,69 @@ export function VisualizationPage() {
     };
   }, [studyId, initNiivue, loadStudyFiles, goError, disposeNv]);
 
+  /** While previewing raw scan, poll until pipeline finishes and load overlay. */
+  useEffect(() => {
+    if (!studyId || routeState.previewWhileProcessing !== true) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      if (overlayLoadedRef.current) {
+        return;
+      }
+      try {
+        const study = await getStudy(studyId);
+        if (cancelled) {
+          return;
+        }
+
+        if (study.status === "ready") {
+          await loadOverlayArtifact();
+          return;
+        }
+
+        if (study.status === "failed" || study.status === "cancelled") {
+          setProcessingNotice("processing-failed");
+        }
+      } catch {
+        /* best-effort while previewing */
+      }
+    };
+
+    void poll();
+    const timer = setInterval(() => {
+      void poll();
+    }, PIPELINE_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [studyId, routeState.previewWhileProcessing, loadOverlayArtifact]);
+
+  /** Hide the success banner after a short delay. */
+  useEffect(() => {
+    if (processingNotice !== "artifacts-ready") {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setProcessingNotice("none");
+    }, SUCCESS_BANNER_DISMISS_MS);
+    return () => clearTimeout(timer);
+  }, [processingNotice]);
+
+  useEffect(() => {
+    if (viewPhase !== "ready") {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [viewPhase]);
+
   const handleSliceTypeChange = (type: string) => {
     const nv = nvRef.current;
     if (!nv) {
@@ -346,6 +487,9 @@ export function VisualizationPage() {
       case "multiplanar_4view":
         nv.setSliceType(nv.sliceTypeMultiplanar);
         nv.setMultiplanarLayout(2); // Grid layout with 3 slices + 3D render
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event("resize"));
+        });
         break;
       case "axial":
         nv.setSliceType(nv.sliceTypeAxial);
@@ -887,7 +1031,19 @@ export function VisualizationPage() {
           )}
 
           {/* Main Canvas Area */}
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative flex min-w-0 flex-1 flex-col">
+            {processingNotice !== "none" && viewPhase === "ready" && (
+              <div className="pointer-events-none absolute left-3 top-3 z-30">
+                <div className="pointer-events-auto">
+                  <ProcessingNoticeBar
+                    notice={processingNotice}
+                    showReturnLink={showReturnToProgressLink}
+                    onReturnToProgress={handleReturnToProgress}
+                    placement="overlay"
+                  />
+                </div>
+              </div>
+            )}
             <div
               className="relative min-h-0 flex-1 overflow-hidden"
               style={{ backgroundColor: lightBackground ? "#ffffff" : "#000000" }}

@@ -10,6 +10,8 @@ export interface ViewerNavigationOptions {
   from: FromPage;
   volumeFileId?: string | null;
   overlayFileId?: string | null;
+  /** User opened the viewer while backend processing is still running. */
+  previewWhileProcessing?: boolean;
 }
 
 /** One file upload in the ordered upload phase. */
@@ -28,6 +30,8 @@ export interface UploadPayload {
 export interface LocationState {
   uploadPayload?: UploadPayload;
   from?: FromPage;
+  /** Restored when returning from raw-scan preview during processing. */
+  volumePreviewFileId?: string | null;
 }
 
 export interface PipelineError {
@@ -43,6 +47,10 @@ export interface PipelineState {
   progress: number | null;
   statusText: string;
   error: PipelineError | null;
+  /** Volume file id when raw scan can be previewed during processing. */
+  volumePreviewFileId: string | null;
+  /** True after pipeline_completed until navigation away. */
+  pipelineFinished: boolean;
 }
 
 /** What `usePipeline()` returns from the pipeline reducer. */
@@ -55,4 +63,6 @@ export const initialState: PipelineState = {
   progress: 0,
   statusText: "Connecting...",
   error: null,
+  volumePreviewFileId: null,
+  pipelineFinished: false,
 };

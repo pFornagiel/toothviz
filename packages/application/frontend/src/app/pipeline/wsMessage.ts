@@ -58,6 +58,13 @@ export function applyWsMessage(
     return;
   }
 
+  if (msg.event === "step_completed" && msg.volume_file_id) {
+    dispatch({
+      type: PipelineActionType.SetVolumePreview,
+      fileId: msg.volume_file_id,
+    });
+  }
+
   const step = pipelineStepProgress(msg);
   if (!step) {
     return;

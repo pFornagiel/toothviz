@@ -14,6 +14,7 @@ export enum PipelineActionType {
   Finish = "FINISH",
   SetError = "SET_ERROR",
   ConnectionClosed = "CONNECTION_CLOSED",
+  SetVolumePreview = "SET_VOLUME_PREVIEW",
 }
 
 export enum FinishMode {
@@ -34,7 +35,8 @@ export type PipelineAction =
   | { type: PipelineActionType.CompleteStep; stepIndex: number; statusText?: string }
   | { type: PipelineActionType.Finish; mode: FinishMode }
   | { type: PipelineActionType.SetError; error: PipelineError }
-  | { type: PipelineActionType.ConnectionClosed };
+  | { type: PipelineActionType.ConnectionClosed }
+  | { type: PipelineActionType.SetVolumePreview; fileId: string };
 
 export function pipelineReducer(state: PipelineState, action: PipelineAction): PipelineState {
   switch (action.type) {
@@ -47,6 +49,8 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         progress: 0,
         statusText: "Starting upload...",
         error: null,
+        volumePreviewFileId: null,
+        pipelineFinished: false,
       };
 
     case PipelineActionType.SetSteps:
@@ -91,13 +95,18 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
             ...state,
             progress: 1,
             currentStepIndex: null,
+            pipelineFinished: true,
             statusText: "Opening viewer...",
           }
         : {
             ...state,
             progress: 1,
-            statusText: "Pipeline completed - loading...",
+            pipelineFinished: true,
+            statusText: "Processing complete — loading results in viewer…",
           };
+
+    case PipelineActionType.SetVolumePreview:
+      return { ...state, volumePreviewFileId: action.fileId };
 
     case PipelineActionType.SetError:
       return { ...state, error: action.error };

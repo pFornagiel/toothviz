@@ -7,12 +7,12 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation, useNavigate, useParams, useLoaderData } from "react-router";
-import { deleteStudy, getStudy } from "@/api/studies";
+import { deleteStudy, getStudy, listFiles } from "@/api/studies";
 import { uploadFile } from "@/api/upload";
 import { establishWebsocketConnection } from "@/api/ws";
 import type { StudyResponse } from "@/api/types";
 import { initialState, type LocationState, type PipelineContextValue } from "./types";
-import { pipelineReducer } from "./reducer";
+import { PipelineActionType, pipelineReducer } from "./reducer";
 import { PipelineEngine, type PipelineApi } from "./pipelineEngine";
 
 const PipelineContext = createContext<PipelineContextValue | null>(null);
@@ -36,18 +36,26 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (routeState.volumePreviewFileId) {
+      dispatch({
+        type: PipelineActionType.SetVolumePreview,
+        fileId: routeState.volumePreviewFileId,
+      });
+    }
+
     const api: PipelineApi = {
       getStudy,
       deleteStudy,
       uploadFile,
+      listFiles,
       establishWebsocketConnection,
     };
     const engine = new PipelineEngine({
       dispatch,
       api,
-      onNavigateToViewer: (id, { from, volumeFileId, overlayFileId }) =>
+      onNavigateToViewer: (id, { from, volumeFileId, overlayFileId, previewWhileProcessing }) =>
         navigate(`/visualize/${id}`, {
-          state: { from, volumeFileId, overlayFileId },
+          state: { from, volumeFileId, overlayFileId, previewWhileProcessing },
           replace: true,
         }),
     });
@@ -67,6 +75,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     study.job_id,
     routeState.uploadPayload,
     routeState.from,
+    routeState.volumePreviewFileId,
     location.key,
     navigate,
   ]);

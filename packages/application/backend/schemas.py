@@ -152,6 +152,7 @@ class PipelineWsStepCompletedMessage(BaseModel):
     total_steps: int
     progress: float
     step_progress: float = 1.0
+    volume_file_id: str | None = None
 
 
 PipelineWsStepMessage = (

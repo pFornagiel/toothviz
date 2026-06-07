@@ -43,6 +43,7 @@ async def run_pipeline(
 
     try:
         collected: dict[str, OutputArtifact] = {}
+        derived_file_ids: dict[str, str] = {}
 
         for i, step in enumerate(steps):
             step_ctx = replace(ctx, step_index=i, total_steps=total)
@@ -67,37 +68,46 @@ async def run_pipeline(
                 ) from exc
 
             ctx = replace(ctx, current_input_path=result.next_input_path)
+            step_purposes: set[str] = set()
             for artifact in result.artifacts:
                 if artifact.purpose in collected:
                     raise _duplicate_purpose_error(
                         step.name, artifact.purpose, collected
                     )
+                if artifact.purpose in step_purposes:
+                    raise ValueError(
+                        f"Duplicate viewer purpose {artifact.purpose!r} "
+                        f"emitted by step {step.name!r}"
+                    )
+                step_purposes.add(artifact.purpose)
+
+            step_committed: dict[str, str] = {}
+            for artifact in result.artifacts:
                 collected[artifact.purpose] = artifact
+                record = storage_service.store_derived(
+                    src_path=artifact.path,
+                    study_id=ctx.study_id,
+                    filename=artifact.path.name,
+                    kind=artifact.kind,
+                    viewer_purpose=artifact.purpose,
+                )
+                derived_file_ids[artifact.purpose] = record.id
+                step_committed[artifact.purpose] = record.id
 
             if total:
-                await step_ctx.broadcaster.broadcast(
-                    job_id,
-                    {
-                        "event": "step_completed",
-                        "job_id": job_id,
-                        "step": step.name,
-                        "progress": (i + 1) / total if total else 1.0,
-                        "total_steps": total,
-                        "step_index": i,
-                        "step_progress": 1.0,
-                    },
-                )
-
-        derived_file_ids: dict[str, str] = {}
-        for artifact in collected.values():
-            record = storage_service.store_derived(
-                src_path=artifact.path,
-                study_id=ctx.study_id,
-                filename=artifact.path.name,
-                kind=artifact.kind,
-                viewer_purpose=artifact.purpose,
-            )
-            derived_file_ids[artifact.purpose] = record.id
+                completed_payload: dict[str, object] = {
+                    "event": "step_completed",
+                    "job_id": job_id,
+                    "step": step.name,
+                    "progress": (i + 1) / total if total else 1.0,
+                    "total_steps": total,
+                    "step_index": i,
+                    "step_progress": 1.0,
+                }
+                volume_id = step_committed.get("viewer_volume")
+                if volume_id is not None:
+                    completed_payload["volume_file_id"] = volume_id
+                await step_ctx.broadcaster.broadcast(job_id, completed_payload)
 
         with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")

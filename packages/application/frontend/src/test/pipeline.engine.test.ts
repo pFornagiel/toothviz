@@ -71,6 +71,7 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
   const api: PipelineApi = {
     getStudy: vi.fn(async () => makeStudy({ status: "ready" })),
     deleteStudy: vi.fn(async () => {}),
+    listFiles: vi.fn(async () => []),
     uploadFile: vi.fn(async (_studyId, _file, _kind, _pipelines, onProgress) => {
       onProgress?.({ phase: "begin" });
       onProgress?.({ phase: "uploading", chunkIndex: 0, totalChunks: 1 });
