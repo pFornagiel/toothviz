@@ -31,6 +31,7 @@ export function VisualizationPage() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nvRef = useRef<Niivue | null>(null);
+  const blobUrlsRef = useRef<string[]>([]);
 
   const [statusText, setStatusText] = useState("Ready");
   const [viewPhase, setViewPhase] = useState<ViewPhase>("loading");
@@ -95,12 +96,15 @@ export function VisualizationPage() {
     const nv = nvRef.current;
     if (nv) {
       try {
-        /* nv.close() */
+        [...nv.volumes].forEach((vol) => nv.removeVolume(vol));
+        nv.cleanup();
       } catch {
         /* ignore */
       }
     }
     nvRef.current = null;
+    blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    blobUrlsRef.current = [];
   }, []);
 
   const loadStudyFiles = useCallback(
@@ -165,6 +169,7 @@ export function VisualizationPage() {
 
       setStatusText("Loading volume...");
       const primaryUrl = URL.createObjectURL(primary);
+      blobUrlsRef.current.push(primaryUrl);
       await nv.loadVolumes([
         {
           url: primaryUrl,
@@ -176,6 +181,7 @@ export function VisualizationPage() {
       if (mask) {
         setStatusText("Loading overlay...");
         const maskUrl = URL.createObjectURL(mask);
+        blobUrlsRef.current.push(maskUrl);
         await nv.addVolumeFromUrl({
           url: maskUrl,
           name: mask.name,
@@ -653,216 +659,223 @@ export function VisualizationPage() {
                   </div>
                 </div>
 
-                {/* Volume Selection and Visibility */}
-                {nvRef.current && nvRef.current.volumes.length > 0 && (
-                  <div className="space-y-3">
-                    <label className="text-sm font-semibold text-foreground">Volumes</label>
+                <fieldset
+                  disabled={viewPhase !== "ready"}
+                  className={`m-0 min-w-0 space-y-6 border-0 p-0 transition-opacity ${
+                    viewPhase === "ready" ? "" : "pointer-events-none opacity-50"
+                  }`}
+                >
+                  {/* Volume Selection and Visibility */}
+                  {nvRef.current && nvRef.current.volumes.length > 0 && (
+                    <div className="space-y-3">
+                      <label className="text-sm font-semibold text-foreground">Volumes</label>
 
-                    {/* Volume visibility checkboxes */}
-                    <div className="space-y-2">
-                      {nvRef.current.volumes.map((vol, idx) => (
-                        <label
-                          key={idx}
-                          className="flex items-center gap-2 text-sm text-foreground cursor-pointer font-medium"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={volumeVisibility[idx] ?? true}
-                            onChange={() => handleVolumeVisibilityToggle(idx)}
-                            className="w-4 h-4 rounded border-border bg-card text-primary focus:ring-primary"
-                          />
-                          <span>{vol.name || `Volume ${idx}`}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Volume selector for editing */}
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground font-medium">
-                        Edit Volume:
-                      </label>
-                      <select
-                        value={selectedVolume}
-                        onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
-                        className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                      >
+                      {/* Volume visibility checkboxes */}
+                      <div className="space-y-2">
                         {nvRef.current.volumes.map((vol, idx) => (
-                          <option key={idx} value={idx}>
-                            {vol.name || `Volume ${idx}`}
-                          </option>
+                          <label
+                            key={idx}
+                            className="flex items-center gap-2 text-sm text-foreground cursor-pointer font-medium"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={volumeVisibility[idx] ?? true}
+                              onChange={() => handleVolumeVisibilityToggle(idx)}
+                              className="w-4 h-4 rounded border-border bg-card text-primary focus:ring-primary"
+                            />
+                            <span>{vol.name || `Volume ${idx}`}</span>
+                          </label>
                         ))}
-                      </select>
+                      </div>
+
+                      {/* Volume selector for editing */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground font-medium">
+                          Edit Volume:
+                        </label>
+                        <select
+                          value={selectedVolume}
+                          onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
+                          className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                        >
+                          {nvRef.current.volumes.map((vol, idx) => (
+                            <option key={idx} value={idx}>
+                              {vol.name || `Volume ${idx}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Slice Type */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">Slice Type</label>
-                  <select
-                    value={sliceType}
-                    onChange={(e) => handleSliceTypeChange(e.target.value)}
-                    className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    <option value="multiplanar">Multiplanar</option>
-                    <option value="multiplanar_4view">Multiplanar (4 Views)</option>
-                    <option value="axial">Axial</option>
-                    <option value="coronal">Coronal</option>
-                    <option value="sagittal">Sagittal</option>
-                    <option value="render">Render</option>
-                  </select>
-                </div>
-
-                {/* Opacity */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">
-                    Opacity: {opacity.toFixed(2)}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={opacity}
-                    onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Colormap */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">Colormap</label>
-                  <select
-                    value={colormap}
-                    onChange={(e) => handleColormapChange(e.target.value)}
-                    className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    {colormaps.map((cm) => (
-                      <option key={cm} value={cm}>
-                        {cm}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Cal Min */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">
-                    Cal Min: {cal_min.toFixed(0)}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="255"
-                    step="1"
-                    value={cal_min}
-                    onChange={(e) => handleCalMinChange(parseFloat(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Cal Max */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">
-                    Cal Max: {cal_max.toFixed(0)}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="255"
-                    step="1"
-                    value={cal_max}
-                    onChange={(e) => handleCalMaxChange(parseFloat(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Clip Plane */}
-                <div className="space-y-3 border-t border-border pt-4">
-                  <h3 className="text-sm font-semibold text-foreground">Clip Plane</h3>
-
+                  {/* Slice Type */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Depth: {clipPlaneDepth.toFixed(2)}
+                    <label className="text-sm font-semibold text-foreground">Slice Type</label>
+                    <select
+                      value={sliceType}
+                      onChange={(e) => handleSliceTypeChange(e.target.value)}
+                      className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    >
+                      <option value="multiplanar">Multiplanar</option>
+                      <option value="multiplanar_4view">Multiplanar (4 Views)</option>
+                      <option value="axial">Axial</option>
+                      <option value="coronal">Coronal</option>
+                      <option value="sagittal">Sagittal</option>
+                      <option value="render">Render</option>
+                    </select>
+                  </div>
+
+                  {/* Opacity */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      Opacity: {opacity.toFixed(2)}
                     </label>
                     <input
                       type="range"
                       min="0"
-                      max="2"
+                      max="1"
                       step="0.01"
-                      value={clipPlaneDepth}
-                      onChange={(e) => setClipPlaneDepth(parseFloat(e.target.value))}
+                      value={opacity}
+                      onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
                       className="w-full"
                     />
                   </div>
 
+                  {/* Colormap */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Azimuth: {clipPlaneAzimuth.toFixed(0)}°
+                    <label className="text-sm font-semibold text-foreground">Colormap</label>
+                    <select
+                      value={colormap}
+                      onChange={(e) => handleColormapChange(e.target.value)}
+                      className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    >
+                      {colormaps.map((cm) => (
+                        <option key={cm} value={cm}>
+                          {cm}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Cal Min */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      Cal Min: {cal_min.toFixed(0)}
                     </label>
                     <input
                       type="range"
                       min="0"
-                      max="360"
+                      max="255"
                       step="1"
-                      value={clipPlaneAzimuth}
-                      onChange={(e) => setClipPlaneAzimuth(parseFloat(e.target.value))}
+                      value={cal_min}
+                      onChange={(e) => handleCalMinChange(parseFloat(e.target.value))}
                       className="w-full"
                     />
                   </div>
 
+                  {/* Cal Max */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Elevation: {clipPlaneElevation.toFixed(0)}°
+                    <label className="text-sm font-semibold text-foreground">
+                      Cal Max: {cal_max.toFixed(0)}
                     </label>
                     <input
                       type="range"
                       min="0"
-                      max="180"
+                      max="255"
                       step="1"
-                      value={clipPlaneElevation}
-                      onChange={(e) => setClipPlaneElevation(parseFloat(e.target.value))}
+                      value={cal_max}
+                      onChange={(e) => handleCalMaxChange(parseFloat(e.target.value))}
                       className="w-full"
                     />
                   </div>
-                </div>
 
-                {/* Render Settings */}
-                {sliceType === "render" && (
+                  {/* Clip Plane */}
                   <div className="space-y-3 border-t border-border pt-4">
-                    <h3 className="text-sm font-semibold text-foreground">Render View</h3>
+                    <h3 className="text-sm font-semibold text-foreground">Clip Plane</h3>
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">
-                        Azimuth: {renderAzimuth.toFixed(0)}°
+                        Depth: {clipPlaneDepth.toFixed(2)}
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.01"
+                        value={clipPlaneDepth}
+                        onChange={(e) => setClipPlaneDepth(parseFloat(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Azimuth: {clipPlaneAzimuth.toFixed(0)}°
                       </label>
                       <input
                         type="range"
                         min="0"
                         max="360"
                         step="1"
-                        value={renderAzimuth}
-                        onChange={(e) => handleRenderAzimuthChange(parseFloat(e.target.value))}
+                        value={clipPlaneAzimuth}
+                        onChange={(e) => setClipPlaneAzimuth(parseFloat(e.target.value))}
                         className="w-full"
                       />
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">
-                        Elevation: {renderElevation.toFixed(0)}°
+                        Elevation: {clipPlaneElevation.toFixed(0)}°
                       </label>
                       <input
                         type="range"
-                        min="-90"
-                        max="90"
+                        min="0"
+                        max="180"
                         step="1"
-                        value={renderElevation}
-                        onChange={(e) => handleRenderElevationChange(parseFloat(e.target.value))}
+                        value={clipPlaneElevation}
+                        onChange={(e) => setClipPlaneElevation(parseFloat(e.target.value))}
                         className="w-full"
                       />
                     </div>
                   </div>
-                )}
+
+                  {/* Render Settings */}
+                  {sliceType === "render" && (
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <h3 className="text-sm font-semibold text-foreground">Render View</h3>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Azimuth: {renderAzimuth.toFixed(0)}°
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="360"
+                          step="1"
+                          value={renderAzimuth}
+                          onChange={(e) => handleRenderAzimuthChange(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Elevation: {renderElevation.toFixed(0)}°
+                        </label>
+                        <input
+                          type="range"
+                          min="-90"
+                          max="90"
+                          step="1"
+                          value={renderElevation}
+                          onChange={(e) => handleRenderElevationChange(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </fieldset>
               </div>
             </div>
           )}
@@ -873,7 +886,7 @@ export function VisualizationPage() {
               className="relative min-h-0 flex-1 overflow-hidden"
               style={{ backgroundColor: lightBackground ? "#ffffff" : "#000000" }}
             >
-              {!studyId && viewPhase === "loading" && (
+              {viewPhase === "loading" && (
                 <div className="absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
                   <div
                     className="h-10 w-10 shrink-0 rounded-full border-2 border-primary/30 border-t-primary animate-spin"
