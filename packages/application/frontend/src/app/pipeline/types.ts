@@ -42,14 +42,11 @@ export interface PipelineState {
   currentStepIndex: number | null;
   progress: number | null;
   statusText: string;
-  connectionLost: boolean;
   error: PipelineError | null;
 }
 
-/** What `usePipeline()` returns: the reducer state plus the imperative actions. */
-export interface PipelineContextValue extends PipelineState {
-  reconnect: () => void;
-}
+/** What `usePipeline()` returns from the pipeline reducer. */
+export type PipelineContextValue = PipelineState;
 
 export const initialState: PipelineState = {
   steps: [],
@@ -57,6 +54,5 @@ export const initialState: PipelineState = {
   currentStepIndex: null,
   progress: 0,
   statusText: "Connecting...",
-  connectionLost: false,
   error: null,
 };

@@ -1,6 +1,5 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useReducer,
@@ -20,8 +19,7 @@ const PipelineContext = createContext<PipelineContextValue | null>(null);
 
 /**
  * Context boundary for the study-processing lifecycle. Reads the router state,
- * owns a `PipelineEngine`, and exposes the reducer state plus a `reconnect()`
- * action to descendants via `usePipeline()`.
+ * owns a `PipelineEngine`, and exposes the reducer state to descendants via `usePipeline()`.
  */
 export function PipelineProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -73,11 +71,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     navigate,
   ]);
 
-  const reconnect = useCallback(() => engineRef.current?.reconnect(), []);
-
-  return (
-    <PipelineContext.Provider value={{ ...state, reconnect }}>{children}</PipelineContext.Provider>
-  );
+  return <PipelineContext.Provider value={state}>{children}</PipelineContext.Provider>;
 }
 
 export function usePipeline(): PipelineContextValue {

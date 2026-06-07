@@ -2,6 +2,9 @@ import type { LoadingStepId } from "@/api/types";
 import type { PipelineError, PipelineState } from "./types";
 import { clamp01 } from "./progress";
 
+const CONNECTION_LOST_TEXT =
+  "Connection lost — processing may still be running on this computer. Reopen the study from Browse Studies to continue.";
+
 export enum PipelineActionType {
   Begin = "BEGIN",
   SetSteps = "SET_STEPS",
@@ -11,7 +14,6 @@ export enum PipelineActionType {
   Finish = "FINISH",
   SetError = "SET_ERROR",
   ConnectionClosed = "CONNECTION_CLOSED",
-  ClearConnectionLost = "CLEAR_CONNECTION_LOST",
 }
 
 export enum FinishMode {
@@ -32,10 +34,7 @@ export type PipelineAction =
   | { type: PipelineActionType.CompleteStep; stepIndex: number; statusText?: string }
   | { type: PipelineActionType.Finish; mode: FinishMode }
   | { type: PipelineActionType.SetError; error: PipelineError }
-  | { type: PipelineActionType.ConnectionClosed }
-  | { type: PipelineActionType.ClearConnectionLost };
-
-const CONNECTION_CLOSED_TEXT = "Connection closed - check your network or reconnect.";
+  | { type: PipelineActionType.ConnectionClosed };
 
 export function pipelineReducer(state: PipelineState, action: PipelineAction): PipelineState {
   switch (action.type) {
@@ -47,7 +46,6 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         currentStepIndex: 0,
         progress: 0,
         statusText: "Starting upload...",
-        connectionLost: false,
         error: null,
       };
 
@@ -105,9 +103,6 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
       return { ...state, error: action.error };
 
     case PipelineActionType.ConnectionClosed:
-      return { ...state, connectionLost: true, statusText: CONNECTION_CLOSED_TEXT };
-
-    case PipelineActionType.ClearConnectionLost:
-      return { ...state, connectionLost: false };
+      return { ...state, statusText: CONNECTION_LOST_TEXT };
   }
 }

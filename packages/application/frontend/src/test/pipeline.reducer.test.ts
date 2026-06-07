@@ -15,9 +15,9 @@ function stateWithSteps(steps: PipelineState["steps"]): PipelineState {
 }
 
 describe("pipelineReducer - lifecycle actions", () => {
-  it("BEGIN resets progress, seeds the step list, and clears connection loss", () => {
+  it("BEGIN resets progress and seeds the step list", () => {
     const next = pipelineReducer(
-      { ...initialState, connectionLost: true, completedSteps: new Set([0]) },
+      { ...initialState, completedSteps: new Set([0]) },
       { type: PipelineActionType.Begin, steps: noMaskSteps },
     );
     expect(next.steps).toEqual(noMaskSteps);
@@ -25,7 +25,6 @@ describe("pipelineReducer - lifecycle actions", () => {
     expect(next.currentStepIndex).toBe(0);
     expect(next.progress).toBe(0);
     expect(next.statusText).toBe("Starting upload...");
-    expect(next.connectionLost).toBe(false);
     expect(next.error).toBeNull();
   });
 
@@ -48,7 +47,7 @@ describe("pipelineReducer - lifecycle actions", () => {
     expect(next.statusText).toBe("Pipeline running...");
   });
 
-  it("ENTER_PIPELINE with stepIndex 0 starts the bar at zero (reconnect entry)", () => {
+  it("ENTER_PIPELINE with stepIndex 0 starts the bar at zero (resume entry)", () => {
     const next = pipelineReducer(stateWithSteps(noMaskSteps), {
       type: PipelineActionType.EnterPipeline,
       stepIndex: 0,
@@ -164,21 +163,14 @@ describe("pipelineReducer - error & connection transitions", () => {
     expect(next.error).toEqual(error);
   });
 
-  it("CONNECTION_CLOSED flags the loss and updates the status line", () => {
+  it("CONNECTION_CLOSED updates the status line", () => {
     const next = pipelineReducer(stateWithSteps(noMaskSteps), {
       type: PipelineActionType.ConnectionClosed,
     });
-    expect(next.connectionLost).toBe(true);
-    expect(next.statusText).toBe("Connection closed - check your network or reconnect.");
+    expect(next.statusText).toBe(
+      "Connection lost — processing may still be running on this computer. Reopen the study from Browse Studies to continue.",
+    );
     expect(next.steps).toEqual(noMaskSteps);
   });
 
-  it("CLEAR_CONNECTION_LOST clears only the flag", () => {
-    const next = pipelineReducer(
-      { ...initialState, connectionLost: true, statusText: "kept" },
-      { type: PipelineActionType.ClearConnectionLost },
-    );
-    expect(next.connectionLost).toBe(false);
-    expect(next.statusText).toBe("kept");
-  });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { PipelineEngine, type PipelineApi } from "@/app/pipeline/pipelineEngine";
+
 import { PipelineActionType, FinishMode, type PipelineAction } from "@/app/pipeline/reducer";
 import { FromPage } from "@/app/pipeline/types";
 import { ApiError } from "@/api/client";
@@ -252,15 +253,15 @@ describe("PipelineEngine - upload flow", () => {
   });
 });
 
-describe("PipelineEngine - reconnect flow", () => {
-  const reconnectApi = () => ({
+describe("PipelineEngine - resume processing", () => {
+  const resumeApi = () => ({
     getStudy: vi.fn(async () =>
       makeStudy({ status: "processing", steps: [PipelineStepName.SegmentNifti] }),
     ),
   });
 
   it("adopts server steps, enters the pipeline at step 0, and connects", async () => {
-    const { engine, api, actions } = setup(reconnectApi());
+    const { engine, api, actions } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -305,30 +306,8 @@ describe("PipelineEngine - reconnect flow", () => {
     expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Home });
   });
 
-  it("reconnect() navigates when getStudy reports ready (missed completion frame)", async () => {
-    const getStudy = vi
-      .fn()
-      .mockResolvedValueOnce(makeStudy({ status: "processing", steps: [PipelineStepName.SegmentNifti] }))
-      .mockResolvedValueOnce(makeStudy({ status: "ready", job_id: "job1" }));
-
-    const { engine, api, onNavigateToViewer, ws } = setup({ getStudy });
-    engine.start({
-      studyId: "s1",
-      study: makeStudy({ job_id: "job1" }),
-      routeState: {},
-    });
-    await flush();
-
-    ws.onClose();
-    engine.reconnect();
-    await flush();
-
-    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Home });
-  });
-
-  it("dispatches ConnectionClosed on socket close; reconnect() re-runs", async () => {
-    const { engine, api, actions, ws } = setup(reconnectApi());
+  it("dispatches ConnectionClosed on socket close without reopening", async () => {
+    const { engine, api, actions, ws } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -338,31 +317,14 @@ describe("PipelineEngine - reconnect flow", () => {
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
 
     ws.onClose();
+    await flush();
+
     expect(actions.some((a) => a.type === PipelineActionType.ConnectionClosed)).toBe(true);
-
-    engine.reconnect();
-    await flush();
-    expect(actions.some((a) => a.type === PipelineActionType.ClearConnectionLost)).toBe(true);
-    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(2);
-  });
-
-  it("ignores reconnect() while the socket is still connected", async () => {
-    const { engine, api } = setup(reconnectApi());
-    engine.start({
-      studyId: "s1",
-      study: makeStudy({ job_id: "job1" }),
-      routeState: {},
-    });
-    await flush();
-    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
-
-    engine.reconnect();
-    await flush();
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
   });
 
   it("dispose() cancels work and tears down the socket", async () => {
-    const { engine, ws } = setup(reconnectApi());
+    const { engine, ws } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),

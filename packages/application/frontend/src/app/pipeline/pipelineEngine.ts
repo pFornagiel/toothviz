@@ -53,9 +53,7 @@ export class PipelineEngine {
 
   private cancelled = false;
   private finished = false;
-  private connected = false;
   private disconnect: (() => void) | null = null;
-  private jobId: string | null = null;
   private studyId = "";
   private routeState: LocationState = {};
 
@@ -95,7 +93,6 @@ export class PipelineEngine {
 
     const jobId = study.job_id;
 
-    // No job id and not actively processing -> the initial upload state was lost which means error
     if (!jobId && study.status !== "processing") {
       this.goError("Upload state was lost", "Please create the study again from the home page.", [
         "This can happen if you refreshed during the initial upload.",
@@ -104,28 +101,12 @@ export class PipelineEngine {
       return;
     }
 
-    // Check whether there is a job that has to be run - if not simply skip
     if (!jobId) {
       this.navigateToViewer();
       return;
     }
 
-    this.jobId = jobId;
-    void this.runReconnect(jobId);
-  }
-
-  /**
-   * User-driven retry after a connection loss
-   */
-  reconnect(): void {
-    if (this.cancelled || this.finished || this.connected) {
-      return;
-    }
-    if (!this.jobId) {
-      return;
-    }
-    this.dispatch({ type: PipelineActionType.ClearConnectionLost });
-    void this.runReconnect(this.jobId);
+    void this.resumeProcessing(jobId);
   }
 
   /** React effect cleanup: stop all work and tear down the socket. */
@@ -134,7 +115,6 @@ export class PipelineEngine {
     this.disconnect?.();
   }
 
-  /** Fresh upload -> (optional further uploads) -> pipeline run over the WebSocket. */
   private async runUpload(payload: UploadPayload): Promise<void> {
     const steps = getLoadingSteps(payload);
     const { uploads, pipelines } = payload;
@@ -184,7 +164,6 @@ export class PipelineEngine {
         return;
       }
 
-      this.jobId = jobId;
       this.dispatch({
         type: PipelineActionType.EnterPipeline,
         stepIndex: uploadPrefixLen,
@@ -204,8 +183,7 @@ export class PipelineEngine {
     }
   }
 
-  /** Reconnect to an in-flight pipeline after a reload or a dropped socket. */
-  private async runReconnect(jobId: string): Promise<void> {
+  private async resumeProcessing(jobId: string): Promise<void> {
     let stepNames: LoadingStepId[];
     try {
       const fresh = await this.api.getStudy(this.studyId);
@@ -213,24 +191,7 @@ export class PipelineEngine {
         return;
       }
 
-      if (fresh.status === "ready") {
-        this.finished = true;
-        this.dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
-        this.navigateToViewer();
-        return;
-      }
-
-      if (fresh.status === "failed" || fresh.status === "cancelled") {
-        const detail =
-          fresh.error ??
-          (fresh.status === "cancelled"
-            ? "The pipeline was cancelled."
-            : "The pipeline reported a failure.");
-        this.goError(
-          fresh.status === "cancelled" ? "Processing cancelled" : "Processing failed",
-          detail,
-          fresh.status === "cancelled" ? CANCELLED_HINTS : errorHints(null),
-        );
+      if (this.handleTerminalStudyStatus(fresh)) {
         return;
       }
 
@@ -241,11 +202,7 @@ export class PipelineEngine {
         return;
       }
       if (e instanceof ApiError && e.status === 404) {
-        this.goError(
-          "Study not found",
-          "The study could not be found.",
-          errorHints(null),
-        );
+        this.goError("Study not found", "The study could not be found.", errorHints(null));
         return;
       }
       const msg = e instanceof Error ? e.message : String(e);
@@ -264,12 +221,9 @@ export class PipelineEngine {
     this.connect(jobId, 0);
   }
 
-  /**
-   * Open the pipeline WebSocket, route every message through `applyWsMessage`,
-   * and store the disconnect fn. On close - while still processing - it
-   * dispatches `ConnectionClosed`
-   */
   private connect(jobId: string, stepOffset: number): void {
+    this.disconnect?.();
+
     const disconnect = this.api.establishWebsocketConnection(
       jobId,
       (msg) =>
@@ -282,23 +236,25 @@ export class PipelineEngine {
           },
           disconnect: () => this.disconnect?.(),
           onPipelineCompleted: (m) => void this.finishOk(m),
-          onPipelineFailed: (m) =>
+          onPipelineFailed: (m) => {
+            this.disconnect?.();
             this.goError(
               "Processing failed",
               m.error ?? "The pipeline reported a failure.",
               errorHints(m.failed_step),
-            ),
-          onPipelineCancelled: () =>
-            this.goError("Processing cancelled", "The pipeline was cancelled.", CANCELLED_HINTS),
+            );
+          },
+          onPipelineCancelled: () => {
+            this.disconnect?.();
+            this.goError("Processing cancelled", "The pipeline was cancelled.", CANCELLED_HINTS);
+          },
         }),
       () => this.onClose(),
     );
     this.disconnect = disconnect;
-    this.connected = true;
   }
 
   private onClose(): void {
-    this.connected = false;
     this.disconnect = null;
     if (this.cancelled || this.finished) {
       return;
@@ -306,7 +262,35 @@ export class PipelineEngine {
     this.dispatch({ type: PipelineActionType.ConnectionClosed });
   }
 
-  /** Build a cancellation-guarded upload progress handler for one file. */
+  /** @returns true when a terminal status was handled (ready / failed / cancelled). */
+  private handleTerminalStudyStatus(fresh: StudyResponse): boolean {
+    if (fresh.status === "ready") {
+      this.finished = true;
+      this.disconnect?.();
+      this.dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
+      this.navigateToViewer();
+      return true;
+    }
+
+    if (fresh.status === "failed" || fresh.status === "cancelled") {
+      this.finished = true;
+      this.disconnect?.();
+      const detail =
+        fresh.error ??
+        (fresh.status === "cancelled"
+          ? "The pipeline was cancelled."
+          : "The pipeline reported a failure.");
+      this.goError(
+        fresh.status === "cancelled" ? "Processing cancelled" : "Processing failed",
+        detail,
+        fresh.status === "cancelled" ? CANCELLED_HINTS : errorHints(null),
+      );
+      return true;
+    }
+
+    return false;
+  }
+
   private onUploadProgress(layout: UploadStepLayout): (p: UploadProgress) => void {
     return (p: UploadProgress) => {
       if (this.cancelled) {
@@ -325,12 +309,9 @@ export class PipelineEngine {
     };
   }
 
-  /**
-   * After `pipeline_completed`, open the viewer. The completion frame is sent
-   * only after derived files are stored and the job is marked completed; an
-   * optional REST check covers races or older backends without file ids.
-   */
   private async finishOk(msg: PipelineMessage): Promise<void> {
+    this.disconnect?.();
+
     if (msg.volume_file_id != null || msg.overlay_file_id != null) {
       this.navigateToViewer(msg);
       return;
@@ -355,11 +336,7 @@ export class PipelineEngine {
         return;
       }
       if (e instanceof ApiError && e.status === 404) {
-        this.goError(
-          "Study not found",
-          "The study could not be found.",
-          errorHints(null),
-        );
+        this.goError("Study not found", "The study could not be found.", errorHints(null));
         return;
       }
       const detail = e instanceof Error ? e.message : String(e);
@@ -376,6 +353,7 @@ export class PipelineEngine {
   }
 
   private goError(title: string, message: string, hints: string[]): void {
+    this.disconnect?.();
     this.dispatch({
       type: PipelineActionType.SetError,
       error: { title, message, hints },

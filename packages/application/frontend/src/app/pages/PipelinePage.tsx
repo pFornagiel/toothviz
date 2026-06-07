@@ -41,8 +41,6 @@ function PipelineScreens() {
     currentStepIndex,
     progress,
     statusText,
-    connectionLost,
-    reconnect,
   } = usePipeline();
 
   const handleBack = () => {
@@ -77,7 +75,6 @@ function PipelineScreens() {
         currentStepIndex={currentStepIndex}
         progressFraction={progress ?? 0}
         statusLine={statusText}
-        onReconnect={connectionLost ? reconnect : undefined}
       />
     </div>
   );
