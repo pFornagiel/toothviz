@@ -64,6 +64,12 @@ export function applyWsMessage(
   }
 
   const stepIndex = step.stepIndex + stepOffset;
+  if (msg.step_index != null && msg.step_index > 0) {
+    dispatch({
+      type: PipelineActionType.CompleteStep,
+      stepIndex: msg.step_index + stepOffset - 1,
+    });
+  }
   dispatch({
     type: PipelineActionType.Progress,
     stepIndex,

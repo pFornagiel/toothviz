@@ -18,6 +18,28 @@ function makeOptions(overrides: Partial<Parameters<typeof applyWsMessage>[1]> = 
 }
 
 describe("applyWsMessage - non-terminal events", () => {
+  it("marks earlier pipeline steps complete when resuming mid-pipeline", () => {
+    const opts = makeOptions({ stepOffset: 0 });
+    applyWsMessage(
+      {
+        event: "step_progress",
+        step: "segment_nifti",
+        progress: 0.5,
+        step_progress: 0.5,
+        total_steps: 2,
+        step_index: 1,
+        chunk_index: 1,
+        total_chunks: 4,
+      },
+      opts,
+    );
+
+    expect(opts.dispatch).toHaveBeenCalledWith({
+      type: PipelineActionType.CompleteStep,
+      stepIndex: 0,
+    });
+  });
+
   it("globalises step_started into a single PROGRESS dispatch", () => {
     const opts = makeOptions();
     applyWsMessage(

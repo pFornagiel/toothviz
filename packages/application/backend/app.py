@@ -11,6 +11,7 @@ setup_logging("app")
 
 from backend import config
 from backend.db.models import Base
+from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.db.repos.upload_session_repo import UploadSessionRepo
 from backend.db.session import SessionLocal, engine
 from backend.exceptions import AppError
@@ -56,6 +57,10 @@ async def lifespan(app: FastAPI):
             tmp_upload_svc.abort_session(session.id)
         except Exception:
             pass
+
+    # 3b. Fail pipeline jobs left running when the backend last exited mid-job.
+    with SessionLocal() as db:
+        PipelineJobRepo(db).fail_interrupted_jobs()
 
     # 4. CAS OS Sweep Failsafe
     storage_service.sweep_orphans()

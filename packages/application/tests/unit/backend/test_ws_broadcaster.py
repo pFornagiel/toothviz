@@ -46,3 +46,36 @@ async def test_broadcast_to_multiple():
 async def test_broadcast_unknown_job_id():
     bc = WSBroadcaster()
     await bc.broadcast("unknown", {"status": "ok"})  # should not raise
+
+
+@pytest.mark.asyncio
+async def test_register_replays_last_non_terminal_snapshot():
+    bc = WSBroadcaster()
+    ws = AsyncMock()
+
+    await bc.broadcast(
+        "j1",
+        {
+            "event": "step_progress",
+            "step": "segment_nifti",
+            "chunk_index": 2,
+            "total_chunks": 8,
+        },
+    )
+    await bc.register("j1", ws)
+
+    ws.send_text.assert_called_once()
+    replayed = json.loads(ws.send_text.call_args[0][0])
+    assert replayed["event"] == "step_progress"
+    assert replayed["chunk_index"] == 2
+
+
+@pytest.mark.asyncio
+async def test_terminal_events_are_not_cached_for_replay():
+    bc = WSBroadcaster()
+    ws = AsyncMock()
+
+    await bc.broadcast("j1", {"event": "pipeline_completed", "status": "completed"})
+    await bc.register("j1", ws)
+
+    ws.send_text.assert_not_called()

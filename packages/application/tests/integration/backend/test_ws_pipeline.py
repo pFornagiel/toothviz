@@ -6,6 +6,27 @@ import pytest
 
 
 @pytest.mark.asyncio
+async def test_ws_pipeline_replays_last_progress_on_connect(integration_app, client):
+    job_id = "job-ws-replay"
+    broadcaster = integration_app.state.broadcaster
+    await broadcaster.broadcast(
+        job_id,
+        {
+            "event": "step_progress",
+            "job_id": job_id,
+            "step": "segment_nifti",
+            "chunk_index": 1,
+            "total_chunks": 4,
+        },
+    )
+
+    with client.websocket_connect(f"/ws/pipeline/{job_id}") as ws:
+        payload = json.loads(ws.receive_text())
+        assert payload["event"] == "step_progress"
+        assert payload["chunk_index"] == 1
+
+
+@pytest.mark.asyncio
 async def test_ws_pipeline_receives_broadcast(integration_app, client):
     """Client subscribed to a job_id receives JSON frames from WSBroadcaster."""
     job_id = "job-ws-test"

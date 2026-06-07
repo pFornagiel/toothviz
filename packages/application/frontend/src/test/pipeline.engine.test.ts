@@ -256,7 +256,11 @@ describe("PipelineEngine - upload flow", () => {
 describe("PipelineEngine - resume processing", () => {
   const resumeApi = () => ({
     getStudy: vi.fn(async () =>
-      makeStudy({ status: "processing", steps: [PipelineStepName.SegmentNifti] }),
+      makeStudy({
+        status: "processing",
+        job_id: "job1",
+        steps: [PipelineStepName.SegmentNifti],
+      }),
     ),
   });
 

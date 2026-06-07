@@ -16,6 +16,9 @@ import { CANCELLED_HINTS, errorHints } from "./errorHints";
 import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
 
+/** Poll study status while resuming an in-flight job (catches completion if WS drops). */
+const RESUME_TERMINAL_POLL_MS = 5_000;
+
 /** The slice of the API the engine drives - injected so it can be mocked. */
 export interface PipelineApi {
   getStudy: (studyId: string) => Promise<StudyResponse>;
@@ -54,6 +57,7 @@ export class PipelineEngine {
   private cancelled = false;
   private finished = false;
   private disconnect: (() => void) | null = null;
+  private resumePollTimer: ReturnType<typeof setInterval> | null = null;
   private studyId = "";
   private routeState: LocationState = {};
 
@@ -91,9 +95,12 @@ export class PipelineEngine {
       return;
     }
 
-    const jobId = study.job_id;
+    if (study.status === "processing" && !study.job_id) {
+      this.navigateToViewer();
+      return;
+    }
 
-    if (!jobId && study.status !== "processing") {
+    if (!study.job_id) {
       this.goError("Upload state was lost", "Please create the study again from the home page.", [
         "This can happen if you refreshed during the initial upload.",
         "Use 'Create a Study' again from home.",
@@ -101,17 +108,13 @@ export class PipelineEngine {
       return;
     }
 
-    if (!jobId) {
-      this.navigateToViewer();
-      return;
-    }
-
-    void this.resumeProcessing(jobId);
+    void this.resumeProcessing();
   }
 
   /** React effect cleanup: stop all work and tear down the socket. */
   dispose(): void {
     this.cancelled = true;
+    this.clearResumePoll();
     this.disconnect?.();
   }
 
@@ -183,8 +186,9 @@ export class PipelineEngine {
     }
   }
 
-  private async resumeProcessing(jobId: string): Promise<void> {
+  private async resumeProcessing(): Promise<void> {
     let stepNames: LoadingStepId[];
+    let jobId: string | null = null;
     try {
       const fresh = await this.api.getStudy(this.studyId);
       if (this.cancelled) {
@@ -192,6 +196,16 @@ export class PipelineEngine {
       }
 
       if (this.handleTerminalStudyStatus(fresh)) {
+        return;
+      }
+
+      jobId = fresh.job_id ?? null;
+      if (!jobId) {
+        this.goError(
+          "Processing unavailable",
+          "No active pipeline job was found for this study.",
+          errorHints(null),
+        );
         return;
       }
 
@@ -218,11 +232,16 @@ export class PipelineEngine {
       type: PipelineActionType.EnterPipeline,
       stepIndex: stepNames.length > 0 ? 0 : null,
     });
-    this.connect(jobId, 0);
+    this.connect(jobId, 0, true);
   }
 
-  private connect(jobId: string, stepOffset: number): void {
+  private connect(jobId: string, stepOffset: number, resume = false): void {
     this.disconnect?.();
+    if (resume) {
+      this.startResumeTerminalPoll();
+    } else {
+      this.clearResumePoll();
+    }
 
     const disconnect = this.api.establishWebsocketConnection(
       jobId,
@@ -262,10 +281,40 @@ export class PipelineEngine {
     this.dispatch({ type: PipelineActionType.ConnectionClosed });
   }
 
+  private startResumeTerminalPoll(): void {
+    this.clearResumePoll();
+    this.resumePollTimer = setInterval(() => {
+      void this.pollStudyTerminal();
+    }, RESUME_TERMINAL_POLL_MS);
+  }
+
+  private clearResumePoll(): void {
+    if (this.resumePollTimer != null) {
+      clearInterval(this.resumePollTimer);
+      this.resumePollTimer = null;
+    }
+  }
+
+  private async pollStudyTerminal(): Promise<void> {
+    if (this.cancelled || this.finished) {
+      return;
+    }
+    try {
+      const fresh = await this.api.getStudy(this.studyId);
+      if (this.cancelled || this.finished) {
+        return;
+      }
+      this.handleTerminalStudyStatus(fresh);
+    } catch {
+      /* best-effort while resuming */
+    }
+  }
+
   /** @returns true when a terminal status was handled (ready / failed / cancelled). */
   private handleTerminalStudyStatus(fresh: StudyResponse): boolean {
     if (fresh.status === "ready") {
       this.finished = true;
+      this.clearResumePoll();
       this.disconnect?.();
       this.dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
       this.navigateToViewer();
@@ -274,6 +323,7 @@ export class PipelineEngine {
 
     if (fresh.status === "failed" || fresh.status === "cancelled") {
       this.finished = true;
+      this.clearResumePoll();
       this.disconnect?.();
       const detail =
         fresh.error ??
@@ -353,6 +403,7 @@ export class PipelineEngine {
   }
 
   private goError(title: string, message: string, hints: string[]): void {
+    this.clearResumePoll();
     this.disconnect?.();
     this.dispatch({
       type: PipelineActionType.SetError,

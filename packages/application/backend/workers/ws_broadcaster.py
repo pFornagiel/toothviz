@@ -9,15 +9,21 @@ from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 
+_TERMINAL_EVENTS = frozenset(
+    {"pipeline_completed", "pipeline_failed", "pipeline_cancelled"},
+)
+
 
 class WSBroadcaster:
     """Registry of WebSocket connections keyed by job_id."""
 
     def __init__(self) -> None:
         self._registry: dict[str, list[WebSocket]] = defaultdict(list)
+        self._last_snapshot: dict[str, dict[str, Any]] = {}
 
     async def register(self, job_id: str, ws: WebSocket) -> None:
         self._registry[job_id].append(ws)
+        await self.replay_snapshot(job_id, ws)
 
     async def unregister(self, job_id: str, ws: WebSocket) -> None:
         conns = self._registry.get(job_id)
@@ -30,7 +36,23 @@ class WSBroadcaster:
         if not conns:
             self._registry.pop(job_id, None)
 
+    async def replay_snapshot(self, job_id: str, ws: WebSocket) -> None:
+        """Send the last non-terminal progress frame to a newly connected client."""
+        payload = self._last_snapshot.get(job_id)
+        if payload is None:
+            return
+        try:
+            await ws.send_text(json.dumps(payload))
+        except Exception as exc:
+            logger.warning(
+                "WebSocket snapshot replay failed for job %s: %s", job_id, exc
+            )
+
     async def broadcast(self, job_id: str, payload: dict[str, Any]) -> None:
+        event = payload.get("event")
+        if event not in _TERMINAL_EVENTS:
+            self._last_snapshot[job_id] = payload
+
         conns = self._registry.get(job_id)
         if not conns:
             return

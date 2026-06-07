@@ -40,6 +40,27 @@ class PipelineJobRepo:
             raise NotFoundError(f"pipeline job not found for study: {study_id}")
         return job
 
+    _INTERRUPTED_MSG = (
+        "Pipeline interrupted (application was closed or backend restarted)."
+    )
+
+    def fail_interrupted_jobs(self) -> int:
+        """Mark queued/running jobs failed after an unclean backend shutdown."""
+        count = 0
+        for job in self.list_by_statuses(["queued", "running"]):
+            self.set_status(job.id, "failed", error=self._INTERRUPTED_MSG)
+            count += 1
+        return count
+
+    def list_by_statuses(self, statuses: list[str]) -> list[PipelineJob]:
+        if not statuses:
+            return []
+        return (
+            self._db.query(PipelineJob)
+            .filter(PipelineJob.status.in_(statuses))
+            .all()
+        )
+
     def get_active_for_study(self, study_id: str) -> PipelineJob | None:
         job = (
             self._db.query(PipelineJob)
