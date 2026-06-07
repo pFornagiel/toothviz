@@ -390,6 +390,11 @@ def _predict_sliding_window(
     total_patches = max(1, len(slices))
     for i, patch_slice in enumerate(slices):
         logger.info(f"Analyzing patch {i+1}/{len(slices)}: {patch_slice}")
+        if progress_queue is not None:
+            try:
+                progress_queue.put((i + 1, total_patches))
+            except Exception:
+                pass
         # Extract patch
         patch = image_data[:, patch_slice[0], patch_slice[1], patch_slice[2]]
         patch = np.expand_dims(patch, 0)  # Add batch dimension: (1, C, 256, 256, 256)
@@ -404,12 +409,6 @@ def _predict_sliding_window(
         # Accumulate
         output[:, patch_slice[0], patch_slice[1], patch_slice[2]] += weighted_pred
         counts[patch_slice[0], patch_slice[1], patch_slice[2]] += gaussian_map
-
-        if progress_queue is not None:
-            try:
-                progress_queue.put((i + 1) / total_patches)
-            except Exception:
-                pass
 
     # Normalize
     output = output / counts[np.newaxis, ...]

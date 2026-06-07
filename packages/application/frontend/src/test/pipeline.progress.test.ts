@@ -19,7 +19,7 @@ describe("uploadStepProgress - dedicated finalize step (no-mask: idx 0, finalize
     ).toEqual({
       stepIndex: 0,
       fraction: 1 / 4,
-      statusText: "Uploading chunks 1 / 4",
+      statusText: "Uploading chunk 1 / 4",
     });
   });
 
@@ -144,7 +144,7 @@ describe("pipelineStepProgress", () => {
     });
   });
 
-  it("step_progress shows mapped label with percentage", () => {
+  it("step_progress shows chunk counts for segmentation", () => {
     const msg: PipelineMessage = {
       event: "step_progress",
       step: "segment_nifti",
@@ -152,11 +152,30 @@ describe("pipelineStepProgress", () => {
       step_progress: 0.5,
       total_steps: 2,
       step_index: 1,
+      chunk_index: 2,
+      total_chunks: 8,
     };
     expect(pipelineStepProgress(msg)).toEqual({
       stepIndex: 1,
+      fraction: 3 / 8,
+      statusText: "Segmenting chunk 3 / 8",
+      completed: false,
+    });
+  });
+
+  it("step_progress falls back to percentage without chunk fields", () => {
+    const msg: PipelineMessage = {
+      event: "step_progress",
+      step: "dicom_to_nifti",
+      progress: 0.25,
+      step_progress: 0.5,
+      total_steps: 2,
+      step_index: 0,
+    };
+    expect(pipelineStepProgress(msg)).toEqual({
+      stepIndex: 0,
       fraction: 0.5,
-      statusText: "Segmenting volume… 50%",
+      statusText: "Converting DICOM… 50%",
       completed: false,
     });
   });

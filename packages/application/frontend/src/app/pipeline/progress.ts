@@ -28,6 +28,14 @@ function pipelineStepStatusText(
   }
 
   if (msg.event === "step_progress" && mapped) {
+    if (
+      msg.step === "segment_nifti" &&
+      msg.total_chunks != null &&
+      msg.chunk_index != null
+    ) {
+      const done = msg.chunk_index + 1;
+      return `Segmenting chunk ${done} / ${msg.total_chunks}`;
+    }
     const pct = Math.round((msg.step_progress ?? fraction) * 100);
     return `${label}… ${pct}%`;
   }
@@ -106,11 +114,13 @@ export function pipelineStepProgress(msg: PipelineMessage): PipelineStepProgress
   const completed = msg.event === "step_completed";
   const total = msg.total_steps ?? 0;
   const fraction =
-    msg.progress != null && total > 0
-      ? clamp01(msg.progress * total - msg.step_index)
-      : completed
-        ? 1
-        : 0;
+    msg.total_chunks != null && msg.chunk_index != null && msg.total_chunks > 0
+      ? clamp01((msg.chunk_index + 1) / msg.total_chunks)
+      : msg.progress != null && total > 0
+        ? clamp01(msg.progress * total - msg.step_index)
+        : completed
+          ? 1
+          : 0;
 
   return {
     stepIndex: msg.step_index,

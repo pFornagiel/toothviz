@@ -25,9 +25,9 @@ else:
 logger = logging.getLogger(__name__)
 
 
-def _drain_progress_queue(queue) -> float | None:
-    """Drain all available items; return the latest value."""
-    latest: float | None = None
+def _drain_progress_queue(queue) -> tuple[int, int] | None:
+    """Drain all available items; return the latest (done, total) patch counts."""
+    latest: tuple[int, int] | None = None
     if queue is None:
         return None
     while True:
@@ -36,7 +36,8 @@ def _drain_progress_queue(queue) -> float | None:
         except Exception:
             break
         try:
-            latest = float(item)
+            done, total = item
+            latest = (int(done), int(total))
         except Exception:
             continue
     return latest
@@ -67,18 +68,26 @@ class SegmentNiftiStep:
 
         async def progress_pump() -> None:
             last_emit = 0.0
-            last_value: float | None = None
+            last_done: int | None = None
             try:
                 while not stop_evt.is_set():
-                    v = _drain_progress_queue(progress_queue)
-                    if v is not None:
+                    counts = _drain_progress_queue(progress_queue)
+                    if counts is not None:
+                        done, total = counts
                         now = time.monotonic()
-                        if last_value is None or v >= 1.0 or (now - last_emit) >= 0.5:
+                        if (
+                            last_done is None
+                            or done >= total
+                            or (now - last_emit) >= 0.5
+                        ):
                             last_emit = now
-                            last_value = v
+                            last_done = done
+                            step_progress = done / total if total > 0 else 0.0
                             await ctx.broadcast_progress(
                                 step_name=self.name,
-                                step_progress=v,
+                                step_progress=step_progress,
+                                chunk_index=done - 1,
+                                total_chunks=total,
                             )
                     await asyncio.sleep(0.1)
             except Exception:

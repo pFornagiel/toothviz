@@ -128,6 +128,8 @@ class PipelineWsStepMessage(BaseModel):
     total_steps: int
     progress: float
     step_progress: float | None = None
+    chunk_index: int | None = None
+    total_chunks: int | None = None
 
 
 class PipelineWsCompletedMessage(BaseModel):
