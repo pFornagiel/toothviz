@@ -1,8 +1,12 @@
 """Pipeline WebSocket message schemas stay aligned with the runner payloads."""
 
+import pytest
+from pydantic import ValidationError
+
 from backend.schemas import (
     PipelineWsCompletedMessage,
-    PipelineWsStepMessage,
+    PipelineWsStepCompletedMessage,
+    PipelineWsStepProgressMessage,
     validate_pipeline_ws_payload,
 )
 
@@ -31,5 +35,34 @@ def test_validate_pipeline_ws_payload_normalizes_step_progress():
         "step_progress": 0.5,
     }
     validated = validate_pipeline_ws_payload(raw)
-    PipelineWsStepMessage.model_validate(validated)
+    PipelineWsStepProgressMessage.model_validate(validated)
     assert validated["job_id"] == "j1"
+
+
+def test_step_completed_has_no_pipeline_status():
+    raw = {
+        "event": "step_completed",
+        "job_id": "j1",
+        "step": "segment_nifti",
+        "step_index": 0,
+        "total_steps": 2,
+        "progress": 0.5,
+        "step_progress": 1.0,
+    }
+    validated = validate_pipeline_ws_payload(raw)
+    assert "status" not in validated
+    PipelineWsStepCompletedMessage.model_validate(validated)
+
+
+def test_step_completed_rejects_pipeline_running_status():
+    raw = {
+        "event": "step_completed",
+        "job_id": "j1",
+        "status": "running",
+        "step": "segment_nifti",
+        "step_index": 0,
+        "total_steps": 2,
+        "progress": 0.5,
+    }
+    with pytest.raises(ValidationError):
+        validate_pipeline_ws_payload(raw)
