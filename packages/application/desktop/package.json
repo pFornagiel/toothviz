@@ -23,6 +23,7 @@
     "@vitejs/plugin-react": "4.7.0",
     "electron": "^35.7.5",
     "electron-builder": "^25.1.8",
+    "electron-devtools-installer": "^4.0.0",
     "electron-vite": "^3.1.0",
     "tailwindcss": "4.1.12",
     "tree-kill": "^1.2.2",

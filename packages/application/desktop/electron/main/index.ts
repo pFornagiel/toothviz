@@ -3,6 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BackendManager } from "../backend-manager";
 import { backendBaseUrl } from "../constants";
+import {
+  installExtension,
+  REACT_DEVELOPER_TOOLS,
+} from "electron-devtools-installer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -45,8 +49,21 @@ async function createWindow(): Promise<void> {
   }
 }
 
+async function installDevtools(): Promise<void> {
+  try {
+    await installExtension(REACT_DEVELOPER_TOOLS, {
+      loadExtensionOptions: { allowFileAccess: true },
+    });
+  } catch (err) {
+    console.warn("Failed to install React DevTools:", err);
+  }
+}
+
 async function bootstrap(): Promise<void> {
   try {
+    if (isDev) {
+      await installDevtools();
+    }
     await backend.start();
     await createWindow();
   } catch (err) {
