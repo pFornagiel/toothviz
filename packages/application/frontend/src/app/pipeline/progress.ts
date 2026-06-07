@@ -78,8 +78,8 @@ export function uploadStepProgress(
       const done = (upload.chunkIndex ?? 0) + 1;
       return {
         stepIndex,
-        fraction: done / upload.totalChunks,
-        statusText: `Uploading chunks ${done} / ${upload.totalChunks}`,
+        fraction: (upload.chunkIndex ?? 0) / upload.totalChunks,
+        statusText: `Uploading chunk ${done} / ${upload.totalChunks}`,
       };
     }
 
@@ -115,7 +115,7 @@ export function pipelineStepProgress(msg: PipelineMessage): PipelineStepProgress
   const total = msg.total_steps ?? 0;
   const fraction =
     msg.total_chunks != null && msg.chunk_index != null && msg.total_chunks > 0
-      ? clamp01((msg.chunk_index + 1) / msg.total_chunks)
+      ? clamp01(msg.chunk_index / msg.total_chunks)
       : msg.progress != null && total > 0
         ? clamp01(msg.progress * total - msg.step_index)
         : completed

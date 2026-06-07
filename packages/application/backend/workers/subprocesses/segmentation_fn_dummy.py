@@ -65,7 +65,7 @@ def run_segmentation(
 
     if progress_queue is not None:
         try:
-            progress_queue.put(1.0)
+            progress_queue.put((1, 1))
         except Exception:
             pass
 

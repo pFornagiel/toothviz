@@ -18,8 +18,15 @@ describe("uploadStepProgress - dedicated finalize step (no-mask: idx 0, finalize
       uploadStepProgress({ phase: "uploading", chunkIndex: 0, totalChunks: 4 }, layout),
     ).toEqual({
       stepIndex: 0,
-      fraction: 1 / 4,
+      fraction: 0,
       statusText: "Uploading chunk 1 / 4",
+    });
+    expect(
+      uploadStepProgress({ phase: "uploading", chunkIndex: 2, totalChunks: 4 }, layout),
+    ).toEqual({
+      stepIndex: 0,
+      fraction: 2 / 4,
+      statusText: "Uploading chunk 3 / 4",
     });
   });
 
@@ -157,7 +164,7 @@ describe("pipelineStepProgress", () => {
     };
     expect(pipelineStepProgress(msg)).toEqual({
       stepIndex: 1,
-      fraction: 3 / 8,
+      fraction: 2 / 8,
       statusText: "Segmenting chunk 3 / 8",
       completed: false,
     });

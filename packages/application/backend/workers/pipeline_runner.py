@@ -75,11 +75,6 @@ async def run_pipeline(
                 collected[artifact.purpose] = artifact
 
             if total:
-                await step_ctx.broadcast_progress(
-                    step_name=step.name,
-                    step_progress=1.0,
-                )
-
                 await step_ctx.broadcaster.broadcast(
                     job_id,
                     {
@@ -90,6 +85,7 @@ async def run_pipeline(
                         "progress": (i + 1) / total if total else 1.0,
                         "total_steps": total,
                         "step_index": i,
+                        "step_progress": 1.0,
                     },
                 )
 

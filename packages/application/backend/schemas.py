@@ -153,3 +153,22 @@ class PipelineWsCancelledMessage(BaseModel):
     event: Literal["pipeline_cancelled"] = "pipeline_cancelled"
     job_id: str
     status: Literal["cancelled"] = "cancelled"
+
+
+_WS_STEP_EVENTS = frozenset({"step_started", "step_progress", "step_completed"})
+
+
+def validate_pipeline_ws_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize a pipeline WebSocket frame before broadcast."""
+    event = payload.get("event")
+    if not event:
+        return payload
+    if event in _WS_STEP_EVENTS:
+        return PipelineWsStepMessage.model_validate(payload).model_dump(mode="json")
+    if event == "pipeline_completed":
+        return PipelineWsCompletedMessage.model_validate(payload).model_dump(mode="json")
+    if event == "pipeline_failed":
+        return PipelineWsFailedMessage.model_validate(payload).model_dump(mode="json")
+    if event == "pipeline_cancelled":
+        return PipelineWsCancelledMessage.model_validate(payload).model_dump(mode="json")
+    return payload

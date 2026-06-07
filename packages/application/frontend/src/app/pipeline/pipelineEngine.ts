@@ -16,8 +16,8 @@ import { CANCELLED_HINTS, errorHints } from "./errorHints";
 import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
 
-/** Poll study status while resuming an in-flight job (catches completion if WS drops). */
-const RESUME_TERMINAL_POLL_MS = 5_000;
+/** Poll study status while a pipeline job is in flight (catches completion if WS drops). */
+const TERMINAL_POLL_MS = 5_000;
 
 /** The slice of the API the engine drives - injected so it can be mocked. */
 export interface PipelineApi {
@@ -57,7 +57,7 @@ export class PipelineEngine {
   private cancelled = false;
   private finished = false;
   private disconnect: (() => void) | null = null;
-  private resumePollTimer: ReturnType<typeof setInterval> | null = null;
+  private terminalPollTimer: ReturnType<typeof setInterval> | null = null;
   private studyId = "";
   private routeState: LocationState = {};
 
@@ -114,7 +114,7 @@ export class PipelineEngine {
   /** React effect cleanup: stop all work and tear down the socket. */
   dispose(): void {
     this.cancelled = true;
-    this.clearResumePoll();
+    this.clearTerminalPoll();
     this.disconnect?.();
   }
 
@@ -232,16 +232,12 @@ export class PipelineEngine {
       type: PipelineActionType.EnterPipeline,
       stepIndex: stepNames.length > 0 ? 0 : null,
     });
-    this.connect(jobId, 0, true);
+    this.connect(jobId, 0);
   }
 
-  private connect(jobId: string, stepOffset: number, resume = false): void {
+  private connect(jobId: string, stepOffset: number): void {
     this.disconnect?.();
-    if (resume) {
-      this.startResumeTerminalPoll();
-    } else {
-      this.clearResumePoll();
-    }
+    this.startTerminalPoll();
 
     const disconnect = this.api.establishWebsocketConnection(
       jobId,
@@ -281,17 +277,17 @@ export class PipelineEngine {
     this.dispatch({ type: PipelineActionType.ConnectionClosed });
   }
 
-  private startResumeTerminalPoll(): void {
-    this.clearResumePoll();
-    this.resumePollTimer = setInterval(() => {
+  private startTerminalPoll(): void {
+    this.clearTerminalPoll();
+    this.terminalPollTimer = setInterval(() => {
       void this.pollStudyTerminal();
-    }, RESUME_TERMINAL_POLL_MS);
+    }, TERMINAL_POLL_MS);
   }
 
-  private clearResumePoll(): void {
-    if (this.resumePollTimer != null) {
-      clearInterval(this.resumePollTimer);
-      this.resumePollTimer = null;
+  private clearTerminalPoll(): void {
+    if (this.terminalPollTimer != null) {
+      clearInterval(this.terminalPollTimer);
+      this.terminalPollTimer = null;
     }
   }
 
@@ -314,7 +310,7 @@ export class PipelineEngine {
   private handleTerminalStudyStatus(fresh: StudyResponse): boolean {
     if (fresh.status === "ready") {
       this.finished = true;
-      this.clearResumePoll();
+      this.clearTerminalPoll();
       this.disconnect?.();
       this.dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
       this.navigateToViewer();
@@ -323,7 +319,7 @@ export class PipelineEngine {
 
     if (fresh.status === "failed" || fresh.status === "cancelled") {
       this.finished = true;
-      this.clearResumePoll();
+      this.clearTerminalPoll();
       this.disconnect?.();
       const detail =
         fresh.error ??
@@ -360,6 +356,7 @@ export class PipelineEngine {
   }
 
   private async finishOk(msg: PipelineMessage): Promise<void> {
+    this.clearTerminalPoll();
     this.disconnect?.();
 
     if (msg.volume_file_id != null || msg.overlay_file_id != null) {
@@ -403,7 +400,7 @@ export class PipelineEngine {
   }
 
   private goError(title: string, message: string, hints: string[]): void {
-    this.clearResumePoll();
+    this.clearTerminalPoll();
     this.disconnect?.();
     this.dispatch({
       type: PipelineActionType.SetError,

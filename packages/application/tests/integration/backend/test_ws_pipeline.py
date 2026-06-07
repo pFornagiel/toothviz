@@ -5,20 +5,26 @@ import json
 import pytest
 
 
+def _step_progress_payload(job_id: str) -> dict:
+    return {
+        "event": "step_progress",
+        "job_id": job_id,
+        "status": "running",
+        "step": "segment_nifti",
+        "step_index": 1,
+        "total_steps": 2,
+        "progress": 0.75,
+        "step_progress": 0.5,
+        "chunk_index": 1,
+        "total_chunks": 4,
+    }
+
+
 @pytest.mark.asyncio
 async def test_ws_pipeline_replays_last_progress_on_connect(integration_app, client):
     job_id = "job-ws-replay"
     broadcaster = integration_app.state.broadcaster
-    await broadcaster.broadcast(
-        job_id,
-        {
-            "event": "step_progress",
-            "job_id": job_id,
-            "step": "segment_nifti",
-            "chunk_index": 1,
-            "total_chunks": 4,
-        },
-    )
+    await broadcaster.broadcast(job_id, _step_progress_payload(job_id))
 
     with client.websocket_connect(f"/ws/pipeline/{job_id}") as ws:
         payload = json.loads(ws.receive_text())

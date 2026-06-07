@@ -339,4 +339,21 @@ describe("PipelineEngine - resume processing", () => {
     engine.dispose();
     expect(ws.disconnect).toHaveBeenCalledTimes(1);
   });
+
+  it("stops terminal poll after pipeline_completed", async () => {
+    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    const { engine, ws } = setup(resumeApi());
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    ws.onMessage({ event: "pipeline_completed", overlay_file_id: "mask-1" });
+    await flush();
+
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    clearIntervalSpy.mockRestore();
+  });
 });

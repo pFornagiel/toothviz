@@ -11,6 +11,7 @@ from backend.workers.steps.base import (
     WORKER_POOL_DICOM,
     WORKER_POOL_SEGMENTATION,
 )
+from backend.workers.steps.progress_queue import _ProgressQueueResources
 from backend.workers.steps.dicom_to_nifti import DicomToNiftiStep
 from backend.workers.steps.segment_nifti import SegmentNiftiStep
 from backend.workers.ws_broadcaster import WSBroadcaster
@@ -113,8 +114,13 @@ async def test_dicom_step_broadcasts_intra_step_progress(tmp_path):
     fake_manager.Queue.return_value = progress_q
     fake_manager.shutdown = MagicMock()
 
+    fake_resources = _ProgressQueueResources(queue=progress_q, manager=fake_manager)
+
     step = DicomToNiftiStep()
-    with patch("multiprocessing.Manager", return_value=fake_manager):
+    with patch(
+        "backend.workers.steps.progress_queue._open_progress_queue",
+        return_value=fake_resources,
+    ):
         await step.run(ctx)
 
     progress_calls = [

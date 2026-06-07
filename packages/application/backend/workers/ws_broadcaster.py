@@ -6,6 +6,9 @@ from collections import defaultdict
 from typing import Any
 
 from fastapi import WebSocket
+from pydantic import ValidationError
+
+from backend.schemas import validate_pipeline_ws_payload
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,21 @@ class WSBroadcaster:
 
     async def broadcast(self, job_id: str, payload: dict[str, Any]) -> None:
         event = payload.get("event")
-        if event not in _TERMINAL_EVENTS:
+        try:
+            payload = validate_pipeline_ws_payload(payload)
+        except ValidationError as exc:
+            logger.warning(
+                "Invalid WebSocket payload for job %s event %s: %s",
+                job_id,
+                event,
+                exc,
+            )
+            return
+
+        event = payload.get("event")
+        if event in _TERMINAL_EVENTS:
+            self._last_snapshot.pop(job_id, None)
+        elif event is not None:
             self._last_snapshot[job_id] = payload
 
         conns = self._registry.get(job_id)
