@@ -69,7 +69,7 @@ function PipelineScreens() {
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
       <StudyLoadingScreen
-        title="Processing study"
+        title="Processing scan"
         steps={steps}
         completedSteps={completedSteps}
         currentStepIndex={currentStepIndex}

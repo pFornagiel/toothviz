@@ -29,7 +29,7 @@ function getLabelForStep(step: LoadingStepId): string {
 }
 
 export function StudyLoadingScreen({
-  title = "Processing study",
+  title = "Processing scan",
   steps,
   completedSteps,
   currentStepIndex,
