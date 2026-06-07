@@ -101,7 +101,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="h-auto overflow-y-aut min-w-4xl">
         <DialogHeader>
-          <DialogTitle>Import Scan</DialogTitle>
+          <DialogTitle>Load New Scan</DialogTitle>
           <DialogDescription>Initialize a new patient scan analysis workflow.</DialogDescription>
         </DialogHeader>
 

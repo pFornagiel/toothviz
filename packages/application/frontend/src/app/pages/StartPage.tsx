@@ -104,7 +104,7 @@ export function StartPage() {
               <div className="relative w-12 h-12 rounded-lg bg-primary text-primary-foreground flex items-center justify-center mb-6 transition-colors">
                 <FolderPlus className="size-6" />
               </div>
-              <h2 className="relative text-xl font-semibold tracking-tight text-primary mb-2">Import Scan</h2>
+              <h2 className="relative text-xl font-semibold tracking-tight text-primary mb-2">Load New Scan</h2>
               <p className="relative text-sm text-muted-foreground leading-relaxed mb-6 flex-1">
                 Save record of NIfTI volume and run automated segmentation or manual mask upload.
               </p>
