@@ -88,7 +88,7 @@ export function StartPage() {
               </div>
               <h2 className="text-xl font-semibold tracking-tight text-primary mb-2">Open Raw File</h2>
               <p className="text-sm text-muted-foreground leading-relaxed mb-6 flex-1">
-                Open workspace for NIfTI images visualization. No record saved.
+                Open workspace for NIfTI volumes visualization. No record saved.
               </p>
               <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-primary group-hover:gap-2 transition-all">
                 Select File <ArrowRight className="size-4" />
@@ -104,9 +104,9 @@ export function StartPage() {
               <div className="relative w-12 h-12 rounded-lg bg-primary text-primary-foreground flex items-center justify-center mb-6 transition-colors">
                 <FolderPlus className="size-6" />
               </div>
-              <h2 className="relative text-xl font-semibold tracking-tight text-primary mb-2">Create a Study</h2>
+              <h2 className="relative text-xl font-semibold tracking-tight text-primary mb-2">Load New Scan</h2>
               <p className="relative text-sm text-muted-foreground leading-relaxed mb-6 flex-1">
-                Save record of NIfTI images and run automated segmentation or manual mask upload.
+                Save record of NIfTI volume and run automated segmentation or manual mask upload.
               </p>
               <span className="relative flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-primary group-hover:gap-2 transition-all">
                 Open Wizard <ArrowRight className="size-4" />
@@ -121,9 +121,9 @@ export function StartPage() {
               <div className="w-12 h-12 rounded-lg bg-muted text-primary flex items-center justify-center mb-6 transition-colors group-hover:bg-secondary">
                 <Table2 className="size-6" />
               </div>
-              <h2 className="text-xl font-semibold tracking-tight text-primary mb-2">Browse Studies</h2>
+              <h2 className="text-xl font-semibold tracking-tight text-primary mb-2">Browse Scans</h2>
               <p className="text-sm text-muted-foreground leading-relaxed mb-6 flex-1">
-                Browse and manage the archive of saved studies.
+                Browse and manage the archive of saved volumes.
               </p>
               <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-primary group-hover:gap-2 transition-all">
                 View files <ArrowRight className="size-4" />
