@@ -107,3 +107,47 @@ class PipelineJobResponse(BaseModel):
     error: str | None
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# WebSocket pipeline progress (server → client)
+# ---------------------------------------------------------------------------
+
+class PipelineWsStepMessage(BaseModel):
+    """Non-terminal step update emitted by the pipeline runner or a step."""
+
+    event: Literal[
+        "step_started",
+        "step_progress",
+        "step_completed",
+    ]
+    job_id: str
+    status: Literal["running"]
+    step: str
+    step_index: int
+    total_steps: int
+    progress: float
+    step_progress: float | None = None
+
+
+class PipelineWsCompletedMessage(BaseModel):
+    event: Literal["pipeline_completed"] = "pipeline_completed"
+    job_id: str
+    status: Literal["completed"] = "completed"
+    progress: float = 1.0
+    volume_file_id: str | None = None
+    overlay_file_id: str | None = None
+
+
+class PipelineWsFailedMessage(BaseModel):
+    event: Literal["pipeline_failed"] = "pipeline_failed"
+    job_id: str
+    status: Literal["failed"] = "failed"
+    error: str
+    failed_step: str | None = None
+
+
+class PipelineWsCancelledMessage(BaseModel):
+    event: Literal["pipeline_cancelled"] = "pipeline_cancelled"
+    job_id: str
+    status: Literal["cancelled"] = "cancelled"

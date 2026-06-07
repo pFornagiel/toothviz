@@ -5,6 +5,13 @@ export enum FromPage {
   Browse = "browse",
 }
 
+/** Navigation state passed from the pipeline into the visualization page. */
+export interface ViewerNavigationOptions {
+  from: FromPage;
+  volumeFileId?: string | null;
+  overlayFileId?: string | null;
+}
+
 /** One file upload in the ordered upload phase. */
 export interface UploadJob {
   file: File;

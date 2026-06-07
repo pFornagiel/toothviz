@@ -91,7 +91,6 @@ async def lifespan(app: FastAPI):
 
     # 7. Final service instances with full wiring
     study_service = StudyService(storage_service, job_pipeline_service)
-    job_pipeline_service.attach_study_service(study_service)
     upload_service = UploadService(storage_service, job_pipeline_service)
 
     # 8. Expose on app.state

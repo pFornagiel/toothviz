@@ -9,7 +9,7 @@ import {
   type UploadKind,
 } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
-import { FromPage, type LocationState, type UploadPayload } from "./types";
+import { FromPage, type LocationState, type UploadPayload, type ViewerNavigationOptions } from "./types";
 import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
 import { createLoadingSteps as getLoadingSteps } from "./steps";
 import { CANCELLED_HINTS, errorHints } from "./errorHints";
@@ -37,7 +37,7 @@ export interface PipelineApi {
 export interface PipelineEngineDeps {
   dispatch: Dispatch<PipelineAction>;
   api: PipelineApi;
-  onNavigateToViewer: (studyId: string, from: FromPage) => void;
+  onNavigateToViewer: (studyId: string, options: ViewerNavigationOptions) => void;
 }
 
 export interface PipelineStartParams {
@@ -49,7 +49,7 @@ export interface PipelineStartParams {
 export class PipelineEngine {
   private readonly dispatch: Dispatch<PipelineAction>;
   private readonly api: PipelineApi;
-  private readonly onNavigateToViewer: (studyId: string, from: FromPage) => void;
+  private readonly onNavigateToViewer: (studyId: string, options: ViewerNavigationOptions) => void;
 
   private cancelled = false;
   private finished = false;
@@ -80,6 +80,11 @@ export class PipelineEngine {
         detail = "Processing failed.";
       }
       this.goError("Study is not available", detail, errorHints(null));
+      return;
+    }
+
+    if (study.status === "ready") {
+      this.navigateToViewer();
       return;
     }
 
@@ -207,6 +212,28 @@ export class PipelineEngine {
       if (this.cancelled) {
         return;
       }
+
+      if (fresh.status === "ready") {
+        this.finished = true;
+        this.dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
+        this.navigateToViewer();
+        return;
+      }
+
+      if (fresh.status === "failed" || fresh.status === "cancelled") {
+        const detail =
+          fresh.error ??
+          (fresh.status === "cancelled"
+            ? "The pipeline was cancelled."
+            : "The pipeline reported a failure.");
+        this.goError(
+          fresh.status === "cancelled" ? "Processing cancelled" : "Processing failed",
+          detail,
+          fresh.status === "cancelled" ? CANCELLED_HINTS : errorHints(null),
+        );
+        return;
+      }
+
       stepNames = fresh.steps ?? [];
       this.dispatch({ type: PipelineActionType.SetSteps, steps: stepNames });
     } catch (e: unknown) {
@@ -216,7 +243,7 @@ export class PipelineEngine {
       if (e instanceof ApiError && e.status === 404) {
         this.goError(
           "Study not found",
-          "Processing may have failed and the study was removed.",
+          "The study could not be found.",
           errorHints(null),
         );
         return;
@@ -254,7 +281,7 @@ export class PipelineEngine {
             this.finished = true;
           },
           disconnect: () => this.disconnect?.(),
-          onPipelineCompleted: () => void this.finishOk(),
+          onPipelineCompleted: (m) => void this.finishOk(m),
           onPipelineFailed: (m) =>
             this.goError(
               "Processing failed",
@@ -298,8 +325,17 @@ export class PipelineEngine {
     };
   }
 
-  /** After a terminal `pipeline_completed`, confirm readiness and open the viewer. */
-  private async finishOk(): Promise<void> {
+  /**
+   * After `pipeline_completed`, open the viewer. The completion frame is sent
+   * only after derived files are stored and the job is marked completed; an
+   * optional REST check covers races or older backends without file ids.
+   */
+  private async finishOk(msg: PipelineMessage): Promise<void> {
+    if (msg.volume_file_id != null || msg.overlay_file_id != null) {
+      this.navigateToViewer(msg);
+      return;
+    }
+
     try {
       const fresh = await this.api.getStudy(this.studyId);
       if (this.cancelled) {
@@ -307,7 +343,13 @@ export class PipelineEngine {
       }
       if (fresh.status === "ready") {
         this.navigateToViewer();
+        return;
       }
+      this.goError(
+        "Processing incomplete",
+        "The pipeline finished but the study is not ready yet. Try reopening from Browse Studies.",
+        errorHints(null),
+      );
     } catch (e: unknown) {
       if (this.cancelled) {
         return;
@@ -315,18 +357,22 @@ export class PipelineEngine {
       if (e instanceof ApiError && e.status === 404) {
         this.goError(
           "Study not found",
-          "Processing may have failed and the study was removed.",
+          "The study could not be found.",
           errorHints(null),
         );
         return;
       }
-      const msg = e instanceof Error ? e.message : String(e);
-      this.goError("Could not load study after pipeline", msg, errorHints(null));
+      const detail = e instanceof Error ? e.message : String(e);
+      this.goError("Could not load study after pipeline", detail, errorHints(null));
     }
   }
 
-  private navigateToViewer(): void {
-    this.onNavigateToViewer(this.studyId, this.routeState.from ?? FromPage.Home);
+  private navigateToViewer(msg?: PipelineMessage): void {
+    this.onNavigateToViewer(this.studyId, {
+      from: this.routeState.from ?? FromPage.Home,
+      volumeFileId: msg?.volume_file_id,
+      overlayFileId: msg?.overlay_file_id,
+    });
   }
 
   private goError(title: string, message: string, hints: string[]): void {

@@ -11,7 +11,6 @@ from backend.db.models import FileRecord
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.exceptions import ConflictError
 from backend.services.storage_service import StorageService
-from backend.services.study_service import StudyService
 from backend.workers.pipeline_runner import run_pipeline
 from backend.workers.steps.base import PipelineStep, StepContext, StepFactory
 from backend.workers.steps.dicom_to_nifti import DicomToNiftiStep
@@ -74,13 +73,6 @@ class JobPipelineService:
         # from any thread.
         self._running: dict[str, concurrent.futures.Future[None]] = {}
 
-        # Set after ``StudyService`` is constructed (see ``attach_study_service``).
-        self._study_service: StudyService | None = None
-
-    def attach_study_service(self, study_service: StudyService) -> None:
-        """Wire study lifecycle (e.g. delete study on pipeline failure)."""
-        self._study_service = study_service
-
     def dispatch(
         self,
         file_record: FileRecord,
@@ -137,13 +129,7 @@ class JobPipelineService:
         )
 
         future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
-            run_pipeline(
-                job.id,
-                steps,
-                ctx,
-                self._storage_service,
-                self._study_service,
-            ),
+            run_pipeline(job.id, steps, ctx, self._storage_service),
             self._loop,
         )
 

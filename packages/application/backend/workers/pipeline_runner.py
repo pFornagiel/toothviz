@@ -5,14 +5,10 @@ import logging
 import re
 import shutil
 from dataclasses import replace
-from typing import TYPE_CHECKING
 
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.services.storage_service import StorageService
 from backend.workers.steps.base import OutputArtifact, PipelineStep, StepContext
-
-if TYPE_CHECKING:
-    from backend.services.study_service import StudyService
 
 logger = logging.getLogger(__name__)
 
@@ -29,16 +25,13 @@ async def run_pipeline(
     steps: list[PipelineStep],
     ctx: StepContext,
     storage_service: StorageService,
-    study_service: StudyService | None = None,
 ) -> None:
     """Async orchestrator - runs steps sequentially, commits artifacts at the end.
 
     Derived files are stored only after every step succeeds.
     If any step fails, no artifacts from this run are persisted (the job is
-    marked ``failed`` and the workspace is removed in ``finally``).
-
-    When ``study_service`` is set, the study row and uploaded data are removed
-    after a failure broadcast so erroneous studies are not kept.
+    marked ``failed`` and the workspace is removed in ``finally``). The study
+    row is kept so the client can surface the failed job status.
     """
 
     ctx.work_dir.mkdir(parents=True, exist_ok=True)
@@ -100,14 +93,16 @@ async def run_pipeline(
                     },
                 )
 
+        derived_file_ids: dict[str, str] = {}
         for artifact in collected.values():
-            storage_service.store_derived(
+            record = storage_service.store_derived(
                 src_path=artifact.path,
                 study_id=ctx.study_id,
                 filename=artifact.path.name,
                 kind=artifact.kind,
                 viewer_purpose=artifact.purpose,
             )
+            derived_file_ids[artifact.purpose] = record.id
 
         with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")
@@ -119,6 +114,8 @@ async def run_pipeline(
                 "job_id": job_id,
                 "status": "completed",
                 "progress": 1.0,
+                "volume_file_id": derived_file_ids.get("viewer_volume"),
+                "overlay_file_id": derived_file_ids.get("viewer_overlay"),
             },
         )
 
@@ -153,14 +150,6 @@ async def run_pipeline(
                 "failed_step": failed_step,
             },
         )
-        if study_service is not None:
-            try:
-                study_service.delete(ctx.study_id)
-            except Exception:
-                logger.exception(
-                    "Study cleanup after pipeline failure failed for %s",
-                    ctx.study_id,
-                )
 
     finally:
         shutil.rmtree(ctx.work_dir, ignore_errors=True)

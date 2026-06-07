@@ -126,7 +126,7 @@ describe("PipelineEngine - start routing", () => {
       study: makeStudy({ status: "processing", job_id: null }),
       routeState: { from: FromPage.Browse },
     });
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Browse);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Browse });
   });
 });
 
@@ -161,11 +161,16 @@ describe("PipelineEngine - upload flow", () => {
       actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2),
     ).toBe(true);
 
-    ws.onMessage({ event: "pipeline_completed" });
+    ws.onMessage({ event: "pipeline_completed", overlay_file_id: "mask-1" });
     expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.Completed);
 
     await flush();
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Home);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", {
+      from: FromPage.Home,
+      overlayFileId: "mask-1",
+      volumeFileId: undefined,
+    });
+    expect(api.getStudy).not.toHaveBeenCalled();
   });
 
   it("uploads volume then mask, sharing the trailing finalize step", async () => {
@@ -224,7 +229,7 @@ describe("PipelineEngine - upload flow", () => {
 
     expect(api.establishWebsocketConnection).not.toHaveBeenCalled();
     expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.NoPipeline);
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Browse);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Browse });
   });
 
   it("deletes the study and surfaces an error when upload fails", async () => {
@@ -283,6 +288,43 @@ describe("PipelineEngine - reconnect flow", () => {
     });
     await flush();
     expect(findAction(actions, PipelineActionType.SetError)?.error.title).toBe("Study not found");
+  });
+
+  it("navigates without opening a socket when the study is already ready", async () => {
+    const { engine, api, onNavigateToViewer } = setup({
+      getStudy: vi.fn(async () => makeStudy({ status: "ready", job_id: "job1" })),
+    });
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    expect(api.establishWebsocketConnection).not.toHaveBeenCalled();
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Home });
+  });
+
+  it("reconnect() navigates when getStudy reports ready (missed completion frame)", async () => {
+    const getStudy = vi
+      .fn()
+      .mockResolvedValueOnce(makeStudy({ status: "processing", steps: [PipelineStepName.SegmentNifti] }))
+      .mockResolvedValueOnce(makeStudy({ status: "ready", job_id: "job1" }));
+
+    const { engine, api, onNavigateToViewer, ws } = setup({ getStudy });
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    ws.onClose();
+    engine.reconnect();
+    await flush();
+
+    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Home });
   });
 
   it("dispatches ConnectionClosed on socket close; reconnect() re-runs", async () => {

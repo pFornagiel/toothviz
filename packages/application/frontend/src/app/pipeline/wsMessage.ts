@@ -9,7 +9,7 @@ export interface WsHandlerOptions {
   getPipelineFinished: () => boolean;
   markPipelineFinished: () => void;
   disconnect: () => void;
-  onPipelineCompleted: () => void;
+  onPipelineCompleted: (msg: PipelineMessage) => void;
   onPipelineFailed: (msg: PipelineMessage) => void;
   onPipelineCancelled: () => void;
 }
@@ -34,7 +34,7 @@ export function applyWsMessage(
     markPipelineFinished();
     disconnect();
     dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
-    onPipelineCompleted();
+    onPipelineCompleted(msg);
     return;
   }
 

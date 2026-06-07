@@ -1,6 +1,10 @@
+import asyncio
+import queue
+
 import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from dataclasses import replace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.workers.steps.base import (
     StepContext,
@@ -88,11 +92,15 @@ async def test_segment_nifti_step_result(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_steps_do_not_broadcast(tmp_path):
-    """Step progress events are emitted by ``run_pipeline``, not individual steps."""
-    ctx = _make_ctx(tmp_path)
+async def test_dicom_step_broadcasts_intra_step_progress(tmp_path):
+    ctx = replace(_make_ctx(tmp_path), step_index=0, total_steps=2)
+    progress_q = queue.Queue()
 
     async def _fake_run(fn, *args):
+        progress_q.put(0.25)
+        await asyncio.sleep(0.15)
+        progress_q.put(1.0)
+        await asyncio.sleep(0.15)
         out_dir = Path(args[1])
         out_dir.mkdir(parents=True, exist_ok=True)
         result_path = out_dir / "converted.nii.gz"
@@ -101,10 +109,20 @@ async def test_steps_do_not_broadcast(tmp_path):
 
     ctx.worker_pools[WORKER_POOL_DICOM].run = AsyncMock(side_effect=_fake_run)
 
-    step = DicomToNiftiStep()
-    await step.run(ctx)
+    fake_manager = MagicMock()
+    fake_manager.Queue.return_value = progress_q
+    fake_manager.shutdown = MagicMock()
 
-    ctx.broadcaster.broadcast.assert_not_called()
+    step = DicomToNiftiStep()
+    with patch("multiprocessing.Manager", return_value=fake_manager):
+        await step.run(ctx)
+
+    progress_calls = [
+        call
+        for call in ctx.broadcaster.broadcast.await_args_list
+        if call.args[1].get("event") == "step_progress"
+    ]
+    assert progress_calls
 
 
 @pytest.mark.asyncio

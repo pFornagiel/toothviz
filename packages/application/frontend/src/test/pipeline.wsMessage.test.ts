@@ -66,7 +66,11 @@ describe("applyWsMessage - non-terminal events", () => {
 describe("applyWsMessage - terminal events", () => {
   it("pipeline_completed: marks finished, disconnects, dispatches FINISH(completed), calls onCompleted once", () => {
     const opts = makeOptions();
-    applyWsMessage({ event: "pipeline_completed" }, opts);
+    const msg: PipelineMessage = {
+      event: "pipeline_completed",
+      overlay_file_id: "mask-1",
+    };
+    applyWsMessage(msg, opts);
 
     expect(opts.markPipelineFinished).toHaveBeenCalledTimes(1);
     expect(opts.disconnect).toHaveBeenCalledTimes(1);
@@ -76,6 +80,7 @@ describe("applyWsMessage - terminal events", () => {
       mode: FinishMode.Completed,
     });
     expect(opts.onPipelineCompleted).toHaveBeenCalledTimes(1);
+    expect(opts.onPipelineCompleted).toHaveBeenCalledWith(msg);
     expect(opts.onPipelineFailed).not.toHaveBeenCalled();
     expect(opts.onPipelineCancelled).not.toHaveBeenCalled();
   });

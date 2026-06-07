@@ -95,6 +95,17 @@ async def test_run_pipeline_success(
         j = PipelineJobRepo(db).get("j1")
         assert j.status == "completed"
 
+    completed_calls = [
+        call
+        for call in broadcaster.broadcast.await_args_list
+        if call.args[1].get("event") == "pipeline_completed"
+    ]
+    assert len(completed_calls) == 1
+    payload = completed_calls[0].args[1]
+    assert payload["status"] == "completed"
+    assert payload["overlay_file_id"] is not None
+    assert payload.get("volume_file_id") is None
+
 
 @pytest.mark.asyncio
 async def test_run_pipeline_failure(

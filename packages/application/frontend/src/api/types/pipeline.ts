@@ -44,8 +44,11 @@ export interface PipelineMessage {
   progress?: number;
   step_progress?: number;
   error?: string;
-  file_id?: string;
   failed_step?: string;
   total_steps?: number;
   step_index?: number;
+  /** Derived volume file id (DICOM conversion or passthrough). */
+  volume_file_id?: string | null;
+  /** Derived overlay file id (segmentation mask). */
+  overlay_file_id?: string | null;
 }

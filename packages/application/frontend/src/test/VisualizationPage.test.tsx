@@ -57,6 +57,28 @@ describe("VisualizationPage", () => {
     ]);
   });
 
+  it("loads volumes from route file ids without listing files", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: "/visualize/s1",
+            state: { volumeFileId: "vol-direct", overlayFileId: "mask-direct" },
+          },
+        ]}
+      >
+        <Routes>
+          <Route path="/visualize/:studyId?" element={<VisualizationPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockLoadVolumes).toHaveBeenCalled();
+    });
+    expect(listFilesMock).not.toHaveBeenCalled();
+  });
+
   it("loads viewer volumes when study has persisted files", async () => {
     getStudyMock.mockResolvedValue({
       id: "s1",

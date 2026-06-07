@@ -19,6 +19,8 @@ interface LocationState {
   primary?: File;
   mask?: File;
   from?: FromPage;
+  volumeFileId?: string | null;
+  overlayFileId?: string | null;
 }
 
 type ViewPhase = "loading" | "ready" | "error";
@@ -109,23 +111,40 @@ export function VisualizationPage() {
         return;
       }
       setStatusText("Loading files...");
-      const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
+
+      const { volumeFileId, overlayFileId } = routeState;
+      let volumeId = volumeFileId ?? undefined;
+      let overlayId = overlayFileId ?? undefined;
+      let volumeName = "volume.nii";
+      let overlayName = "overlay.nii";
+
+      if (volumeId == null || overlayId == null) {
+        const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
+        const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
+        const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
+        if (volumeId == null && volume) {
+          volumeId = volume.id;
+          volumeName = volume.display_name ?? volumeName;
+        }
+        if (overlayId == null && overlay) {
+          overlayId = overlay.id;
+          overlayName = overlay.display_name ?? overlayName;
+        }
+      }
 
       const volumes: { url: string; name: string; opacity?: number; colormap?: string }[] = [];
-      const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
-      const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
 
-      if (volume) {
+      if (volumeId) {
         volumes.push({
-          url: fileContentUrl(studyId, volume.id),
-          name: volume.display_name ?? "volume.nii",
+          url: fileContentUrl(studyId, volumeId),
+          name: volumeName,
           colormap: "gray",
         });
       }
-      if (overlay) {
+      if (overlayId) {
         volumes.push({
-          url: fileContentUrl(studyId, overlay.id),
-          name: overlay.display_name ?? "overlay.nii",
+          url: fileContentUrl(studyId, overlayId),
+          name: overlayName,
           opacity: 0.5,
           colormap: "red",
         });
@@ -153,7 +172,7 @@ export function VisualizationPage() {
         throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
-    [studyId],
+    [studyId, routeState.volumeFileId, routeState.overlayFileId],
   );
 
   const loadVolatileFiles = useCallback(
