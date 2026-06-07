@@ -1,5 +1,39 @@
 import type { PipelineMessage } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
+
+const STEP_LABELS: Record<string, string> = {
+  segment_nifti: "Segmenting volume",
+  dicom_to_nifti: "Converting DICOM",
+  stub: "Processing",
+  passthrough: "Processing",
+};
+
+function stepLabel(step: string | undefined): string {
+  if (!step) {
+    return "Processing";
+  }
+  return STEP_LABELS[step] ?? step;
+}
+
+function pipelineStepStatusText(
+  msg: PipelineMessage,
+  completed: boolean,
+  fraction: number,
+): string {
+  const label = stepLabel(msg.step);
+  const mapped = msg.step != null && msg.step in STEP_LABELS;
+
+  if (completed) {
+    return mapped ? `${label} complete` : `Finished step: ${msg.step}`;
+  }
+
+  if (msg.event === "step_progress" && mapped) {
+    const pct = Math.round((msg.step_progress ?? fraction) * 100);
+    return `${label}… ${pct}%`;
+  }
+
+  return mapped ? `${label}…` : `Started: ${msg.step}`;
+}
 /** A non-terminal progress update for one step of the combined step list. */
 export interface StepProgress {
   stepIndex: number;
@@ -81,7 +115,7 @@ export function pipelineStepProgress(msg: PipelineMessage): PipelineStepProgress
   return {
     stepIndex: msg.step_index,
     fraction,
-    statusText: completed ? `Finished step: ${msg.step}` : `Started: ${msg.step}`,
+    statusText: pipelineStepStatusText(msg, completed, fraction),
     completed,
   };
 }

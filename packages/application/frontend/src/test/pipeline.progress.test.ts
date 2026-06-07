@@ -124,7 +124,7 @@ describe("pipelineStepProgress", () => {
     ).toEqual({
       stepIndex: 0,
       fraction: 0,
-      statusText: "Started: segment_nifti",
+      statusText: "Segmenting volume…",
       completed: false,
     });
 
@@ -139,12 +139,12 @@ describe("pipelineStepProgress", () => {
     ).toEqual({
       stepIndex: 0,
       fraction: 1,
-      statusText: "Finished step: segment_nifti",
+      statusText: "Segmenting volume complete",
       completed: true,
     });
   });
 
-  it("step_progress updates overall fraction with started status text", () => {
+  it("step_progress shows mapped label with percentage", () => {
     const msg: PipelineMessage = {
       event: "step_progress",
       step: "segment_nifti",
@@ -156,7 +156,7 @@ describe("pipelineStepProgress", () => {
     expect(pipelineStepProgress(msg)).toEqual({
       stepIndex: 1,
       fraction: 0.5,
-      statusText: "Started: segment_nifti",
+      statusText: "Segmenting volume… 50%",
       completed: false,
     });
   });
