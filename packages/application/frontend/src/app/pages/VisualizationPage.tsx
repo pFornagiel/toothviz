@@ -21,6 +21,9 @@ interface LocationState {
   from?: FromPage;
 }
 
+const CAL_MIN_GLOBAL_VAL = -1000;
+const CAL_MAX_GLOBAL_VAL = 3000;
+
 type ViewPhase = "loading" | "ready" | "error";
 
 export function VisualizationPage() {
@@ -54,6 +57,8 @@ export function VisualizationPage() {
   const [colormap, setColormap] = useState("gray");
   const [cal_min, setCalMin] = useState(0);
   const [cal_max, setCalMax] = useState(100);
+  const [cal_minGlobal, setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
+  const [cal_maxGlobal, setCalMaxGlobal] = useState(CAL_MAX_GLOBAL_VAL);
 
   // Crosshair and display settings
   const [showCrosshair, setShowCrosshair] = useState(true);
@@ -144,8 +149,10 @@ export function VisualizationPage() {
           const vol = nv.volumes[0];
           setOpacity(vol.opacity);
           setColormap(vol.colormap || "gray");
-          setCalMin(vol.cal_min ?? 0);
-          setCalMax(vol.cal_max ?? 100);
+          setCalMinGlobal(vol.global_min ?? CAL_MIN_GLOBAL_VAL);
+          setCalMaxGlobal(vol.global_max ?? CAL_MAX_GLOBAL_VAL);
+          setCalMin(vol.cal_min ?? CAL_MIN_GLOBAL_VAL);
+          setCalMax(vol.cal_max ?? CAL_MAX_GLOBAL_VAL);
           // Initialize visibility and store opacities for all volumes
           setVolumeVisibility(nv.volumes.map(() => true));
           setVolumeOpacities(nv.volumes.map((v) => v.opacity));
@@ -523,7 +530,12 @@ export function VisualizationPage() {
     if (sliceType === "multiplanar_4view") {
       nv.setMultiplanarLayout(2);
     }
-  }, [sliceType]);
+  }, [sliceType])
+
+  useEffect(() => {
+    console.log("opacity", opacity);
+  }, [opacity]);
+  console.log("opacity outside", opacity);
 
   return (
     <div className="h-screen flex flex-col bg-background font-sans">
@@ -764,8 +776,8 @@ export function VisualizationPage() {
                     </label>
                     <input
                       type="range"
-                      min="0"
-                      max="255"
+                      min={cal_minGlobal.toFixed(0)}
+                      max={cal_maxGlobal.toFixed(0)}
                       step="1"
                       value={cal_min}
                       onChange={(e) => handleCalMinChange(parseFloat(e.target.value))}
@@ -780,8 +792,8 @@ export function VisualizationPage() {
                     </label>
                     <input
                       type="range"
-                      min="0"
-                      max="255"
+                      min={cal_minGlobal.toFixed(0)}
+                      max={cal_maxGlobal.toFixed(0)}
                       step="1"
                       value={cal_max}
                       onChange={(e) => handleCalMaxChange(parseFloat(e.target.value))}
