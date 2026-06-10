@@ -5,6 +5,7 @@ import { Niivue } from "@niivue/niivue";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import { FromPage } from "../pipeline";
 import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
+import useNiivueSyncedRotation from "../hooks/useNiivueSyncedRotation";
 
 export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) {
@@ -79,8 +80,7 @@ const CLIP_DEPTH_EDGE = Math.sqrt(3); // ≈1.732 — worst-case (cubic) furthes
 
 // Default initial values for clip plane / render controls
 const DEFAULT_CLIP_PLANE_DEPTH = CLIP_DEPTH_EDGE; // start fully visible (nothing clipped)
-const DEFAULT_RENDER_AZIMUTH = 120;
-const DEFAULT_RENDER_ELEVATION = 10;
+
 const DEFAULT_RENDER_ZOOM = 1.0; // niivue volScaleMultiplier default (1 = no zoom)
 const RENDER_ZOOM_BUTTON_FACTOR = 1.2; // multiplicative step for the +/- buttons
 
@@ -123,6 +123,8 @@ const COLORMAPS = [
 ];
 
 type ViewPhase = "loading" | "ready" | "error";
+
+
 
 export function VisualizationPage() {
   const navigate = useNavigate();
@@ -178,8 +180,13 @@ export function VisualizationPage() {
   const [clipPlaneElevation, setClipPlaneElevation] = useState(0);
 
   // Render settings
-  const [renderAzimuth, setRenderAzimuth] = useState(DEFAULT_RENDER_AZIMUTH);
-  const [renderElevation, setRenderElevation] = useState(DEFAULT_RENDER_ELEVATION);
+  const {
+    azimuth: renderAzimuth,
+    elevation: renderElevation,
+    attach: attachRotation,
+    setRotation,
+    resetRotation,
+  } = useNiivueSyncedRotation(nvRef);
   const [renderZoom, setRenderZoom] = useState(DEFAULT_RENDER_ZOOM);
 
   const queuedNvUpdatesRef = useRef<Map<NvUpdateKey, () => void>>(new Map());
@@ -307,12 +314,10 @@ export function VisualizationPage() {
     setCalMax(initialCalMax.current);
     setOpacity(DEFAULT_VISIBLE_OPACITY);
     setColormap(DEFAULT_COLORMAP);
-    setRenderElevation(DEFAULT_RENDER_ELEVATION);
-    setRenderAzimuth(DEFAULT_RENDER_AZIMUTH);
     setVolumeVisibility(nv.volumes.map(() => true));
     setVolumeOpacities(nv.volumes.map((v) => v.opacity));
 
-    nv.setRenderAzimuthElevation(DEFAULT_RENDER_AZIMUTH, DEFAULT_RENDER_ELEVATION);
+    resetRotation();
 
     // reset render zoom with our scroll fix in mind
     queueNvUpdate(NvUpdateKey.RenderZoom, () => nv.setScale(DEFAULT_RENDER_ZOOM));
@@ -451,34 +456,10 @@ export function VisualizationPage() {
     });
     nv.attachToCanvas(canvasRef.current);
     nv.onZoom3DChange = (zoom) => setRenderZoom(zoom);
-    nv.onAzimuthElevationChange = (azimuth, elevation) => {
-      // Drag rotation keeps azimuth in [0, 360) but leaves elevation unbounded
-      // (and arrow keys can push azimuth past the range too); normalise both and
-      // write them back into the scene so niivue never holds a rotation the
-      // sliders cannot represent. sceneData is written directly to avoid
-      // re-entering this callback through the scene property setters.
-      const normalizedAzimuth = ((azimuth % 360) + 360) % 360;
-      const normalizedElevation = ((((elevation + 180) % 360) + 360) % 360) - 180;
-      if (normalizedAzimuth !== azimuth && azimuth > 360) {
-        nv.scene.sceneData.azimuth = normalizedAzimuth;
-        setRenderAzimuth(normalizedAzimuth);
-      } else {
-        setRenderAzimuth(azimuth);
-      }
-      if (normalizedElevation !== elevation && (elevation > 180 || elevation < -180)) {
-        nv.scene.sceneData.elevation = normalizedElevation;
-        setRenderElevation(normalizedElevation);
-      } else {
-        setRenderElevation(elevation);
-      }
-    };
-    // niivue forwards scene.onZoom3DChange to the instance-level callback but
-    // never wires scene.onAzimuthElevationChange, and mouse-drag rotation only
-    // fires the scene-level one — without this line drags never reach React.
-    nv.scene.onAzimuthElevationChange = nv.onAzimuthElevationChange;
+    attachRotation(nv);
     nvRef.current = nv;
     return nv;
-  }, []);
+  }, [attachRotation]);
 
   const goError = useCallback((title: string, message: string, hints: string[]) => {
     setErrorTitle(title);
@@ -743,23 +724,11 @@ export function VisualizationPage() {
   }, [clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation, queueNvUpdate]);
 
   const handleRenderAzimuthChange = (value: number) => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    setRenderAzimuth(value);
-    nv.setRenderAzimuthElevation(value, renderElevation);
+    setRotation(value, renderElevation);
   };
 
   const handleRenderElevationChange = (value: number) => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    setRenderElevation(value);
-    nv.setRenderAzimuthElevation(renderAzimuth, value);
+    setRotation(renderAzimuth, value);
   };
 
   const handleRenderZoomChange = (value: number) => {
