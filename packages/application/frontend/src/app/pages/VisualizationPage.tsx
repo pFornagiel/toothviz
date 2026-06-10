@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { Niivue } from "@niivue/niivue";
@@ -102,7 +102,7 @@ export function VisualizationPage() {
   const navigate = useNavigate();
   const { studyId } = useParams();
   const location = useLocation();
-  const routeState = (location.state ?? {}) as LocationState;
+  const routeState = useMemo(() => (location.state ?? {}) as LocationState, [location.state]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nvRef = useRef<Niivue | null>(null);
@@ -275,7 +275,7 @@ export function VisualizationPage() {
         throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
-    [studyId],
+    [studyId, setCalMin, setCalMax],
   );
 
   const loadVolatileFiles = useCallback(
@@ -322,7 +322,7 @@ export function VisualizationPage() {
       nv.setSliceType(nv.sliceTypeMultiplanar);
       nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
     },
-    [routeState],
+    [routeState, setCalMin, setCalMax],
   );
 
   const initNiivue = useCallback(() => {
