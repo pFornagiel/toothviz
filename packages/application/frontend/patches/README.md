@@ -5,8 +5,9 @@ after `npm install`.
 
 ## @niivue/niivue+0.68.1
 
-Three performance fixes to the volume display pipeline (full background and benchmarks in
-`notes/other/visualization-performance-investigation.md`):
+Four performance fixes (full background and benchmarks in
+`notes/other/visualization-performance-investigation.md`). Fixes 1-3 target the volume display
+pipeline; fix 4 targets mouse-drag rotation of the 3D render view:
 
 1. Skip the gradient-texture recomputation (`gradientGL`, ~390 ms of blur/Sobel passes per call)
    unless gradient-based render illumination is actually enabled
@@ -21,9 +22,17 @@ Three performance fixes to the volume display pipeline (full background and benc
    subsequent frame stalls 130–500 ms. The pool reuses the texture while dims are unchanged;
    only the `TEXTURE0_BACK_VOL`/`TEXTURE2_OVERLAY_VOL` units are pooled (other `rgbaTex` callers,
    e.g. the per-call blend texture, are deleted directly by niivue and must not be cached).
+4. Draw once per mousemove when rotating the 3D render by dragging. Stock `mouseMoveListener`
+   calls `drawScene()` three times per mousemove on this path (an unconditional pre-draw, the
+   rotation draw inside `mouseMove`, and a post-`mouseClick` draw), and every `drawScene` ends in
+   a blocking `gl.finish()` — so each mouse event stalled the main thread for three full
+   raycast frames while the azimuth/elevation sliders (one draw per change) stayed smooth. The
+   patch skips the redundant pre-draw and returns right after the rotation draw when the
+   crosshair-mode drag is inside the render tile; 2D-slice crosshair drags are unaffected.
 
 Net effect: `nv.updateGLVolume()` ~920 ms → ~5 ms, and a continuous cal-slider drag stays at
 ~25 ms/frame indefinitely (was: degrading to 130–500 ms/frame after a few seconds of dragging).
+Drag-rotating the 3D render costs one raycast frame per mouse event instead of three.
 
 ### Usage perspective
 
@@ -33,8 +42,10 @@ Net effect: `nv.updateGLVolume()` ~920 ms → ~5 ms, and a continuous cal-slider
 
 **Patch 3** - output texture pool. Fires in the same display-parameter scenarios as patch 2, but its benefit is cumulative rather than per-call. Stock niivue destroyed and reallocated a ~180 MB output texture on every refresh (and outright leaked the overlay's output texture each time). A user dragging a cal slider for a few seconds allocated gigabytes of GPU memory; after ~40 ticks the driver hit memory pressure and the whole app dropped to ~7 fps permanently, worst when a segmentation overlay was loaded - which is the normal state after running the pipeline. With the pool, the same drag stays at ~40 fps no matter how long it lasts or how many overlays are loaded.
 
+**Patch 4** - single draw per rotation-drag event. Fires only while left-dragging inside the 3D render tile (the default `dragModePrimary: crosshair`). The two `mouseClick` calls it skips are no-ops in the render tile anyway (they return immediately at `inRenderTile`), so behavior is identical - only the two redundant raycast+`gl.finish` stalls per event are gone. Slider-driven rotation already drew once and is unchanged.
+
 ## NiiVue Upgrade
 
 **When upgrading @niivue/niivue:** check whether upstream has fixed this (0.69.0 had not); if not,
-re-apply the same three edits to the new version's `build/niivue/index.js` and `dist/index.js`,
+re-apply the same four edits to the new version's `build/niivue/index.js` and `dist/index.js`,
 then run `npx patch-package @niivue/niivue` and delete the old patch file.
