@@ -58,17 +58,24 @@ const HIDDEN_OPACITY = 0;
 const MULTIPLANAR_LAYOUT_DEFAULT = 0;
 const MULTIPLANAR_LAYOUT_GRID = 2;
 
+// niivue normalises every volume into a unit cube and uses clip depth as the
+// SIGNED distance of the plane from the centre (the raw 4th component of the
+// plane equation). The furthest corner sits at √3, so the plane fully clears
+// the volume at ±√3 and bisects it at 0. Sweeping -√3..+√3 moves the plane
+// continuously from "everything hidden" to "fully visible".
+const CLIP_DEPTH_EDGE = Math.sqrt(3); // ≈1.732 — worst-case (cubic) furthest corner
+
 // Default initial values for clip plane / render controls
-const DEFAULT_CLIP_PLANE_DEPTH = 2;
+const DEFAULT_CLIP_PLANE_DEPTH = CLIP_DEPTH_EDGE; // start fully visible (nothing clipped)
 const DEFAULT_RENDER_AZIMUTH = 120;
 const DEFAULT_RENDER_ELEVATION = 10;
 
 // Slider bounds for UI controls
 const CROSSHAIR_WIDTH_RANGE = { min: 1, max: 5, step: 1 };
 const OPACITY_RANGE = { min: 0, max: 1, step: 0.01 };
-const CLIP_DEPTH_RANGE = { min: 0, max: 2, step: 0.01 };
-const CLIP_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
-const CLIP_ELEVATION_RANGE = { min: 0, max: 180, step: 1 };
+const CLIP_DEPTH_RANGE = { min: -CLIP_DEPTH_EDGE, max: CLIP_DEPTH_EDGE, step: 0.01 };
+const CLIP_AZIMUTH_RANGE = { min: -90, max: 90, step: 1 };
+const CLIP_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
 const RENDER_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
 const RENDER_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
 
