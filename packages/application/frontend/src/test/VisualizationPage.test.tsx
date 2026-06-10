@@ -20,6 +20,14 @@ vi.mock("@niivue/niivue", () => ({
     close: vi.fn(),
     volumes: [],
     setOpacity: vi.fn(),
+    setClipPlane: vi.fn(),
+    setScale: vi.fn(),
+    setRenderAzimuthElevation: vi.fn(),
+    setCrosshairWidth: vi.fn(),
+    drawScene: vi.fn(),
+    updateGLVolume: vi.fn(),
+    removeVolume: vi.fn(),
+    cleanup: vi.fn(),
   })),
 }));
 

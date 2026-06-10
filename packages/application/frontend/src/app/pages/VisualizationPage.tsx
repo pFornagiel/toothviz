@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { Niivue } from "@niivue/niivue";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import { FromPage } from "../pipeline";
 import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
+import useNiivueSyncedRotation from "../hooks/useNiivueSyncedRotation";
 
 export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) {
@@ -15,22 +16,125 @@ export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   return study;
 }
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
 interface LocationState {
   primary?: File;
   mask?: File;
   from?: FromPage;
 }
 
+const CAL_MIN_GLOBAL_VAL = -1000;
+const CAL_MAX_GLOBAL_VAL = 3000;
+
+// Keys for the per-frame niivue update queue; one pending update per key,
+// so distinct settings changed in the same frame never overwrite each other
+enum NvUpdateKey {
+  CalMin = "cal_min",
+  CalMax = "cal_max",
+  Opacity = "opacity",
+  RenderZoom = "render_zoom",
+  ClipPlane = "clip_plane",
+}
+
+// Slice-type identifiers used by the slice-type selector and niivue layout switching
+enum SliceTypeKey {
+  Multiplanar = "multiplanar",
+  Multiplanar4View = "multiplanar_4view",
+  Axial = "axial",
+  Coronal = "coronal",
+  Sagittal = "sagittal",
+  Render = "render",
+}
+
+const DEFAULT_COLORMAP = "gray";
+const DEFAULT_SLICE_TYPE = SliceTypeKey.Multiplanar;
+
+// Colormaps applied to loaded volumes/overlays
+const VOLUME_COLORMAP = "gray";
+const OVERLAY_COLORMAP = "red";
+
+// Default values for newly loaded volumes/overlays
+const DEFAULT_OVERLAY_OPACITY = 0.5;
+const DEFAULT_VOLUME_NAME = "volume";
+const DEFAULT_OVERLAY_NAME = "overlay";
+const DEFAULT_VISIBLE_OPACITY = 1.0;
+
+// Niivue init / display defaults
+const DEFAULT_BACK_COLOR_DARK: [number, number, number, number] = [0, 0, 0, 1];
+const DEFAULT_BACK_COLOR_LIGHT: [number, number, number, number] = [1, 1, 1, 1];
+const DEFAULT_SHOW_3D_CROSSHAIR = true;
+const DEFAULT_CROSSHAIR_WIDTH = 1;
+const HIDDEN_OPACITY = 0;
+
+// Niivue multiplanar layout modes
+const MULTIPLANAR_LAYOUT_DEFAULT = 0;
+const MULTIPLANAR_LAYOUT_GRID = 2;
+
+// niivue normalises every volume into a unit cube and uses clip depth as the
+// SIGNED distance of the plane from the centre (the raw 4th component of the
+// plane equation). The furthest corner sits at √3, so the plane fully clears
+// the volume at ±√3 and bisects it at 0. Sweeping -√3..+√3 moves the plane
+// continuously from "everything hidden" to "fully visible".
+const CLIP_DEPTH_EDGE = Math.sqrt(3); // ≈1.732 — worst-case (cubic) furthest corner
+
+// Default initial values for clip plane / render controls
+const DEFAULT_CLIP_PLANE_DEPTH = CLIP_DEPTH_EDGE; // start fully visible (nothing clipped)
+
+const DEFAULT_RENDER_ZOOM = 1.0; // niivue volScaleMultiplier default (1 = no zoom)
+const RENDER_ZOOM_BUTTON_FACTOR = 1.2; // multiplicative step for the +/- buttons
+
+// Mouse-wheel interaction over the canvas
+const RENDER_ZOOM_SCROLL_FACTOR = 1.1; // multiplicative zoom step per wheel notch
+const CLIP_DEPTH_SCROLL_STEP = 0.05; // additive clip-depth step per wheel notch
+
+// Slider bounds for UI controls
+const CROSSHAIR_WIDTH_RANGE = { min: 1, max: 5, step: 1 };
+const OPACITY_RANGE = { min: 0, max: 1, step: 0.01 };
+const CLIP_DEPTH_RANGE = { min: -CLIP_DEPTH_EDGE, max: CLIP_DEPTH_EDGE, step: 0.01 };
+const CLIP_AZIMUTH_RANGE = { min: -90, max: 90, step: 1 };
+const CLIP_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
+const RENDER_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
+const RENDER_ELEVATION_RANGE = { min: -180, max: 180, step: 1 };
+const RENDER_ZOOM_RANGE = { min: 0.1, max: 5, step: 0.1 };
+
+// Available colormaps
+const COLORMAPS = [
+  "gray",
+  "red",
+  "green",
+  "blue",
+  "plasma",
+  "viridis",
+  "inferno",
+  "magma",
+  "hot",
+  "winter",
+  "cool",
+  "spring",
+  "summer",
+  "autumn",
+  "bone",
+  "copper",
+  "grays",
+  "warm",
+  "red_yellow",
+  "blue_green",
+];
+
 type ViewPhase = "loading" | "ready" | "error";
+
+
 
 export function VisualizationPage() {
   const navigate = useNavigate();
   const { studyId } = useParams();
   const location = useLocation();
-  const routeState = (location.state ?? {}) as LocationState;
+  const routeState = useMemo(() => (location.state ?? {}) as LocationState, [location.state]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nvRef = useRef<Niivue | null>(null);
+  const blobUrlsRef = useRef<string[]>([]);
 
   const [statusText, setStatusText] = useState("Ready");
   const [viewPhase, setViewPhase] = useState<ViewPhase>("loading");
@@ -39,7 +143,13 @@ export function VisualizationPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [errorHintsList, setErrorHintsList] = useState<string[]>([]);
 
-  const [sliceType, setSliceType] = useState<string>("multiplanar");
+  const [sliceType, setSliceType] = useState<SliceTypeKey>(DEFAULT_SLICE_TYPE);
+
+  // Slice types that include a 3D render tile and therefore expose render controls
+  const showsRender =
+    sliceType === SliceTypeKey.Render ||
+    sliceType === SliceTypeKey.Multiplanar ||
+    sliceType === SliceTypeKey.Multiplanar4View;
 
   // UI state
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -49,58 +159,183 @@ export function VisualizationPage() {
   const [selectedVolume, setSelectedVolume] = useState(0);
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
-  const [opacity, setOpacity] = useState(1.0);
-  const [colormap, setColormap] = useState("gray");
-  const [cal_min, setCalMin] = useState(0);
-  const [cal_max, setCalMax] = useState(100);
+  const [opacity, setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
+  const [colormap, _setColormap] = useState(DEFAULT_COLORMAP);
+  const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
+  const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
+  const [cal_minGlobal, _setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
+  const [cal_maxGlobal, _setCalMaxGlobal] = useState(CAL_MAX_GLOBAL_VAL);
+
+  // Initialised cal_min and cal_max for reset
+  const initialCalMin = useRef(CAL_MIN_GLOBAL_VAL);
+  const initialCalMax = useRef(CAL_MAX_GLOBAL_VAL);
 
   // Crosshair and display settings
-  const [showCrosshair, setShowCrosshair] = useState(true);
-  const [crosshairWidth, setCrosshairWidth] = useState(1);
+  const [showCrosshair, setShowCrosshair] = useState(DEFAULT_SHOW_3D_CROSSHAIR);
+  const [crosshairWidth, setCrosshairWidth] = useState(DEFAULT_CROSSHAIR_WIDTH);
 
   // Clip plane settings
-  const [clipPlaneDepth, setClipPlaneDepth] = useState(2);
+  const [clipPlaneDepth, setClipPlaneDepth] = useState(DEFAULT_CLIP_PLANE_DEPTH);
   const [clipPlaneAzimuth, setClipPlaneAzimuth] = useState(0);
   const [clipPlaneElevation, setClipPlaneElevation] = useState(0);
 
   // Render settings
-  const [renderAzimuth, setRenderAzimuth] = useState(120);
-  const [renderElevation, setRenderElevation] = useState(10);
+  const {
+    azimuth: renderAzimuth,
+    elevation: renderElevation,
+    attach: attachRotation,
+    setRotation,
+    resetRotation,
+  } = useNiivueSyncedRotation(nvRef);
+  const [renderZoom, setRenderZoom] = useState(DEFAULT_RENDER_ZOOM);
 
-  // Available colormaps
-  const colormaps = [
-    "gray",
-    "red",
-    "green",
-    "blue",
-    "plasma",
-    "viridis",
-    "inferno",
-    "magma",
-    "hot",
-    "winter",
-    "cool",
-    "spring",
-    "summer",
-    "autumn",
-    "bone",
-    "copper",
-    "grays",
-    "warm",
-    "red_yellow",
-    "blue_green",
-  ];
+  const queuedNvUpdatesRef = useRef<Map<NvUpdateKey, () => void>>(new Map());
+  /**
+   * Slider drags and other options emit more change events than the GPU pipeline can absorb
+   * (nv.updateGLVolume re-runs the volume display pass), so niivue updates are
+   * coalesced to at most one per animation frame per setting, always applying
+   * the latest value.
+   *
+   * Keyed per setting: updates to different settings queued in the same frame
+   * (mainly for resetSettings which touches cal_min, cal_max and zoom in one commit) must
+   * all apply, not overwrite one another.
+   */
+  const queueNvUpdate = useCallback((key: NvUpdateKey, apply: () => void) => {
+    const queue = queuedNvUpdatesRef.current;
+    const alreadyQueued = queue.size > 0;
+    queue.set(key, apply);
+    if (!alreadyQueued) {
+      requestAnimationFrame(() => {
+        const fns = [...queue.values()];
+        queue.clear();
+        fns.forEach((fn) => fn());
+      });
+    }
+  }, []);
+
+  const setCalMax = useCallback(
+    (value: number | undefined, setInitial: boolean = false) => {
+      if (Number.isNaN(value) || value === undefined) {
+        _setCalMax(CAL_MAX_GLOBAL_VAL);
+        if (setInitial) {
+          initialCalMax.current = CAL_MAX_GLOBAL_VAL;
+        }
+        return;
+      }
+      if (value < cal_min) {
+        _setCalMax(cal_min);
+        if (setInitial) {
+          initialCalMax.current = cal_min;
+        }
+        return;
+      }
+      _setCalMax(value);
+      if (setInitial) {
+        initialCalMax.current = value;
+      }
+    },
+    [cal_min],
+  );
+
+  const setCalMin = useCallback(
+    (value: number | undefined, setInitial: boolean = false) => {
+      if (Number.isNaN(value) || value === undefined) {
+        _setCalMin(CAL_MIN_GLOBAL_VAL);
+        if (setInitial) {
+          initialCalMin.current = CAL_MIN_GLOBAL_VAL;
+        }
+        return;
+      }
+
+      if (value > cal_max) {
+        _setCalMin(cal_max);
+        if (setInitial) {
+          initialCalMin.current = cal_max;
+        }
+        return;
+      }
+      _setCalMin(value);
+      if (setInitial) {
+        initialCalMin.current = value;
+      }
+    },
+    [cal_max],
+  );
+
+  useEffect(() => {
+    const nv = nvRef.current;
+    if (!nv || !nv.volumes[selectedVolume]) {
+      return;
+    }
+
+    queueNvUpdate(NvUpdateKey.CalMin, () => {
+      nv.volumes[selectedVolume].cal_min = cal_min;
+      nv.updateGLVolume();
+    });
+  }, [cal_min, queueNvUpdate]);
+
+  useEffect(() => {
+    const nv = nvRef.current;
+    if (!nv || !nv.volumes[selectedVolume]) {
+      return;
+    }
+
+    queueNvUpdate(NvUpdateKey.CalMax, () => {
+      nv.volumes[selectedVolume].cal_max = cal_max;
+      nv.updateGLVolume();
+    });
+  }, [cal_max, queueNvUpdate]);
+
+  const setCalMinGlobal = (value: number | undefined) => {
+    if (Number.isNaN(value) || value === undefined) {
+      return CAL_MIN_GLOBAL_VAL;
+    }
+    _setCalMinGlobal(value);
+  };
+
+  const setCalMaxGlobal = (value: number | undefined) => {
+    if (Number.isNaN(value) || value === undefined) {
+      return CAL_MAX_GLOBAL_VAL;
+    }
+    _setCalMaxGlobal(value);
+  };
+
+  const setColormap = (value: string | undefined) => {
+    _setColormap(value || DEFAULT_COLORMAP);
+  };
+
+  const resetSettings = () => {
+    const nv = nvRef.current;
+    if (!nv) {
+      return;
+    }
+
+    setCalMin(initialCalMin.current);
+    setCalMax(initialCalMax.current);
+    setOpacity(DEFAULT_VISIBLE_OPACITY);
+    setColormap(DEFAULT_COLORMAP);
+    setVolumeVisibility(nv.volumes.map(() => true));
+    setVolumeOpacities(nv.volumes.map((v) => v.opacity));
+
+    resetRotation();
+
+    // reset render zoom with our scroll fix in mind
+    queueNvUpdate(NvUpdateKey.RenderZoom, () => nv.setScale(DEFAULT_RENDER_ZOOM));
+  };
 
   const disposeNv = useCallback(() => {
     const nv = nvRef.current;
     if (nv) {
       try {
-        /* nv.close() */
+        [...nv.volumes].forEach((vol) => nv.removeVolume(vol));
+        nv.cleanup();
       } catch {
         /* ignore */
       }
     }
     nvRef.current = null;
+    blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    blobUrlsRef.current = [];
   }, []);
 
   const loadStudyFiles = useCallback(
@@ -118,16 +353,16 @@ export function VisualizationPage() {
       if (volume) {
         volumes.push({
           url: fileContentUrl(studyId, volume.id),
-          name: volume.display_name ?? "volume.nii",
-          colormap: "gray",
+          name: volume.display_name ?? DEFAULT_VOLUME_NAME,
+          colormap: VOLUME_COLORMAP,
         });
       }
       if (overlay) {
         volumes.push({
           url: fileContentUrl(studyId, overlay.id),
-          name: overlay.display_name ?? "overlay.nii",
-          opacity: 0.5,
-          colormap: "red",
+          name: overlay.display_name ?? DEFAULT_OVERLAY_NAME,
+          opacity: DEFAULT_OVERLAY_OPACITY,
+          colormap: OVERLAY_COLORMAP,
         });
       }
 
@@ -139,15 +374,17 @@ export function VisualizationPage() {
         if (nv.volumes.length > 0) {
           const vol = nv.volumes[0];
           setOpacity(vol.opacity);
-          setColormap(vol.colormap || "gray");
-          setCalMin(vol.cal_min ?? 0);
-          setCalMax(vol.cal_max ?? 100);
+          setColormap(vol.colormap);
+          setCalMinGlobal(vol.global_min);
+          setCalMaxGlobal(vol.global_max);
+          setCalMin(vol.cal_min, true);
+          setCalMax(vol.cal_max, true);
           // Initialize visibility and store opacities for all volumes
           setVolumeVisibility(nv.volumes.map(() => true));
           setVolumeOpacities(nv.volumes.map((v) => v.opacity));
         }
         nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(0);
+        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
       } else {
         setStatusText("No viewable files found for this study");
         throw new Error("No viewable volume or overlay files are available yet.");
@@ -165,22 +402,24 @@ export function VisualizationPage() {
 
       setStatusText("Loading volume...");
       const primaryUrl = URL.createObjectURL(primary);
+      blobUrlsRef.current.push(primaryUrl);
       await nv.loadVolumes([
         {
           url: primaryUrl,
           name: primary.name,
-          colormap: "gray",
+          colormap: VOLUME_COLORMAP,
         },
       ]);
 
       if (mask) {
         setStatusText("Loading overlay...");
         const maskUrl = URL.createObjectURL(mask);
+        blobUrlsRef.current.push(maskUrl);
         await nv.addVolumeFromUrl({
           url: maskUrl,
           name: mask.name,
-          opacity: 0.5,
-          colormap: "red",
+          opacity: DEFAULT_OVERLAY_OPACITY,
+          colormap: OVERLAY_COLORMAP,
         });
       }
 
@@ -189,14 +428,16 @@ export function VisualizationPage() {
       if (nv.volumes.length > 0) {
         const vol = nv.volumes[0];
         setOpacity(vol.opacity);
-        setColormap(vol.colormap || "gray");
-        setCalMin(vol.cal_min ?? 0);
-        setCalMax(vol.cal_max ?? 100);
+        setColormap(vol.colormap);
+        setCalMin(vol.cal_min, true);
+        setCalMax(vol.cal_max, true);
+        setCalMinGlobal(vol.global_min);
+        setCalMaxGlobal(vol.global_max);
         setVolumeVisibility(nv.volumes.map(() => true));
         setVolumeOpacities(nv.volumes.map((v) => v.opacity));
       }
       nv.setSliceType(nv.sliceTypeMultiplanar);
-      nv.setMultiplanarLayout(0);
+      nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
     },
     [routeState],
   );
@@ -209,14 +450,16 @@ export function VisualizationPage() {
       return nvRef.current;
     }
     const nv = new Niivue({
-      backColor: [0, 0, 0, 1],
-      show3Dcrosshair: true,
-      crosshairWidth: 1,
+      backColor: DEFAULT_BACK_COLOR_DARK,
+      show3Dcrosshair: DEFAULT_SHOW_3D_CROSSHAIR,
+      crosshairWidth: DEFAULT_CROSSHAIR_WIDTH,
     });
     nv.attachToCanvas(canvasRef.current);
+    nv.onZoom3DChange = (zoom) => setRenderZoom(zoom);
+    attachRotation(nv);
     nvRef.current = nv;
     return nv;
-  }, []);
+  }, [attachRotation]);
 
   const goError = useCallback((title: string, message: string, hints: string[]) => {
     setErrorTitle(title);
@@ -312,7 +555,7 @@ export function VisualizationPage() {
     };
   }, [studyId, initNiivue, loadStudyFiles, goError, disposeNv]);
 
-  const handleSliceTypeChange = (type: string) => {
+  const handleSliceTypeChange = (type: SliceTypeKey) => {
     const nv = nvRef.current;
     if (!nv) {
       return;
@@ -320,24 +563,24 @@ export function VisualizationPage() {
     setSliceType(type);
 
     switch (type) {
-      case "multiplanar":
+      case SliceTypeKey.Multiplanar:
         nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(0);
+        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
         break;
-      case "multiplanar_4view":
+      case SliceTypeKey.Multiplanar4View:
         nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(2); // Grid layout with 3 slices + 3D render
+        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_GRID); // Grid layout with 3 slices + 3D render
         break;
-      case "axial":
+      case SliceTypeKey.Axial:
         nv.setSliceType(nv.sliceTypeAxial);
         break;
-      case "coronal":
+      case SliceTypeKey.Coronal:
         nv.setSliceType(nv.sliceTypeCoronal);
         break;
-      case "sagittal":
+      case SliceTypeKey.Sagittal:
         nv.setSliceType(nv.sliceTypeSagittal);
         break;
-      case "render":
+      case SliceTypeKey.Render:
         nv.setSliceType(nv.sliceTypeRender);
         break;
     }
@@ -352,9 +595,9 @@ export function VisualizationPage() {
     setSelectedVolume(index);
     const vol = nv.volumes[index];
     setOpacity(vol.opacity);
-    setColormap(vol.colormap || "gray");
-    setCalMin(vol.cal_min ?? 0);
-    setCalMax(vol.cal_max ?? 100);
+    setColormap(vol.colormap);
+    setCalMin(vol.cal_min);
+    setCalMax(vol.cal_max);
   };
 
   const handleOpacityChange = (value: number) => {
@@ -364,7 +607,7 @@ export function VisualizationPage() {
     }
 
     setOpacity(value);
-    nv.setOpacity(selectedVolume, value);
+    queueNvUpdate(NvUpdateKey.Opacity, () => nv.setOpacity(selectedVolume, value));
 
     // Update stored opacity if volume is visible
     if (volumeVisibility[selectedVolume]) {
@@ -398,10 +641,7 @@ export function VisualizationPage() {
     if (!nv || !nv.volumes[selectedVolume]) {
       return;
     }
-
     setCalMin(value);
-    nv.volumes[selectedVolume].cal_min = value;
-    nv.updateGLVolume();
   };
 
   const handleCalMaxChange = (value: number) => {
@@ -411,8 +651,6 @@ export function VisualizationPage() {
     }
 
     setCalMax(value);
-    nv.volumes[selectedVolume].cal_max = value;
-    nv.updateGLVolume();
   };
 
   const handleCrosshairToggle = () => {
@@ -450,7 +688,7 @@ export function VisualizationPage() {
     // Set opacity to 0 to hide, restore stored opacity to show
     if (newVisibility[index]) {
       // Restore the stored opacity
-      const opacityToRestore = volumeOpacities[index] ?? 1.0;
+      const opacityToRestore = volumeOpacities[index] ?? DEFAULT_VISIBLE_OPACITY;
       nv.setOpacity(index, opacityToRestore);
     } else {
       // Store current opacity before hiding
@@ -458,7 +696,7 @@ export function VisualizationPage() {
       newOpacities[index] = nv.volumes[index].opacity;
       setVolumeOpacities(newOpacities);
       // Hide by setting opacity to 0
-      nv.setOpacity(index, 0);
+      nv.setOpacity(index, HIDDEN_OPACITY);
     }
   };
 
@@ -470,42 +708,94 @@ export function VisualizationPage() {
 
     const newValue = !lightBackground;
     setLightBackground(newValue);
-    nv.opts.backColor = newValue ? [1, 1, 1, 1] : [0, 0, 0, 1];
+    nv.opts.backColor = newValue ? DEFAULT_BACK_COLOR_LIGHT : DEFAULT_BACK_COLOR_DARK;
     nv.drawScene();
   };
 
-  const handleClipPlaneChange = () => {
+  const handleClipPlaneChange = useCallback(() => {
     const nv = nvRef.current;
     if (!nv) {
       return;
     }
 
-    nv.setClipPlane([clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]);
-  };
+    queueNvUpdate(NvUpdateKey.ClipPlane, () =>
+      nv.setClipPlane([clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]),
+    );
+  }, [clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation, queueNvUpdate]);
 
   const handleRenderAzimuthChange = (value: number) => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    setRenderAzimuth(value);
-    nv.setRenderAzimuthElevation(value, renderElevation);
+    setRotation(value, renderElevation);
   };
 
   const handleRenderElevationChange = (value: number) => {
+    setRotation(renderAzimuth, value);
+  };
+
+  const handleRenderZoomChange = (value: number) => {
     const nv = nvRef.current;
     if (!nv) {
       return;
     }
 
-    setRenderElevation(value);
-    nv.setRenderAzimuthElevation(renderAzimuth, value);
+    const clamped = Math.min(RENDER_ZOOM_RANGE.max, Math.max(RENDER_ZOOM_RANGE.min, value));
+    setRenderZoom(clamped);
+    queueNvUpdate(NvUpdateKey.RenderZoom, () => nv.setScale(clamped));
   };
 
   useEffect(() => {
     handleClipPlaneChange();
-  }, [clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]);
+  }, [handleClipPlaneChange]);
+
+  /* 
+    Wheel-canvas interaction. 
+    Niivue registers its own `wheel` listener on the canvas to scroll slices/zoom; 
+    we intercept on the canvas's parent in the capture phase and call stopPropagation,
+    so the event never reaches niivue's handler. 
+    Plain scroll zooms the render (volScaleMultiplier),
+    Shift+scroll nudges the clip-plane depth. 
+    Re-attaches whenever the canvas mounts, which is keyed off viewPhase.
+  */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = canvas?.parentElement;
+    if (!canvas || !container) {
+      return;
+    }
+
+    const handleWheel = (e: WheelEvent) => {
+      const nv = nvRef.current;
+      if (!nv || e.target !== canvas) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+
+      // deltaY < 0 means scrolling up: zoom in / increase depth.
+      const direction = e.deltaY < 0 ? 1 : -1;
+
+      if (e.shiftKey) {
+        setClipPlaneDepth((prev) =>
+          clamp(
+            prev + direction * CLIP_DEPTH_SCROLL_STEP,
+            CLIP_DEPTH_RANGE.min,
+            CLIP_DEPTH_RANGE.max,
+          ),
+        );
+      } else {
+        const factor = direction > 0 ? RENDER_ZOOM_SCROLL_FACTOR : 1 / RENDER_ZOOM_SCROLL_FACTOR;
+        const next = clamp(
+          nv.volScaleMultiplier * factor,
+          RENDER_ZOOM_RANGE.min,
+          RENDER_ZOOM_RANGE.max,
+        );
+        // setScale fires onZoom3DChange, which keeps the renderZoom slider in sync.
+        nv.setScale(next);
+      }
+    };
+
+    container.addEventListener("wheel", handleWheel, { capture: true, passive: false });
+    return () => container.removeEventListener("wheel", handleWheel, { capture: true });
+  }, [viewPhase]);
 
   useEffect(() => {
     // Update multiplanar layout when switching to multiplanar_4view
@@ -514,8 +804,8 @@ export function VisualizationPage() {
       return;
     }
 
-    if (sliceType === "multiplanar_4view") {
-      nv.setMultiplanarLayout(2);
+    if (sliceType === SliceTypeKey.Multiplanar4View) {
+      nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_GRID);
     }
   }, [sliceType]);
 
@@ -557,9 +847,9 @@ export function VisualizationPage() {
               <label className="text-xs text-muted-foreground font-medium">Width:</label>
               <input
                 type="range"
-                min="1"
-                max="5"
-                step="1"
+                min={CROSSHAIR_WIDTH_RANGE.min}
+                max={CROSSHAIR_WIDTH_RANGE.max}
+                step={CROSSHAIR_WIDTH_RANGE.step}
                 value={crosshairWidth}
                 onChange={(e) => handleCrosshairWidthChange(parseFloat(e.target.value))}
                 className="w-20"
@@ -653,216 +943,267 @@ export function VisualizationPage() {
                   </div>
                 </div>
 
-                {/* Volume Selection and Visibility */}
-                {nvRef.current && nvRef.current.volumes.length > 0 && (
-                  <div className="space-y-3">
-                    <label className="text-sm font-semibold text-foreground">Volumes</label>
+                <fieldset
+                  disabled={viewPhase !== "ready"}
+                  className={`m-0 min-w-0 space-y-6 border-0 p-0 transition-opacity ${
+                    viewPhase === "ready" ? "" : "pointer-events-none opacity-50"
+                  }`}
+                >
+                  {/* Volume Selection and Visibility */}
+                  {nvRef.current && nvRef.current.volumes.length > 0 && (
+                    <div className="space-y-3">
+                      <label className="text-sm font-semibold text-foreground">Volumes</label>
 
-                    {/* Volume visibility checkboxes */}
-                    <div className="space-y-2">
-                      {nvRef.current.volumes.map((vol, idx) => (
-                        <label
-                          key={idx}
-                          className="flex items-center gap-2 text-sm text-foreground cursor-pointer font-medium"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={volumeVisibility[idx] ?? true}
-                            onChange={() => handleVolumeVisibilityToggle(idx)}
-                            className="w-4 h-4 rounded border-border bg-card text-primary focus:ring-primary"
-                          />
-                          <span>{vol.name || `Volume ${idx}`}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Volume selector for editing */}
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground font-medium">
-                        Edit Volume:
-                      </label>
-                      <select
-                        value={selectedVolume}
-                        onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
-                        className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                      >
+                      {/* Volume visibility checkboxes */}
+                      <div className="space-y-2">
                         {nvRef.current.volumes.map((vol, idx) => (
-                          <option key={idx} value={idx}>
-                            {vol.name || `Volume ${idx}`}
-                          </option>
+                          <label
+                            key={idx}
+                            className="flex items-center gap-2 text-sm text-foreground cursor-pointer font-medium"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={volumeVisibility[idx] ?? true}
+                              onChange={() => handleVolumeVisibilityToggle(idx)}
+                              className="w-4 h-4 rounded border-border bg-card text-primary focus:ring-primary"
+                            />
+                            <span>{vol.name || `Volume ${idx}`}</span>
+                          </label>
                         ))}
-                      </select>
+                      </div>
+
+                      {/* Volume selector for editing */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground font-medium">
+                          Edit Volume:
+                        </label>
+                        <select
+                          value={selectedVolume}
+                          onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
+                          className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                        >
+                          {nvRef.current.volumes.map((vol, idx) => (
+                            <option key={idx} value={idx}>
+                              {vol.name || `Volume ${idx}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Slice Type */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">Slice Type</label>
-                  <select
-                    value={sliceType}
-                    onChange={(e) => handleSliceTypeChange(e.target.value)}
-                    className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    <option value="multiplanar">Multiplanar</option>
-                    <option value="multiplanar_4view">Multiplanar (4 Views)</option>
-                    <option value="axial">Axial</option>
-                    <option value="coronal">Coronal</option>
-                    <option value="sagittal">Sagittal</option>
-                    <option value="render">Render</option>
-                  </select>
-                </div>
-
-                {/* Opacity */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">
-                    Opacity: {opacity.toFixed(2)}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={opacity}
-                    onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Colormap */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">Colormap</label>
-                  <select
-                    value={colormap}
-                    onChange={(e) => handleColormapChange(e.target.value)}
-                    className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    {colormaps.map((cm) => (
-                      <option key={cm} value={cm}>
-                        {cm}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Cal Min */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">
-                    Cal Min: {cal_min.toFixed(0)}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="255"
-                    step="1"
-                    value={cal_min}
-                    onChange={(e) => handleCalMinChange(parseFloat(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Cal Max */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">
-                    Cal Max: {cal_max.toFixed(0)}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="255"
-                    step="1"
-                    value={cal_max}
-                    onChange={(e) => handleCalMaxChange(parseFloat(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Clip Plane */}
-                <div className="space-y-3 border-t border-border pt-4">
-                  <h3 className="text-sm font-semibold text-foreground">Clip Plane</h3>
-
+                  {/* Slice Type */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Depth: {clipPlaneDepth.toFixed(2)}
+                    <label className="text-sm font-semibold text-foreground">Slice Type</label>
+                    <select
+                      value={sliceType}
+                      onChange={(e) => handleSliceTypeChange(e.target.value as SliceTypeKey)}
+                      className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    >
+                      <option value={SliceTypeKey.Multiplanar}>Multiplanar</option>
+                      <option value={SliceTypeKey.Multiplanar4View}>Multiplanar (4 Views)</option>
+                      <option value={SliceTypeKey.Axial}>Axial</option>
+                      <option value={SliceTypeKey.Coronal}>Coronal</option>
+                      <option value={SliceTypeKey.Sagittal}>Sagittal</option>
+                      <option value={SliceTypeKey.Render}>Render</option>
+                    </select>
+                  </div>
+
+                  {/* Colormap */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">Colormap</label>
+                    <select
+                      value={colormap}
+                      onChange={(e) => handleColormapChange(e.target.value)}
+                      className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    >
+                      {COLORMAPS.map((cm) => (
+                        <option key={cm} value={cm}>
+                          {cm}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Opacity */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      Opacity: {opacity.toFixed(2)}
                     </label>
                     <input
                       type="range"
-                      min="0"
-                      max="2"
-                      step="0.01"
-                      value={clipPlaneDepth}
-                      onChange={(e) => setClipPlaneDepth(parseFloat(e.target.value))}
+                      min={OPACITY_RANGE.min}
+                      max={OPACITY_RANGE.max}
+                      step={OPACITY_RANGE.step}
+                      value={opacity}
+                      onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
                       className="w-full"
                     />
                   </div>
 
+                  {/* Cal Min */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Azimuth: {clipPlaneAzimuth.toFixed(0)}°
+                    <label className="text-sm font-semibold text-foreground">
+                      Cal Min: {cal_min.toFixed(0)}
                     </label>
                     <input
                       type="range"
-                      min="0"
-                      max="360"
+                      min={cal_minGlobal.toFixed(0)}
+                      max={cal_maxGlobal.toFixed(0)}
                       step="1"
-                      value={clipPlaneAzimuth}
-                      onChange={(e) => setClipPlaneAzimuth(parseFloat(e.target.value))}
+                      value={cal_min}
+                      onChange={(e) => handleCalMinChange(parseFloat(e.target.value))}
                       className="w-full"
                     />
                   </div>
 
+                  {/* Cal Max */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Elevation: {clipPlaneElevation.toFixed(0)}°
+                    <label className="text-sm font-semibold text-foreground">
+                      Cal Max: {cal_max.toFixed(0)}
                     </label>
                     <input
                       type="range"
-                      min="0"
-                      max="180"
+                      min={cal_minGlobal.toFixed(0)}
+                      max={cal_maxGlobal.toFixed(0)}
                       step="1"
-                      value={clipPlaneElevation}
-                      onChange={(e) => setClipPlaneElevation(parseFloat(e.target.value))}
+                      value={cal_max}
+                      onChange={(e) => handleCalMaxChange(parseFloat(e.target.value))}
                       className="w-full"
                     />
                   </div>
-                </div>
 
-                {/* Render Settings */}
-                {sliceType === "render" && (
+                  {/* Clip Plane */}
                   <div className="space-y-3 border-t border-border pt-4">
-                    <h3 className="text-sm font-semibold text-foreground">Render View</h3>
+                    <h3 className="text-sm font-semibold text-foreground">Clip Plane</h3>
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">
-                        Azimuth: {renderAzimuth.toFixed(0)}°
+                        Depth: {clipPlaneDepth.toFixed(2)}
                       </label>
                       <input
                         type="range"
-                        min="0"
-                        max="360"
-                        step="1"
-                        value={renderAzimuth}
-                        onChange={(e) => handleRenderAzimuthChange(parseFloat(e.target.value))}
+                        min={CLIP_DEPTH_RANGE.min}
+                        max={CLIP_DEPTH_RANGE.max}
+                        step={CLIP_DEPTH_RANGE.step}
+                        value={clipPlaneDepth}
+                        onChange={(e) => setClipPlaneDepth(parseFloat(e.target.value))}
                         className="w-full"
                       />
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">
-                        Elevation: {renderElevation.toFixed(0)}°
+                        Azimuth: {clipPlaneAzimuth.toFixed(0)}°
                       </label>
                       <input
                         type="range"
-                        min="-90"
-                        max="90"
-                        step="1"
-                        value={renderElevation}
-                        onChange={(e) => handleRenderElevationChange(parseFloat(e.target.value))}
+                        min={CLIP_AZIMUTH_RANGE.min}
+                        max={CLIP_AZIMUTH_RANGE.max}
+                        step={CLIP_AZIMUTH_RANGE.step}
+                        value={clipPlaneAzimuth}
+                        onChange={(e) => setClipPlaneAzimuth(parseFloat(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Elevation: {clipPlaneElevation.toFixed(0)}°
+                      </label>
+                      <input
+                        type="range"
+                        min={CLIP_ELEVATION_RANGE.min}
+                        max={CLIP_ELEVATION_RANGE.max}
+                        step={CLIP_ELEVATION_RANGE.step}
+                        value={clipPlaneElevation}
+                        onChange={(e) => setClipPlaneElevation(parseFloat(e.target.value))}
                         className="w-full"
                       />
                     </div>
                   </div>
-                )}
+
+                  {/* Render Settings */}
+                  {showsRender && (
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <h3 className="text-sm font-semibold text-foreground">Render View</h3>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Azimuth: {renderAzimuth.toFixed(0)}°
+                        </label>
+                        <input
+                          type="range"
+                          min={RENDER_AZIMUTH_RANGE.min}
+                          max={RENDER_AZIMUTH_RANGE.max}
+                          step={RENDER_AZIMUTH_RANGE.step}
+                          value={renderAzimuth}
+                          onChange={(e) => handleRenderAzimuthChange(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Elevation: {renderElevation.toFixed(0)}°
+                        </label>
+                        <input
+                          type="range"
+                          min={RENDER_ELEVATION_RANGE.min}
+                          max={RENDER_ELEVATION_RANGE.max}
+                          step={RENDER_ELEVATION_RANGE.step}
+                          value={renderElevation}
+                          onChange={(e) => handleRenderElevationChange(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Zoom: {renderZoom.toFixed(1)}×
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              handleRenderZoomChange(renderZoom / RENDER_ZOOM_BUTTON_FACTOR)
+                            }
+                            className="h-8 w-8 shrink-0 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors"
+                            title="Zoom out"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min={RENDER_ZOOM_RANGE.min}
+                            max={RENDER_ZOOM_RANGE.max}
+                            step={RENDER_ZOOM_RANGE.step}
+                            value={renderZoom}
+                            onChange={(e) => handleRenderZoomChange(parseFloat(e.target.value))}
+                            className="w-full"
+                          />
+                          <button
+                            onClick={() =>
+                              handleRenderZoomChange(renderZoom * RENDER_ZOOM_BUTTON_FACTOR)
+                            }
+                            className="h-8 w-8 shrink-0 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors"
+                            title="Zoom in"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Reset to initial */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={resetSettings}
+                      className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    >
+                      Reset Display Settings
+                    </button>
+                  </div>
+                </fieldset>
               </div>
             </div>
           )}
@@ -873,7 +1214,7 @@ export function VisualizationPage() {
               className="relative min-h-0 flex-1 overflow-hidden"
               style={{ backgroundColor: lightBackground ? "#ffffff" : "#000000" }}
             >
-              {!studyId && viewPhase === "loading" && (
+              {viewPhase === "loading" && (
                 <div className="absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
                   <div
                     className="h-10 w-10 shrink-0 rounded-full border-2 border-primary/30 border-t-primary animate-spin"

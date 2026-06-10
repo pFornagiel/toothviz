@@ -1,0 +1,254 @@
+diff --git a/node_modules/@niivue/niivue/build/niivue/index.js b/node_modules/@niivue/niivue/build/niivue/index.js
+index 0ce5f94..b9a4259 100644
+--- a/node_modules/@niivue/niivue/build/niivue/index.js
++++ b/node_modules/@niivue/niivue/build/niivue/index.js
+@@ -36183,10 +36183,8 @@ var Niivue = class extends EventTarget {
+    * @internal
+    */
+   mouseMoveListener(e) {
+-    if (this.uiData.mousedown) {
+-      this.drawScene();
+-    }
+     const pos = this.getNoPaddingNoBorderCanvasRelativeMousePosition(e, this.gl.canvas);
++    const __isRenderRotateDrag = this.uiData.mousedown && !!pos && this.getCurrentDragMode() === 8 /* crosshair */ && this.inRenderTile(pos.x * this.uiData.dpr, pos.y * this.uiData.dpr) >= 0;
+     if (!pos) {
+       return;
+     }
+@@ -36205,6 +36203,11 @@ var Niivue = class extends EventTarget {
+       const activeDragMode = this.getCurrentDragMode();
+       if (activeDragMode === 8 /* crosshair */) {
+         this.mouseMove(pos.x, pos.y);
++        if (__isRenderRotateDrag) {
++          this.uiData.prevX = this.uiData.currX;
++          this.uiData.prevY = this.uiData.currY;
++          return;
++        }
+         const isChanged = !this.mouseClick(pos.x, pos.y);
+         if (!isChanged && this.uiData.prevX === this.uiData.currX && this.uiData.prevY === this.uiData.currY) {
+           return;
+@@ -40363,10 +40366,24 @@ var Niivue = class extends EventTarget {
+     }
+     const fb = setupFramebuffer(this.gl);
+     this.gl.viewport(0, 0, this.back.dims[1], this.back.dims[2]);
+-    const tempTex3D = createTemporaryTexture({
+-      gl: this.gl,
+-      TEXTURE9_ORIENT: TEXTURE_CONSTANTS.TEXTURE9_ORIENT
+-    });
++    if (!this.__rawTexCache) this.__rawTexCache = new Map();
++    const __cached = this.__rawTexCache.get(layer);
++    const __cacheOk = !!__cached && __cached.src === overlayItem.img && __cached.frame4D === overlayItem.frame4D && hdr.datatypeCode !== 2304;
++    let tempTex3D;
++    if (__cacheOk) {
++      tempTex3D = __cached.tex;
++      this.gl.activeTexture(TEXTURE_CONSTANTS.TEXTURE9_ORIENT);
++      this.gl.bindTexture(this.gl.TEXTURE_3D, tempTex3D);
++    } else {
++      if (__cached) {
++        this.gl.deleteTexture(__cached.tex);
++        this.__rawTexCache.delete(layer);
++      }
++      tempTex3D = createTemporaryTexture({
++        gl: this.gl,
++        TEXTURE9_ORIENT: TEXTURE_CONSTANTS.TEXTURE9_ORIENT
++      });
++    }
+     if (!hdr) {
+       throw new Error("hdr undefined");
+     }
+@@ -40397,6 +40414,15 @@ var Niivue = class extends EventTarget {
+       if (rgba32Result.paqdTexture !== null) {
+         this.paqdTexture = rgba32Result.paqdTexture;
+       }
++    } else if (__cacheOk) {
++      orientShader = this.orientShaderU;
++      if (hdr.datatypeCode === 4) orientShader = hdr.intent_code === 1002 ? this.orientShaderAtlasI : this.orientShaderI;
++      else if (hdr.datatypeCode === 16 || hdr.datatypeCode === 64) orientShader = this.orientShaderF;
++      else if (hdr.datatypeCode === 128) {
++        orientShader = this.orientShaderRGBU;
++        orientShader.use(this.gl);
++        this.gl.uniform1i(orientShader.uniforms.hasAlpha, 0);
++      } else if (hdr.intent_code === 1002) orientShader = this.orientShaderAtlasU;
+     } else {
+       const uploadResult = setupVolumeTextureData({
+         gl: this.gl,
+@@ -40410,6 +40436,7 @@ var Niivue = class extends EventTarget {
+         orientShaderAtlasI: this.orientShaderAtlasI
+       });
+       orientShader = uploadResult.orientShader;
++      this.__rawTexCache.set(layer, { tex: tempTex3D, src: overlayItem.img, frame4D: overlayItem.frame4D });
+     }
+     if (overlayItem.global_min === void 0) {
+       overlayItem.calMinMax();
+@@ -40486,7 +40513,8 @@ var Niivue = class extends EventTarget {
+     });
+     log.debug("back dims: ", this.back.dims);
+     this.gl.bindVertexArray(this.unusedVAO);
+-    this.gl.deleteTexture(tempTex3D);
++    const __keep = this.__rawTexCache.get(layer);
++    if (!__keep || __keep.tex !== tempTex3D) this.gl.deleteTexture(tempTex3D);
+     this.gl.deleteTexture(modulateTexture);
+     this.gl.deleteTexture(blendTexture);
+     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+@@ -40494,7 +40522,8 @@ var Niivue = class extends EventTarget {
+     this.gl.deleteFramebuffer(fb);
+     if (layer === 0) {
+       this.volumeTexture = outTexture;
+-      this.gradientTexture = gradientGL({
++      const gradientNeeded = this.gradientTextureAmount > 0 || this.renderGradientValues === true || this.opts.gradientOpacity > 0;
++      if (gradientNeeded && !this.useCustomGradientTexture) this.gradientTexture = gradientGL({
+         gl: this.gl,
+         hdr,
+         genericVAO: this.genericVAO,
+@@ -44967,7 +44996,24 @@ var Niivue = class extends EventTarget {
+    * @internal
+    */
+   rgbaTex(texID, activeID, dims, isInit = false) {
+-    return rgbaTex(this.gl, texID, activeID, dims, isInit);
++    const pooled = activeID === TEXTURE_CONSTANTS.TEXTURE0_BACK_VOL || activeID === TEXTURE_CONSTANTS.TEXTURE2_OVERLAY_VOL;
++    if (!pooled) {
++      return rgbaTex(this.gl, texID, activeID, dims, isInit);
++    }
++    if (!this.__volTexPool) this.__volTexPool = new Map();
++    const cached = this.__volTexPool.get(activeID);
++    const sameDims = !!cached && cached.dims[1] === dims[1] && cached.dims[2] === dims[2] && cached.dims[3] === dims[3];
++    if (!isInit && sameDims && (texID === cached.tex || texID === null)) {
++      this.gl.activeTexture(activeID);
++      this.gl.bindTexture(this.gl.TEXTURE_3D, cached.tex);
++      return cached.tex;
++    }
++    if (cached && texID === null) {
++      this.gl.deleteTexture(cached.tex);
++    }
++    const tex = rgbaTex(this.gl, texID, activeID, dims, isInit);
++    this.__volTexPool.set(activeID, { tex, dims: dims.slice() });
++    return tex;
+   }
+   /**
+    * Create or recreate a 3D RGBA16UI texture on the GPU with given dimensions.
+diff --git a/node_modules/@niivue/niivue/dist/index.js b/node_modules/@niivue/niivue/dist/index.js
+index 55b4d1b..5197cbe 100644
+--- a/node_modules/@niivue/niivue/dist/index.js
++++ b/node_modules/@niivue/niivue/dist/index.js
+@@ -44938,10 +44938,8 @@ var Niivue = class extends EventTarget {
+    * @internal
+    */
+   mouseMoveListener(e) {
+-    if (this.uiData.mousedown) {
+-      this.drawScene();
+-    }
+     const pos = this.getNoPaddingNoBorderCanvasRelativeMousePosition(e, this.gl.canvas);
++    const __isRenderRotateDrag = this.uiData.mousedown && !!pos && this.getCurrentDragMode() === 8 /* crosshair */ && this.inRenderTile(pos.x * this.uiData.dpr, pos.y * this.uiData.dpr) >= 0;
+     if (!pos) {
+       return;
+     }
+@@ -44960,6 +44958,11 @@ var Niivue = class extends EventTarget {
+       const activeDragMode = this.getCurrentDragMode();
+       if (activeDragMode === 8 /* crosshair */) {
+         this.mouseMove(pos.x, pos.y);
++        if (__isRenderRotateDrag) {
++          this.uiData.prevX = this.uiData.currX;
++          this.uiData.prevY = this.uiData.currY;
++          return;
++        }
+         const isChanged = !this.mouseClick(pos.x, pos.y);
+         if (!isChanged && this.uiData.prevX === this.uiData.currX && this.uiData.prevY === this.uiData.currY) {
+           return;
+@@ -49118,10 +49121,24 @@ var Niivue = class extends EventTarget {
+     }
+     const fb = setupFramebuffer(this.gl);
+     this.gl.viewport(0, 0, this.back.dims[1], this.back.dims[2]);
+-    const tempTex3D = createTemporaryTexture({
+-      gl: this.gl,
+-      TEXTURE9_ORIENT: TEXTURE_CONSTANTS.TEXTURE9_ORIENT
+-    });
++    if (!this.__rawTexCache) this.__rawTexCache = new Map();
++    const __cached = this.__rawTexCache.get(layer);
++    const __cacheOk = !!__cached && __cached.src === overlayItem.img && __cached.frame4D === overlayItem.frame4D && hdr.datatypeCode !== 2304;
++    let tempTex3D;
++    if (__cacheOk) {
++      tempTex3D = __cached.tex;
++      this.gl.activeTexture(TEXTURE_CONSTANTS.TEXTURE9_ORIENT);
++      this.gl.bindTexture(this.gl.TEXTURE_3D, tempTex3D);
++    } else {
++      if (__cached) {
++        this.gl.deleteTexture(__cached.tex);
++        this.__rawTexCache.delete(layer);
++      }
++      tempTex3D = createTemporaryTexture({
++        gl: this.gl,
++        TEXTURE9_ORIENT: TEXTURE_CONSTANTS.TEXTURE9_ORIENT
++      });
++    }
+     if (!hdr) {
+       throw new Error("hdr undefined");
+     }
+@@ -49152,6 +49169,15 @@ var Niivue = class extends EventTarget {
+       if (rgba32Result.paqdTexture !== null) {
+         this.paqdTexture = rgba32Result.paqdTexture;
+       }
++    } else if (__cacheOk) {
++      orientShader = this.orientShaderU;
++      if (hdr.datatypeCode === 4) orientShader = hdr.intent_code === 1002 ? this.orientShaderAtlasI : this.orientShaderI;
++      else if (hdr.datatypeCode === 16 || hdr.datatypeCode === 64) orientShader = this.orientShaderF;
++      else if (hdr.datatypeCode === 128) {
++        orientShader = this.orientShaderRGBU;
++        orientShader.use(this.gl);
++        this.gl.uniform1i(orientShader.uniforms.hasAlpha, 0);
++      } else if (hdr.intent_code === 1002) orientShader = this.orientShaderAtlasU;
+     } else {
+       const uploadResult = setupVolumeTextureData({
+         gl: this.gl,
+@@ -49165,6 +49191,7 @@ var Niivue = class extends EventTarget {
+         orientShaderAtlasI: this.orientShaderAtlasI
+       });
+       orientShader = uploadResult.orientShader;
++      this.__rawTexCache.set(layer, { tex: tempTex3D, src: overlayItem.img, frame4D: overlayItem.frame4D });
+     }
+     if (overlayItem.global_min === void 0) {
+       overlayItem.calMinMax();
+@@ -49241,7 +49268,8 @@ var Niivue = class extends EventTarget {
+     });
+     log.debug("back dims: ", this.back.dims);
+     this.gl.bindVertexArray(this.unusedVAO);
+-    this.gl.deleteTexture(tempTex3D);
++    const __keep = this.__rawTexCache.get(layer);
++    if (!__keep || __keep.tex !== tempTex3D) this.gl.deleteTexture(tempTex3D);
+     this.gl.deleteTexture(modulateTexture);
+     this.gl.deleteTexture(blendTexture);
+     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+@@ -49249,7 +49277,8 @@ var Niivue = class extends EventTarget {
+     this.gl.deleteFramebuffer(fb);
+     if (layer === 0) {
+       this.volumeTexture = outTexture;
+-      this.gradientTexture = gradientGL({
++      const gradientNeeded = this.gradientTextureAmount > 0 || this.renderGradientValues === true || this.opts.gradientOpacity > 0;
++      if (gradientNeeded && !this.useCustomGradientTexture) this.gradientTexture = gradientGL({
+         gl: this.gl,
+         hdr,
+         genericVAO: this.genericVAO,
+@@ -53722,7 +53751,24 @@ var Niivue = class extends EventTarget {
+    * @internal
+    */
+   rgbaTex(texID, activeID, dims, isInit = false) {
+-    return rgbaTex(this.gl, texID, activeID, dims, isInit);
++    const pooled = activeID === TEXTURE_CONSTANTS.TEXTURE0_BACK_VOL || activeID === TEXTURE_CONSTANTS.TEXTURE2_OVERLAY_VOL;
++    if (!pooled) {
++      return rgbaTex(this.gl, texID, activeID, dims, isInit);
++    }
++    if (!this.__volTexPool) this.__volTexPool = new Map();
++    const cached = this.__volTexPool.get(activeID);
++    const sameDims = !!cached && cached.dims[1] === dims[1] && cached.dims[2] === dims[2] && cached.dims[3] === dims[3];
++    if (!isInit && sameDims && (texID === cached.tex || texID === null)) {
++      this.gl.activeTexture(activeID);
++      this.gl.bindTexture(this.gl.TEXTURE_3D, cached.tex);
++      return cached.tex;
++    }
++    if (cached && texID === null) {
++      this.gl.deleteTexture(cached.tex);
++    }
++    const tex = rgbaTex(this.gl, texID, activeID, dims, isInit);
++    this.__volTexPool.set(activeID, { tex, dims: dims.slice() });
++    return tex;
+   }
+   /**
+    * Create or recreate a 3D RGBA16UI texture on the GPU with given dimensions.
