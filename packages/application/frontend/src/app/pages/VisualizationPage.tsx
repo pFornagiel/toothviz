@@ -24,6 +24,78 @@ interface LocationState {
 const CAL_MIN_GLOBAL_VAL = -1000;
 const CAL_MAX_GLOBAL_VAL = 3000;
 
+// Slice-type identifiers used by the slice-type selector and niivue layout switching
+enum SliceTypeKey {
+  Multiplanar = "multiplanar",
+  Multiplanar4View = "multiplanar_4view",
+  Axial = "axial",
+  Coronal = "coronal",
+  Sagittal = "sagittal",
+  Render = "render",
+}
+
+const DEFAULT_COLORMAP = "gray";
+const DEFAULT_SLICE_TYPE = SliceTypeKey.Multiplanar;
+
+// Colormaps applied to loaded volumes/overlays
+const VOLUME_COLORMAP = "gray";
+const OVERLAY_COLORMAP = "red";
+
+// Default values for newly loaded volumes/overlays
+const DEFAULT_OVERLAY_OPACITY = 0.5;
+const DEFAULT_VOLUME_NAME = "volume";
+const DEFAULT_OVERLAY_NAME = "overlay";
+const DEFAULT_VISIBLE_OPACITY = 1.0;
+
+// Niivue init / display defaults
+const DEFAULT_BACK_COLOR_DARK: [number, number, number, number] = [0, 0, 0, 1];
+const DEFAULT_BACK_COLOR_LIGHT: [number, number, number, number] = [1, 1, 1, 1];
+const DEFAULT_SHOW_3D_CROSSHAIR = true;
+const DEFAULT_CROSSHAIR_WIDTH = 1;
+const HIDDEN_OPACITY = 0;
+
+// Niivue multiplanar layout modes
+const MULTIPLANAR_LAYOUT_DEFAULT = 0;
+const MULTIPLANAR_LAYOUT_GRID = 2;
+
+// Default initial values for clip plane / render controls
+const DEFAULT_CLIP_PLANE_DEPTH = 2;
+const DEFAULT_RENDER_AZIMUTH = 120;
+const DEFAULT_RENDER_ELEVATION = 10;
+
+// Slider bounds for UI controls
+const CROSSHAIR_WIDTH_RANGE = { min: 1, max: 5, step: 1 };
+const OPACITY_RANGE = { min: 0, max: 1, step: 0.01 };
+const CLIP_DEPTH_RANGE = { min: 0, max: 2, step: 0.01 };
+const CLIP_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
+const CLIP_ELEVATION_RANGE = { min: 0, max: 180, step: 1 };
+const RENDER_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
+const RENDER_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
+
+// Available colormaps
+const COLORMAPS = [
+  "gray",
+  "red",
+  "green",
+  "blue",
+  "plasma",
+  "viridis",
+  "inferno",
+  "magma",
+  "hot",
+  "winter",
+  "cool",
+  "spring",
+  "summer",
+  "autumn",
+  "bone",
+  "copper",
+  "grays",
+  "warm",
+  "red_yellow",
+  "blue_green",
+];
+
 type ViewPhase = "loading" | "ready" | "error";
 
 export function VisualizationPage() {
@@ -43,7 +115,7 @@ export function VisualizationPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [errorHintsList, setErrorHintsList] = useState<string[]>([]);
 
-  const [sliceType, setSliceType] = useState<string>("multiplanar");
+  const [sliceType, setSliceType] = useState<SliceTypeKey>(DEFAULT_SLICE_TYPE);
 
   // UI state
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -53,65 +125,88 @@ export function VisualizationPage() {
   const [selectedVolume, setSelectedVolume] = useState(0);
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
-  const [opacity, setOpacity] = useState(1.0);
-  const [colormap, setColormap] = useState("gray");
-  const [cal_min, _setCalMin] = useState(0);
-  const [cal_max, _setCalMax] = useState(100);
-  const [cal_minGlobal, setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
-  const [cal_maxGlobal, setCalMaxGlobal] = useState(CAL_MAX_GLOBAL_VAL);
+  const [opacity, setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
+  const [colormap, _setColormap] = useState(DEFAULT_COLORMAP);
+  const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
+  const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
+  const [cal_minGlobal, _setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
+  const [cal_maxGlobal, _setCalMaxGlobal] = useState(CAL_MAX_GLOBAL_VAL);
 
   // Crosshair and display settings
-  const [showCrosshair, setShowCrosshair] = useState(true);
-  const [crosshairWidth, setCrosshairWidth] = useState(1);
+  const [showCrosshair, setShowCrosshair] = useState(DEFAULT_SHOW_3D_CROSSHAIR);
+  const [crosshairWidth, setCrosshairWidth] = useState(DEFAULT_CROSSHAIR_WIDTH);
 
   // Clip plane settings
-  const [clipPlaneDepth, setClipPlaneDepth] = useState(2);
+  const [clipPlaneDepth, setClipPlaneDepth] = useState(DEFAULT_CLIP_PLANE_DEPTH);
   const [clipPlaneAzimuth, setClipPlaneAzimuth] = useState(0);
   const [clipPlaneElevation, setClipPlaneElevation] = useState(0);
 
   // Render settings
-  const [renderAzimuth, setRenderAzimuth] = useState(120);
-  const [renderElevation, setRenderElevation] = useState(10);
+  const [renderAzimuth, setRenderAzimuth] = useState(DEFAULT_RENDER_AZIMUTH);
+  const [renderElevation, setRenderElevation] = useState(DEFAULT_RENDER_ELEVATION);
 
-  // Available colormaps
-  const colormaps = [
-    "gray",
-    "red",
-    "green",
-    "blue",
-    "plasma",
-    "viridis",
-    "inferno",
-    "magma",
-    "hot",
-    "winter",
-    "cool",
-    "spring",
-    "summer",
-    "autumn",
-    "bone",
-    "copper",
-    "grays",
-    "warm",
-    "red_yellow",
-    "blue_green",
-  ];
-
-  const setCalMax = (value: number) => {
-    if(value < cal_min) {
-      _setCalMax(cal_min);
-      return
+  // Slider drags emit more change events than the GPU pipeline can absorb
+  // (nv.updateGLVolume re-runs the volume display pass), so niivue updates are
+  // coalesced to at most one per animation frame, always applying the latest value.
+  const queuedNvUpdateRef = useRef<(() => void) | null>(null);
+  const queueNvUpdate = useCallback((apply: () => void) => {
+    const alreadyQueued = queuedNvUpdateRef.current !== null;
+    queuedNvUpdateRef.current = apply;
+    if (!alreadyQueued) {
+      requestAnimationFrame(() => {
+        const fn = queuedNvUpdateRef.current;
+        queuedNvUpdateRef.current = null;
+        fn?.();
+      });
     }
-    _setCalMax(value);
-  }
+  }, []);
 
-  const setCalMin = (value: number) => {
-    if(value > cal_max) {
-      _setCalMin(cal_max);
-      return
+  const setCalMax = useCallback(
+    (value: number | undefined) => {
+      if (Number.isNaN(value) || value === undefined) {
+        return CAL_MAX_GLOBAL_VAL;
+      }
+      if (value < cal_min) {
+        _setCalMax(cal_min);
+        return;
+      }
+      _setCalMax(value);
+    },
+    [cal_min],
+  );
+
+  const setCalMin = useCallback(
+    (value: number | undefined) => {
+      if (Number.isNaN(value) || value === undefined) {
+        return CAL_MIN_GLOBAL_VAL;
+      }
+
+      if (value > cal_max) {
+        _setCalMin(cal_max);
+        return;
+      }
+      _setCalMin(value);
+    },
+    [cal_max],
+  );
+
+  const setCalMinGlobal = (value: number | undefined) => {
+    if (Number.isNaN(value) || value === undefined) {
+      return CAL_MIN_GLOBAL_VAL;
     }
-    _setCalMin(value);
-  }
+    _setCalMinGlobal(value);
+  };
+
+  const setCalMaxGlobal = (value: number | undefined) => {
+    if (Number.isNaN(value) || value === undefined) {
+      return CAL_MAX_GLOBAL_VAL;
+    }
+    _setCalMaxGlobal(value);
+  };
+
+  const setColormap = (value: string | undefined) => {
+    _setColormap(value || DEFAULT_COLORMAP);
+  };
 
   const disposeNv = useCallback(() => {
     const nv = nvRef.current;
@@ -143,16 +238,16 @@ export function VisualizationPage() {
       if (volume) {
         volumes.push({
           url: fileContentUrl(studyId, volume.id),
-          name: volume.display_name ?? "volume",
-          colormap: "gray",
+          name: volume.display_name ?? DEFAULT_VOLUME_NAME,
+          colormap: VOLUME_COLORMAP,
         });
       }
       if (overlay) {
         volumes.push({
           url: fileContentUrl(studyId, overlay.id),
-          name: overlay.display_name ?? "overlay",
-          opacity: 0.5,
-          colormap: "red",
+          name: overlay.display_name ?? DEFAULT_OVERLAY_NAME,
+          opacity: DEFAULT_OVERLAY_OPACITY,
+          colormap: OVERLAY_COLORMAP,
         });
       }
 
@@ -164,17 +259,17 @@ export function VisualizationPage() {
         if (nv.volumes.length > 0) {
           const vol = nv.volumes[0];
           setOpacity(vol.opacity);
-          setColormap(vol.colormap || "gray");
-          setCalMinGlobal(vol.global_min ?? CAL_MIN_GLOBAL_VAL);
-          setCalMaxGlobal(vol.global_max ?? CAL_MAX_GLOBAL_VAL);
-          _setCalMin(vol.cal_min ?? CAL_MIN_GLOBAL_VAL);
-          _setCalMax(vol.cal_max ?? CAL_MAX_GLOBAL_VAL);
+          setColormap(vol.colormap);
+          setCalMinGlobal(vol.global_min);
+          setCalMaxGlobal(vol.global_max);
+          setCalMin(vol.cal_min);
+          setCalMax(vol.cal_max);
           // Initialize visibility and store opacities for all volumes
           setVolumeVisibility(nv.volumes.map(() => true));
           setVolumeOpacities(nv.volumes.map((v) => v.opacity));
         }
         nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(0);
+        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
       } else {
         setStatusText("No viewable files found for this study");
         throw new Error("No viewable volume or overlay files are available yet.");
@@ -197,7 +292,7 @@ export function VisualizationPage() {
         {
           url: primaryUrl,
           name: primary.name,
-          colormap: "gray",
+          colormap: VOLUME_COLORMAP,
         },
       ]);
 
@@ -208,8 +303,8 @@ export function VisualizationPage() {
         await nv.addVolumeFromUrl({
           url: maskUrl,
           name: mask.name,
-          opacity: 0.5,
-          colormap: "red",
+          opacity: DEFAULT_OVERLAY_OPACITY,
+          colormap: OVERLAY_COLORMAP,
         });
       }
 
@@ -218,14 +313,14 @@ export function VisualizationPage() {
       if (nv.volumes.length > 0) {
         const vol = nv.volumes[0];
         setOpacity(vol.opacity);
-        setColormap(vol.colormap || "gray");
-        _setCalMin(vol.cal_min ?? 0);
-        _setCalMax(vol.cal_max ?? 100);
+        setColormap(vol.colormap);
+        setCalMin(vol.cal_min);
+        setCalMax(vol.cal_max);
         setVolumeVisibility(nv.volumes.map(() => true));
         setVolumeOpacities(nv.volumes.map((v) => v.opacity));
       }
       nv.setSliceType(nv.sliceTypeMultiplanar);
-      nv.setMultiplanarLayout(0);
+      nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
     },
     [routeState],
   );
@@ -238,9 +333,9 @@ export function VisualizationPage() {
       return nvRef.current;
     }
     const nv = new Niivue({
-      backColor: [0, 0, 0, 1],
-      show3Dcrosshair: true,
-      crosshairWidth: 1,
+      backColor: DEFAULT_BACK_COLOR_DARK,
+      show3Dcrosshair: DEFAULT_SHOW_3D_CROSSHAIR,
+      crosshairWidth: DEFAULT_CROSSHAIR_WIDTH,
     });
     nv.attachToCanvas(canvasRef.current);
     nvRef.current = nv;
@@ -341,7 +436,7 @@ export function VisualizationPage() {
     };
   }, [studyId, initNiivue, loadStudyFiles, goError, disposeNv]);
 
-  const handleSliceTypeChange = (type: string) => {
+  const handleSliceTypeChange = (type: SliceTypeKey) => {
     const nv = nvRef.current;
     if (!nv) {
       return;
@@ -349,24 +444,24 @@ export function VisualizationPage() {
     setSliceType(type);
 
     switch (type) {
-      case "multiplanar":
+      case SliceTypeKey.Multiplanar:
         nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(0);
+        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
         break;
-      case "multiplanar_4view":
+      case SliceTypeKey.Multiplanar4View:
         nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(2); // Grid layout with 3 slices + 3D render
+        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_GRID); // Grid layout with 3 slices + 3D render
         break;
-      case "axial":
+      case SliceTypeKey.Axial:
         nv.setSliceType(nv.sliceTypeAxial);
         break;
-      case "coronal":
+      case SliceTypeKey.Coronal:
         nv.setSliceType(nv.sliceTypeCoronal);
         break;
-      case "sagittal":
+      case SliceTypeKey.Sagittal:
         nv.setSliceType(nv.sliceTypeSagittal);
         break;
-      case "render":
+      case SliceTypeKey.Render:
         nv.setSliceType(nv.sliceTypeRender);
         break;
     }
@@ -381,26 +476,10 @@ export function VisualizationPage() {
     setSelectedVolume(index);
     const vol = nv.volumes[index];
     setOpacity(vol.opacity);
-    setColormap(vol.colormap || "gray");
-    setCalMin(vol.cal_min ?? 0);
-    setCalMax(vol.cal_max ?? 100);
+    setColormap(vol.colormap);
+    setCalMin(vol.cal_min);
+    setCalMax(vol.cal_max);
   };
-
-  // Slider drags emit more change events than the GPU pipeline can absorb
-  // (nv.updateGLVolume re-runs the volume display pass), so niivue updates are
-  // coalesced to at most one per animation frame, always applying the latest value.
-  const queuedNvUpdateRef = useRef<(() => void) | null>(null);
-  const queueNvUpdate = useCallback((apply: () => void) => {
-    const alreadyQueued = queuedNvUpdateRef.current !== null;
-    queuedNvUpdateRef.current = apply;
-    if (!alreadyQueued) {
-      requestAnimationFrame(() => {
-        const fn = queuedNvUpdateRef.current;
-        queuedNvUpdateRef.current = null;
-        fn?.();
-      });
-    }
-  }, []);
 
   const handleOpacityChange = (value: number) => {
     const nv = nvRef.current;
@@ -499,7 +578,7 @@ export function VisualizationPage() {
     // Set opacity to 0 to hide, restore stored opacity to show
     if (newVisibility[index]) {
       // Restore the stored opacity
-      const opacityToRestore = volumeOpacities[index] ?? 1.0;
+      const opacityToRestore = volumeOpacities[index] ?? DEFAULT_VISIBLE_OPACITY;
       nv.setOpacity(index, opacityToRestore);
     } else {
       // Store current opacity before hiding
@@ -507,7 +586,7 @@ export function VisualizationPage() {
       newOpacities[index] = nv.volumes[index].opacity;
       setVolumeOpacities(newOpacities);
       // Hide by setting opacity to 0
-      nv.setOpacity(index, 0);
+      nv.setOpacity(index, HIDDEN_OPACITY);
     }
   };
 
@@ -519,7 +598,7 @@ export function VisualizationPage() {
 
     const newValue = !lightBackground;
     setLightBackground(newValue);
-    nv.opts.backColor = newValue ? [1, 1, 1, 1] : [0, 0, 0, 1];
+    nv.opts.backColor = newValue ? DEFAULT_BACK_COLOR_LIGHT : DEFAULT_BACK_COLOR_DARK;
     nv.drawScene();
   };
 
@@ -563,10 +642,10 @@ export function VisualizationPage() {
       return;
     }
 
-    if (sliceType === "multiplanar_4view") {
-      nv.setMultiplanarLayout(2);
+    if (sliceType === SliceTypeKey.Multiplanar4View) {
+      nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_GRID);
     }
-  }, [sliceType])
+  }, [sliceType]);
 
   return (
     <div className="h-screen flex flex-col bg-background font-sans">
@@ -606,9 +685,9 @@ export function VisualizationPage() {
               <label className="text-xs text-muted-foreground font-medium">Width:</label>
               <input
                 type="range"
-                min="1"
-                max="5"
-                step="1"
+                min={CROSSHAIR_WIDTH_RANGE.min}
+                max={CROSSHAIR_WIDTH_RANGE.max}
+                step={CROSSHAIR_WIDTH_RANGE.step}
                 value={crosshairWidth}
                 onChange={(e) => handleCrosshairWidthChange(parseFloat(e.target.value))}
                 className="w-20"
@@ -756,15 +835,15 @@ export function VisualizationPage() {
                     <label className="text-sm font-semibold text-foreground">Slice Type</label>
                     <select
                       value={sliceType}
-                      onChange={(e) => handleSliceTypeChange(e.target.value)}
+                      onChange={(e) => handleSliceTypeChange(e.target.value as SliceTypeKey)}
                       className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                     >
-                      <option value="multiplanar">Multiplanar</option>
-                      <option value="multiplanar_4view">Multiplanar (4 Views)</option>
-                      <option value="axial">Axial</option>
-                      <option value="coronal">Coronal</option>
-                      <option value="sagittal">Sagittal</option>
-                      <option value="render">Render</option>
+                      <option value={SliceTypeKey.Multiplanar}>Multiplanar</option>
+                      <option value={SliceTypeKey.Multiplanar4View}>Multiplanar (4 Views)</option>
+                      <option value={SliceTypeKey.Axial}>Axial</option>
+                      <option value={SliceTypeKey.Coronal}>Coronal</option>
+                      <option value={SliceTypeKey.Sagittal}>Sagittal</option>
+                      <option value={SliceTypeKey.Render}>Render</option>
                     </select>
                   </div>
 
@@ -775,9 +854,9 @@ export function VisualizationPage() {
                     </label>
                     <input
                       type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
+                      min={OPACITY_RANGE.min}
+                      max={OPACITY_RANGE.max}
+                      step={OPACITY_RANGE.step}
                       value={opacity}
                       onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
                       className="w-full"
@@ -792,7 +871,7 @@ export function VisualizationPage() {
                       onChange={(e) => handleColormapChange(e.target.value)}
                       className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                     >
-                      {colormaps.map((cm) => (
+                      {COLORMAPS.map((cm) => (
                         <option key={cm} value={cm}>
                           {cm}
                         </option>
@@ -842,9 +921,9 @@ export function VisualizationPage() {
                       </label>
                       <input
                         type="range"
-                        min="0"
-                        max="2"
-                        step="0.01"
+                        min={CLIP_DEPTH_RANGE.min}
+                        max={CLIP_DEPTH_RANGE.max}
+                        step={CLIP_DEPTH_RANGE.step}
                         value={clipPlaneDepth}
                         onChange={(e) => setClipPlaneDepth(parseFloat(e.target.value))}
                         className="w-full"
@@ -857,9 +936,9 @@ export function VisualizationPage() {
                       </label>
                       <input
                         type="range"
-                        min="0"
-                        max="360"
-                        step="1"
+                        min={CLIP_AZIMUTH_RANGE.min}
+                        max={CLIP_AZIMUTH_RANGE.max}
+                        step={CLIP_AZIMUTH_RANGE.step}
                         value={clipPlaneAzimuth}
                         onChange={(e) => setClipPlaneAzimuth(parseFloat(e.target.value))}
                         className="w-full"
@@ -872,9 +951,9 @@ export function VisualizationPage() {
                       </label>
                       <input
                         type="range"
-                        min="0"
-                        max="180"
-                        step="1"
+                        min={CLIP_ELEVATION_RANGE.min}
+                        max={CLIP_ELEVATION_RANGE.max}
+                        step={CLIP_ELEVATION_RANGE.step}
                         value={clipPlaneElevation}
                         onChange={(e) => setClipPlaneElevation(parseFloat(e.target.value))}
                         className="w-full"
@@ -883,7 +962,7 @@ export function VisualizationPage() {
                   </div>
 
                   {/* Render Settings */}
-                  {sliceType === "render" && (
+                  {sliceType === SliceTypeKey.Render && (
                     <div className="space-y-3 border-t border-border pt-4">
                       <h3 className="text-sm font-semibold text-foreground">Render View</h3>
 
@@ -893,9 +972,9 @@ export function VisualizationPage() {
                         </label>
                         <input
                           type="range"
-                          min="0"
-                          max="360"
-                          step="1"
+                          min={RENDER_AZIMUTH_RANGE.min}
+                          max={RENDER_AZIMUTH_RANGE.max}
+                          step={RENDER_AZIMUTH_RANGE.step}
                           value={renderAzimuth}
                           onChange={(e) => handleRenderAzimuthChange(parseFloat(e.target.value))}
                           className="w-full"
@@ -908,9 +987,9 @@ export function VisualizationPage() {
                         </label>
                         <input
                           type="range"
-                          min="-90"
-                          max="90"
-                          step="1"
+                          min={RENDER_ELEVATION_RANGE.min}
+                          max={RENDER_ELEVATION_RANGE.max}
+                          step={RENDER_ELEVATION_RANGE.step}
                           value={renderElevation}
                           onChange={(e) => handleRenderElevationChange(parseFloat(e.target.value))}
                           className="w-full"
