@@ -143,14 +143,14 @@ export function VisualizationPage() {
       if (volume) {
         volumes.push({
           url: fileContentUrl(studyId, volume.id),
-          name: volume.display_name ?? "volume.nii",
+          name: volume.display_name ?? "volume",
           colormap: "gray",
         });
       }
       if (overlay) {
         volumes.push({
           url: fileContentUrl(studyId, overlay.id),
-          name: overlay.display_name ?? "overlay.nii",
+          name: overlay.display_name ?? "overlay",
           opacity: 0.5,
           colormap: "red",
         });
