@@ -282,7 +282,7 @@ export function VisualizationPage() {
         throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
-    [studyId, setCalMin, setCalMax],
+    [studyId],
   );
 
   const loadVolatileFiles = useCallback(
@@ -329,7 +329,7 @@ export function VisualizationPage() {
       nv.setSliceType(nv.sliceTypeMultiplanar);
       nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
     },
-    [routeState, setCalMin, setCalMax],
+    [routeState],
   );
 
   const initNiivue = useCallback(() => {
