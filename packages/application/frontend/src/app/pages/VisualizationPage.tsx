@@ -15,6 +15,8 @@ export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   return study;
 }
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
 interface LocationState {
   primary?: File;
   mask?: File;
@@ -69,6 +71,12 @@ const CLIP_DEPTH_EDGE = Math.sqrt(3); // ≈1.732 — worst-case (cubic) furthes
 const DEFAULT_CLIP_PLANE_DEPTH = CLIP_DEPTH_EDGE; // start fully visible (nothing clipped)
 const DEFAULT_RENDER_AZIMUTH = 120;
 const DEFAULT_RENDER_ELEVATION = 10;
+const DEFAULT_RENDER_ZOOM = 1.0; // niivue volScaleMultiplier default (1 = no zoom)
+const RENDER_ZOOM_BUTTON_FACTOR = 1.2; // multiplicative step for the +/- buttons
+
+// Mouse-wheel interaction over the canvas
+const RENDER_ZOOM_SCROLL_FACTOR = 1.1; // multiplicative zoom step per wheel notch
+const CLIP_DEPTH_SCROLL_STEP = 0.05; // additive clip-depth step per wheel notch
 
 // Slider bounds for UI controls
 const CROSSHAIR_WIDTH_RANGE = { min: 1, max: 5, step: 1 };
@@ -78,6 +86,7 @@ const CLIP_AZIMUTH_RANGE = { min: -90, max: 90, step: 1 };
 const CLIP_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
 const RENDER_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
 const RENDER_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
+const RENDER_ZOOM_RANGE = { min: 0.1, max: 5, step: 0.1 };
 
 // Available colormaps
 const COLORMAPS = [
@@ -124,6 +133,12 @@ export function VisualizationPage() {
 
   const [sliceType, setSliceType] = useState<SliceTypeKey>(DEFAULT_SLICE_TYPE);
 
+  // Slice types that include a 3D render tile and therefore expose render controls
+  const showsRender =
+    sliceType === SliceTypeKey.Render ||
+    sliceType === SliceTypeKey.Multiplanar ||
+    sliceType === SliceTypeKey.Multiplanar4View;
+
   // UI state
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [lightBackground, setLightBackground] = useState(false);
@@ -155,6 +170,7 @@ export function VisualizationPage() {
   // Render settings
   const [renderAzimuth, setRenderAzimuth] = useState(DEFAULT_RENDER_AZIMUTH);
   const [renderElevation, setRenderElevation] = useState(DEFAULT_RENDER_ELEVATION);
+  const [renderZoom, setRenderZoom] = useState(DEFAULT_RENDER_ZOOM);
 
   // Slider drags emit more change events than the GPU pipeline can absorb
   // (nv.updateGLVolume re-runs the volume display pass), so niivue updates are
@@ -409,6 +425,11 @@ export function VisualizationPage() {
       crosshairWidth: DEFAULT_CROSSHAIR_WIDTH,
     });
     nv.attachToCanvas(canvasRef.current);
+    nv.onZoom3DChange = (zoom) => setRenderZoom(zoom);
+    nv.onAzimuthElevationChange = (azimuth, elevation) => {
+      setRenderAzimuth(azimuth);
+      setRenderElevation(elevation);
+    };
     nvRef.current = nv;
     return nv;
   }, []);
@@ -664,14 +685,14 @@ export function VisualizationPage() {
     nv.drawScene();
   };
 
-  const handleClipPlaneChange = () => {
+  const handleClipPlaneChange = useCallback(() => {
     const nv = nvRef.current;
     if (!nv) {
       return;
     }
 
     nv.setClipPlane([clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]);
-  };
+  }, [clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]);
 
   const handleRenderAzimuthChange = (value: number) => {
     const nv = nvRef.current;
@@ -693,9 +714,71 @@ export function VisualizationPage() {
     nv.setRenderAzimuthElevation(renderAzimuth, value);
   };
 
+  const handleRenderZoomChange = (value: number) => {
+    const nv = nvRef.current;
+    if (!nv) {
+      return;
+    }
+
+    const clamped = Math.min(RENDER_ZOOM_RANGE.max, Math.max(RENDER_ZOOM_RANGE.min, value));
+    setRenderZoom(clamped);
+    queueNvUpdate(() => nv.setScale(clamped));
+  };
+
   useEffect(() => {
     handleClipPlaneChange();
-  }, [clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]);
+  }, [handleClipPlaneChange]);
+
+  /* 
+    Wheel-canvas interaction. 
+    Niivue registers its own `wheel` listener on the canvas to scroll slices/zoom; 
+    we intercept on the canvas's parent in the capture phase and call stopPropagation,
+    so the event never reaches niivue's handler. 
+    Plain scroll zooms the render (volScaleMultiplier),
+    Shift+scroll nudges the clip-plane depth. 
+    Re-attaches whenever the canvas mounts, which is keyed off viewPhase.
+  */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = canvas?.parentElement;
+    if (!canvas || !container) {
+      return;
+    }
+
+    const handleWheel = (e: WheelEvent) => {
+      const nv = nvRef.current;
+      if (!nv || e.target !== canvas) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+
+      // deltaY < 0 means scrolling up: zoom in / increase depth.
+      const direction = e.deltaY < 0 ? 1 : -1;
+
+      if (e.shiftKey) {
+        setClipPlaneDepth((prev) =>
+          clamp(
+            prev + direction * CLIP_DEPTH_SCROLL_STEP,
+            CLIP_DEPTH_RANGE.min,
+            CLIP_DEPTH_RANGE.max,
+          ),
+        );
+      } else {
+        const factor = direction > 0 ? RENDER_ZOOM_SCROLL_FACTOR : 1 / RENDER_ZOOM_SCROLL_FACTOR;
+        const next = clamp(
+          nv.volScaleMultiplier * factor,
+          RENDER_ZOOM_RANGE.min,
+          RENDER_ZOOM_RANGE.max,
+        );
+        // setScale fires onZoom3DChange, which keeps the renderZoom slider in sync.
+        nv.setScale(next);
+      }
+    };
+
+    container.addEventListener("wheel", handleWheel, { capture: true, passive: false });
+    return () => container.removeEventListener("wheel", handleWheel, { capture: true });
+  }, [viewPhase]);
 
   useEffect(() => {
     // Update multiplanar layout when switching to multiplanar_4view
@@ -1024,7 +1107,7 @@ export function VisualizationPage() {
                   </div>
 
                   {/* Render Settings */}
-                  {sliceType === SliceTypeKey.Render && (
+                  {showsRender && (
                     <div className="space-y-3 border-t border-border pt-4">
                       <h3 className="text-sm font-semibold text-foreground">Render View</h3>
 
@@ -1056,6 +1139,41 @@ export function VisualizationPage() {
                           onChange={(e) => handleRenderElevationChange(parseFloat(e.target.value))}
                           className="w-full"
                         />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Zoom: {renderZoom.toFixed(1)}×
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              handleRenderZoomChange(renderZoom / RENDER_ZOOM_BUTTON_FACTOR)
+                            }
+                            className="h-8 w-8 shrink-0 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors"
+                            title="Zoom out"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min={RENDER_ZOOM_RANGE.min}
+                            max={RENDER_ZOOM_RANGE.max}
+                            step={RENDER_ZOOM_RANGE.step}
+                            value={renderZoom}
+                            onChange={(e) => handleRenderZoomChange(parseFloat(e.target.value))}
+                            className="w-full"
+                          />
+                          <button
+                            onClick={() =>
+                              handleRenderZoomChange(renderZoom * RENDER_ZOOM_BUTTON_FACTOR)
+                            }
+                            className="h-8 w-8 shrink-0 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors"
+                            title="Zoom in"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
