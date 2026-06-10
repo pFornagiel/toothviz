@@ -95,7 +95,7 @@ const CLIP_DEPTH_RANGE = { min: -CLIP_DEPTH_EDGE, max: CLIP_DEPTH_EDGE, step: 0.
 const CLIP_AZIMUTH_RANGE = { min: -90, max: 90, step: 1 };
 const CLIP_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
 const RENDER_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
-const RENDER_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
+const RENDER_ELEVATION_RANGE = { min: -180, max: 180, step: 1 };
 const RENDER_ZOOM_RANGE = { min: 0.1, max: 5, step: 0.1 };
 
 // Available colormaps
@@ -312,6 +312,8 @@ export function VisualizationPage() {
     setVolumeVisibility(nv.volumes.map(() => true));
     setVolumeOpacities(nv.volumes.map((v) => v.opacity));
 
+    nv.setRenderAzimuthElevation(DEFAULT_RENDER_AZIMUTH, DEFAULT_RENDER_ELEVATION);
+
     // reset render zoom with our scroll fix in mind
     queueNvUpdate(NvUpdateKey.RenderZoom, () => nv.setScale(DEFAULT_RENDER_ZOOM));
   };
@@ -450,9 +452,30 @@ export function VisualizationPage() {
     nv.attachToCanvas(canvasRef.current);
     nv.onZoom3DChange = (zoom) => setRenderZoom(zoom);
     nv.onAzimuthElevationChange = (azimuth, elevation) => {
-      setRenderAzimuth(azimuth);
-      setRenderElevation(elevation);
+      // Drag rotation keeps azimuth in [0, 360) but leaves elevation unbounded
+      // (and arrow keys can push azimuth past the range too); normalise both and
+      // write them back into the scene so niivue never holds a rotation the
+      // sliders cannot represent. sceneData is written directly to avoid
+      // re-entering this callback through the scene property setters.
+      const normalizedAzimuth = ((azimuth % 360) + 360) % 360;
+      const normalizedElevation = ((((elevation + 180) % 360) + 360) % 360) - 180;
+      if (normalizedAzimuth !== azimuth && azimuth > 360) {
+        nv.scene.sceneData.azimuth = normalizedAzimuth;
+        setRenderAzimuth(normalizedAzimuth);
+      } else {
+        setRenderAzimuth(azimuth);
+      }
+      if (normalizedElevation !== elevation && (elevation > 180 || elevation < -180)) {
+        nv.scene.sceneData.elevation = normalizedElevation;
+        setRenderElevation(normalizedElevation);
+      } else {
+        setRenderElevation(elevation);
+      }
     };
+    // niivue forwards scene.onZoom3DChange to the instance-level callback but
+    // never wires scene.onAzimuthElevationChange, and mouse-drag rotation only
+    // fires the scene-level one — without this line drags never reach React.
+    nv.scene.onAzimuthElevationChange = nv.onAzimuthElevationChange;
     nvRef.current = nv;
     return nv;
   }, []);
