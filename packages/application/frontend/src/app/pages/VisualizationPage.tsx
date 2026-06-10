@@ -139,6 +139,10 @@ export function VisualizationPage() {
   const [cal_minGlobal, _setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_maxGlobal, _setCalMaxGlobal] = useState(CAL_MAX_GLOBAL_VAL);
 
+  // Initialised cal_min and cal_max for reset
+  const initialCalMin = useRef(CAL_MIN_GLOBAL_VAL);
+  const initialCalMax = useRef(CAL_MAX_GLOBAL_VAL);
+
   // Crosshair and display settings
   const [showCrosshair, setShowCrosshair] = useState(DEFAULT_SHOW_3D_CROSSHAIR);
   const [crosshairWidth, setCrosshairWidth] = useState(DEFAULT_CROSSHAIR_WIDTH);
@@ -169,30 +173,50 @@ export function VisualizationPage() {
   }, []);
 
   const setCalMax = useCallback(
-    (value: number | undefined) => {
+    (value: number | undefined, setInitial: boolean = false) => {
       if (Number.isNaN(value) || value === undefined) {
-        return CAL_MAX_GLOBAL_VAL;
+        _setCalMax(CAL_MAX_GLOBAL_VAL);
+        if (setInitial) {
+          initialCalMax.current = CAL_MAX_GLOBAL_VAL;
+        }
+        return;
       }
       if (value < cal_min) {
         _setCalMax(cal_min);
+        if (setInitial) {
+          initialCalMax.current = cal_min;
+        }
         return;
       }
       _setCalMax(value);
+      if (setInitial) {
+        initialCalMax.current = value;
+      }
     },
     [cal_min],
   );
 
   const setCalMin = useCallback(
-    (value: number | undefined) => {
+    (value: number | undefined, setInitial: boolean = false) => {
       if (Number.isNaN(value) || value === undefined) {
-        return CAL_MIN_GLOBAL_VAL;
+        _setCalMin(CAL_MIN_GLOBAL_VAL);
+        if (setInitial) {
+          initialCalMin.current = CAL_MIN_GLOBAL_VAL;
+        }
+        return;
       }
 
       if (value > cal_max) {
         _setCalMin(cal_max);
+        if (setInitial) {
+          initialCalMin.current = cal_max;
+        }
         return;
       }
       _setCalMin(value);
+      if (setInitial) {
+        initialCalMin.current = value;
+      }
     },
     [cal_max],
   );
@@ -237,6 +261,20 @@ export function VisualizationPage() {
 
   const setColormap = (value: string | undefined) => {
     _setColormap(value || DEFAULT_COLORMAP);
+  };
+
+  const resetSettings = () => {
+    const nv = nvRef.current;
+    if (!nv) {
+      return;
+    }
+
+    setCalMin(initialCalMin.current);
+    setCalMax(initialCalMax.current);
+    setOpacity(DEFAULT_VISIBLE_OPACITY);
+    setColormap(DEFAULT_COLORMAP);
+    setVolumeVisibility(nv.volumes.map(() => true));
+    setVolumeOpacities(nv.volumes.map((v) => v.opacity));
   };
 
   const disposeNv = useCallback(() => {
@@ -293,8 +331,8 @@ export function VisualizationPage() {
           setColormap(vol.colormap);
           setCalMinGlobal(vol.global_min);
           setCalMaxGlobal(vol.global_max);
-          setCalMin(vol.cal_min);
-          setCalMax(vol.cal_max);
+          setCalMin(vol.cal_min, true);
+          setCalMax(vol.cal_max, true);
           // Initialize visibility and store opacities for all volumes
           setVolumeVisibility(nv.volumes.map(() => true));
           setVolumeOpacities(nv.volumes.map((v) => v.opacity));
@@ -345,8 +383,10 @@ export function VisualizationPage() {
         const vol = nv.volumes[0];
         setOpacity(vol.opacity);
         setColormap(vol.colormap);
-        setCalMin(vol.cal_min);
-        setCalMax(vol.cal_max);
+        setCalMin(vol.cal_min, true);
+        setCalMax(vol.cal_max, true);
+        setCalMinGlobal(vol.global_min);
+        setCalMaxGlobal(vol.global_max);
         setVolumeVisibility(nv.volumes.map(() => true));
         setVolumeOpacities(nv.volumes.map((v) => v.opacity));
       }
@@ -869,22 +909,6 @@ export function VisualizationPage() {
                     </select>
                   </div>
 
-                  {/* Opacity */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-foreground">
-                      Opacity: {opacity.toFixed(2)}
-                    </label>
-                    <input
-                      type="range"
-                      min={OPACITY_RANGE.min}
-                      max={OPACITY_RANGE.max}
-                      step={OPACITY_RANGE.step}
-                      value={opacity}
-                      onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
-                      className="w-full"
-                    />
-                  </div>
-
                   {/* Colormap */}
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">Colormap</label>
@@ -899,6 +923,22 @@ export function VisualizationPage() {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  {/* Opacity */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      Opacity: {opacity.toFixed(2)}
+                    </label>
+                    <input
+                      type="range"
+                      min={OPACITY_RANGE.min}
+                      max={OPACITY_RANGE.max}
+                      step={OPACITY_RANGE.step}
+                      value={opacity}
+                      onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
                   </div>
 
                   {/* Cal Min */}
@@ -1019,6 +1059,15 @@ export function VisualizationPage() {
                       </div>
                     </div>
                   )}
+                  {/* Reset to initial */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={resetSettings}
+                      className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    >
+                      Reset Display Settings
+                    </button>
+                  </div>
                 </fieldset>
               </div>
             </div>
