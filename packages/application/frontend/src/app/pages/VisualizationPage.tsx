@@ -197,6 +197,30 @@ export function VisualizationPage() {
     [cal_max],
   );
 
+  useEffect(() => {
+    const nv = nvRef.current;
+    if (!nv || !nv.volumes[selectedVolume]) {
+      return;
+    }
+
+    queueNvUpdate(() => {
+      nv.volumes[selectedVolume].cal_min = cal_min;
+      nv.updateGLVolume();
+    });
+  }, [cal_min]);
+
+  useEffect(() => {
+    const nv = nvRef.current;
+    if (!nv || !nv.volumes[selectedVolume]) {
+      return;
+    }
+
+    queueNvUpdate(() => {
+      nv.volumes[selectedVolume].cal_max = cal_max;
+      nv.updateGLVolume();
+    });
+  }, [cal_max]);
+
   const setCalMinGlobal = (value: number | undefined) => {
     if (Number.isNaN(value) || value === undefined) {
       return CAL_MIN_GLOBAL_VAL;
@@ -529,12 +553,7 @@ export function VisualizationPage() {
     if (!nv || !nv.volumes[selectedVolume]) {
       return;
     }
-
     setCalMin(value);
-    queueNvUpdate(() => {
-      nv.volumes[selectedVolume].cal_min = value;
-      nv.updateGLVolume();
-    });
   };
 
   const handleCalMaxChange = (value: number) => {
@@ -544,10 +563,6 @@ export function VisualizationPage() {
     }
 
     setCalMax(value);
-    queueNvUpdate(() => {
-      nv.volumes[selectedVolume].cal_max = value;
-      nv.updateGLVolume();
-    });
   };
 
   const handleCrosshairToggle = () => {
