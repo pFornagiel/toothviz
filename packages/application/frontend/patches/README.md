@@ -25,6 +25,16 @@ Three performance fixes to the volume display pipeline (full background and benc
 Net effect: `nv.updateGLVolume()` ~920 ms → ~5 ms, and a continuous cal-slider drag stays at
 ~25 ms/frame indefinitely (was: degrading to 130–500 ms/frame after a few seconds of dragging).
 
+### Usage perspective
+
+**Patch 1** - gradient skip. Fires on every single one of those interactions, for the background layer. Stock niivue rebuilt a 3D gradient texture (~390 ms of blur+Sobel passes) on each refresh, even though that texture is only ever sampled by the 3D illumination/matcap shaders, which this app never enables. So from the user's perspective: every slider tick, colormap change, and contrast drag silently paid for a lighting feature they can't even turn on. The skip is unconditional in practice here; if the app ever called setVolumeRenderIllumination(>0) or setGradientOpacity(>0), the gate reopens and gradients are computed as before.
+
+**Patch 2**- raw volume texture cache. Fires whenever refreshLayers runs but the voxel data itself hasn't changed - which is every display-parameter tweak: cal sliders, opacity, colormap, visibility toggles, right-drag windowing. Stock niivue re-converted the 360 MB float64 array and re-uploaded all 45M voxels to the GPU on each of these (~500 ms), despite the data being identical. The cache makes those interactions skip straight to the cheap ~30 ms orient pass. It deliberately does not fire - i.e., a full upload still happens - the first time a scan is displayed, when the segmentation overlay loads after a pipeline run, when a different scan replaces the current one, or on a 4D frame change (no 4D data in this app). Those cold paths behave exactly like stock.
+
+**Patch 3** - output texture pool. Fires in the same display-parameter scenarios as patch 2, but its benefit is cumulative rather than per-call. Stock niivue destroyed and reallocated a ~180 MB output texture on every refresh (and outright leaked the overlay's output texture each time). A user dragging a cal slider for a few seconds allocated gigabytes of GPU memory; after ~40 ticks the driver hit memory pressure and the whole app dropped to ~7 fps permanently, worst when a segmentation overlay was loaded - which is the normal state after running the pipeline. With the pool, the same drag stays at ~40 fps no matter how long it lasts or how many overlays are loaded.
+
+## NiiVue Upgrade
+
 **When upgrading @niivue/niivue:** check whether upstream has fixed this (0.69.0 had not); if not,
 re-apply the same three edits to the new version's `build/niivue/index.js` and `dist/index.js`,
 then run `npx patch-package @niivue/niivue` and delete the old patch file.
