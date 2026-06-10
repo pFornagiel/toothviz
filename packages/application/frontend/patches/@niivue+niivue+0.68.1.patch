@@ -1,22 +1,20 @@
 diff --git a/node_modules/@niivue/niivue/build/niivue/index.js b/node_modules/@niivue/niivue/build/niivue/index.js
-index 0ce5f94..07a822b 100644
+index 0ce5f94..b9a4259 100644
 --- a/node_modules/@niivue/niivue/build/niivue/index.js
 +++ b/node_modules/@niivue/niivue/build/niivue/index.js
-@@ -36183,10 +36183,11 @@ var Niivue = class extends EventTarget {
+@@ -36183,10 +36183,8 @@ var Niivue = class extends EventTarget {
     * @internal
     */
    mouseMoveListener(e) {
 -    if (this.uiData.mousedown) {
-+    const pos = this.getNoPaddingNoBorderCanvasRelativeMousePosition(e, this.gl.canvas);
+-      this.drawScene();
+-    }
+     const pos = this.getNoPaddingNoBorderCanvasRelativeMousePosition(e, this.gl.canvas);
 +    const __isRenderRotateDrag = this.uiData.mousedown && !!pos && this.getCurrentDragMode() === 8 /* crosshair */ && this.inRenderTile(pos.x * this.uiData.dpr, pos.y * this.uiData.dpr) >= 0;
-+    if (this.uiData.mousedown && !__isRenderRotateDrag) {
-       this.drawScene();
-     }
--    const pos = this.getNoPaddingNoBorderCanvasRelativeMousePosition(e, this.gl.canvas);
      if (!pos) {
        return;
      }
-@@ -36205,6 +36206,11 @@ var Niivue = class extends EventTarget {
+@@ -36205,6 +36203,11 @@ var Niivue = class extends EventTarget {
        const activeDragMode = this.getCurrentDragMode();
        if (activeDragMode === 8 /* crosshair */) {
          this.mouseMove(pos.x, pos.y);
@@ -28,7 +26,7 @@ index 0ce5f94..07a822b 100644
          const isChanged = !this.mouseClick(pos.x, pos.y);
          if (!isChanged && this.uiData.prevX === this.uiData.currX && this.uiData.prevY === this.uiData.currY) {
            return;
-@@ -40363,10 +40369,24 @@ var Niivue = class extends EventTarget {
+@@ -40363,10 +40366,24 @@ var Niivue = class extends EventTarget {
      }
      const fb = setupFramebuffer(this.gl);
      this.gl.viewport(0, 0, this.back.dims[1], this.back.dims[2]);
@@ -57,7 +55,7 @@ index 0ce5f94..07a822b 100644
      if (!hdr) {
        throw new Error("hdr undefined");
      }
-@@ -40397,6 +40417,15 @@ var Niivue = class extends EventTarget {
+@@ -40397,6 +40414,15 @@ var Niivue = class extends EventTarget {
        if (rgba32Result.paqdTexture !== null) {
          this.paqdTexture = rgba32Result.paqdTexture;
        }
@@ -73,7 +71,7 @@ index 0ce5f94..07a822b 100644
      } else {
        const uploadResult = setupVolumeTextureData({
          gl: this.gl,
-@@ -40410,6 +40439,7 @@ var Niivue = class extends EventTarget {
+@@ -40410,6 +40436,7 @@ var Niivue = class extends EventTarget {
          orientShaderAtlasI: this.orientShaderAtlasI
        });
        orientShader = uploadResult.orientShader;
@@ -81,7 +79,7 @@ index 0ce5f94..07a822b 100644
      }
      if (overlayItem.global_min === void 0) {
        overlayItem.calMinMax();
-@@ -40486,7 +40516,8 @@ var Niivue = class extends EventTarget {
+@@ -40486,7 +40513,8 @@ var Niivue = class extends EventTarget {
      });
      log.debug("back dims: ", this.back.dims);
      this.gl.bindVertexArray(this.unusedVAO);
@@ -91,7 +89,7 @@ index 0ce5f94..07a822b 100644
      this.gl.deleteTexture(modulateTexture);
      this.gl.deleteTexture(blendTexture);
      this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-@@ -40494,7 +40525,8 @@ var Niivue = class extends EventTarget {
+@@ -40494,7 +40522,8 @@ var Niivue = class extends EventTarget {
      this.gl.deleteFramebuffer(fb);
      if (layer === 0) {
        this.volumeTexture = outTexture;
@@ -101,7 +99,7 @@ index 0ce5f94..07a822b 100644
          gl: this.gl,
          hdr,
          genericVAO: this.genericVAO,
-@@ -44967,7 +44999,24 @@ var Niivue = class extends EventTarget {
+@@ -44967,7 +44996,24 @@ var Niivue = class extends EventTarget {
     * @internal
     */
    rgbaTex(texID, activeID, dims, isInit = false) {
@@ -128,24 +126,22 @@ index 0ce5f94..07a822b 100644
    /**
     * Create or recreate a 3D RGBA16UI texture on the GPU with given dimensions.
 diff --git a/node_modules/@niivue/niivue/dist/index.js b/node_modules/@niivue/niivue/dist/index.js
-index 55b4d1b..706305f 100644
+index 55b4d1b..5197cbe 100644
 --- a/node_modules/@niivue/niivue/dist/index.js
 +++ b/node_modules/@niivue/niivue/dist/index.js
-@@ -44938,10 +44938,11 @@ var Niivue = class extends EventTarget {
+@@ -44938,10 +44938,8 @@ var Niivue = class extends EventTarget {
     * @internal
     */
    mouseMoveListener(e) {
 -    if (this.uiData.mousedown) {
-+    const pos = this.getNoPaddingNoBorderCanvasRelativeMousePosition(e, this.gl.canvas);
+-      this.drawScene();
+-    }
+     const pos = this.getNoPaddingNoBorderCanvasRelativeMousePosition(e, this.gl.canvas);
 +    const __isRenderRotateDrag = this.uiData.mousedown && !!pos && this.getCurrentDragMode() === 8 /* crosshair */ && this.inRenderTile(pos.x * this.uiData.dpr, pos.y * this.uiData.dpr) >= 0;
-+    if (this.uiData.mousedown && !__isRenderRotateDrag) {
-       this.drawScene();
-     }
--    const pos = this.getNoPaddingNoBorderCanvasRelativeMousePosition(e, this.gl.canvas);
      if (!pos) {
        return;
      }
-@@ -44960,6 +44961,11 @@ var Niivue = class extends EventTarget {
+@@ -44960,6 +44958,11 @@ var Niivue = class extends EventTarget {
        const activeDragMode = this.getCurrentDragMode();
        if (activeDragMode === 8 /* crosshair */) {
          this.mouseMove(pos.x, pos.y);
@@ -157,7 +153,7 @@ index 55b4d1b..706305f 100644
          const isChanged = !this.mouseClick(pos.x, pos.y);
          if (!isChanged && this.uiData.prevX === this.uiData.currX && this.uiData.prevY === this.uiData.currY) {
            return;
-@@ -49118,10 +49124,24 @@ var Niivue = class extends EventTarget {
+@@ -49118,10 +49121,24 @@ var Niivue = class extends EventTarget {
      }
      const fb = setupFramebuffer(this.gl);
      this.gl.viewport(0, 0, this.back.dims[1], this.back.dims[2]);
@@ -186,7 +182,7 @@ index 55b4d1b..706305f 100644
      if (!hdr) {
        throw new Error("hdr undefined");
      }
-@@ -49152,6 +49172,15 @@ var Niivue = class extends EventTarget {
+@@ -49152,6 +49169,15 @@ var Niivue = class extends EventTarget {
        if (rgba32Result.paqdTexture !== null) {
          this.paqdTexture = rgba32Result.paqdTexture;
        }
@@ -202,7 +198,7 @@ index 55b4d1b..706305f 100644
      } else {
        const uploadResult = setupVolumeTextureData({
          gl: this.gl,
-@@ -49165,6 +49194,7 @@ var Niivue = class extends EventTarget {
+@@ -49165,6 +49191,7 @@ var Niivue = class extends EventTarget {
          orientShaderAtlasI: this.orientShaderAtlasI
        });
        orientShader = uploadResult.orientShader;
@@ -210,7 +206,7 @@ index 55b4d1b..706305f 100644
      }
      if (overlayItem.global_min === void 0) {
        overlayItem.calMinMax();
-@@ -49241,7 +49271,8 @@ var Niivue = class extends EventTarget {
+@@ -49241,7 +49268,8 @@ var Niivue = class extends EventTarget {
      });
      log.debug("back dims: ", this.back.dims);
      this.gl.bindVertexArray(this.unusedVAO);
@@ -220,7 +216,7 @@ index 55b4d1b..706305f 100644
      this.gl.deleteTexture(modulateTexture);
      this.gl.deleteTexture(blendTexture);
      this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-@@ -49249,7 +49280,8 @@ var Niivue = class extends EventTarget {
+@@ -49249,7 +49277,8 @@ var Niivue = class extends EventTarget {
      this.gl.deleteFramebuffer(fb);
      if (layer === 0) {
        this.volumeTexture = outTexture;
@@ -230,7 +226,7 @@ index 55b4d1b..706305f 100644
          gl: this.gl,
          hdr,
          genericVAO: this.genericVAO,
-@@ -53722,7 +53754,24 @@ var Niivue = class extends EventTarget {
+@@ -53722,7 +53751,24 @@ var Niivue = class extends EventTarget {
     * @internal
     */
    rgbaTex(texID, activeID, dims, isInit = false) {
