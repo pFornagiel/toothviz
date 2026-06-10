@@ -26,6 +26,16 @@ interface LocationState {
 const CAL_MIN_GLOBAL_VAL = -1000;
 const CAL_MAX_GLOBAL_VAL = 3000;
 
+// Keys for the per-frame niivue update queue; one pending update per key,
+// so distinct settings changed in the same frame never overwrite each other
+enum NvUpdateKey {
+  CalMin = "cal_min",
+  CalMax = "cal_max",
+  Opacity = "opacity",
+  RenderZoom = "render_zoom",
+  ClipPlane = "clip_plane",
+}
+
 // Slice-type identifiers used by the slice-type selector and niivue layout switching
 enum SliceTypeKey {
   Multiplanar = "multiplanar",
@@ -172,18 +182,26 @@ export function VisualizationPage() {
   const [renderElevation, setRenderElevation] = useState(DEFAULT_RENDER_ELEVATION);
   const [renderZoom, setRenderZoom] = useState(DEFAULT_RENDER_ZOOM);
 
-  // Slider drags emit more change events than the GPU pipeline can absorb
-  // (nv.updateGLVolume re-runs the volume display pass), so niivue updates are
-  // coalesced to at most one per animation frame, always applying the latest value.
-  const queuedNvUpdateRef = useRef<(() => void) | null>(null);
-  const queueNvUpdate = useCallback((apply: () => void) => {
-    const alreadyQueued = queuedNvUpdateRef.current !== null;
-    queuedNvUpdateRef.current = apply;
+  const queuedNvUpdatesRef = useRef<Map<NvUpdateKey, () => void>>(new Map());
+  /**
+   * Slider drags and other options emit more change events than the GPU pipeline can absorb
+   * (nv.updateGLVolume re-runs the volume display pass), so niivue updates are
+   * coalesced to at most one per animation frame per setting, always applying
+   * the latest value.
+   *
+   * Keyed per setting: updates to different settings queued in the same frame
+   * (mainly for resetSettings which touches cal_min, cal_max and zoom in one commit) must
+   * all apply, not overwrite one another.
+   */
+  const queueNvUpdate = useCallback((key: NvUpdateKey, apply: () => void) => {
+    const queue = queuedNvUpdatesRef.current;
+    const alreadyQueued = queue.size > 0;
+    queue.set(key, apply);
     if (!alreadyQueued) {
       requestAnimationFrame(() => {
-        const fn = queuedNvUpdateRef.current;
-        queuedNvUpdateRef.current = null;
-        fn?.();
+        const fns = [...queue.values()];
+        queue.clear();
+        fns.forEach((fn) => fn());
       });
     }
   }, []);
@@ -243,11 +261,11 @@ export function VisualizationPage() {
       return;
     }
 
-    queueNvUpdate(() => {
+    queueNvUpdate(NvUpdateKey.CalMin, () => {
       nv.volumes[selectedVolume].cal_min = cal_min;
       nv.updateGLVolume();
     });
-  }, [cal_min]);
+  }, [cal_min, queueNvUpdate]);
 
   useEffect(() => {
     const nv = nvRef.current;
@@ -255,11 +273,11 @@ export function VisualizationPage() {
       return;
     }
 
-    queueNvUpdate(() => {
+    queueNvUpdate(NvUpdateKey.CalMax, () => {
       nv.volumes[selectedVolume].cal_max = cal_max;
       nv.updateGLVolume();
     });
-  }, [cal_max]);
+  }, [cal_max, queueNvUpdate]);
 
   const setCalMinGlobal = (value: number | undefined) => {
     if (Number.isNaN(value) || value === undefined) {
@@ -289,8 +307,13 @@ export function VisualizationPage() {
     setCalMax(initialCalMax.current);
     setOpacity(DEFAULT_VISIBLE_OPACITY);
     setColormap(DEFAULT_COLORMAP);
+    setRenderElevation(DEFAULT_RENDER_ELEVATION);
+    setRenderAzimuth(DEFAULT_RENDER_AZIMUTH);
     setVolumeVisibility(nv.volumes.map(() => true));
     setVolumeOpacities(nv.volumes.map((v) => v.opacity));
+
+    // reset render zoom with our scroll fix in mind
+    queueNvUpdate(NvUpdateKey.RenderZoom, () => nv.setScale(DEFAULT_RENDER_ZOOM));
   };
 
   const disposeNv = useCallback(() => {
@@ -580,7 +603,7 @@ export function VisualizationPage() {
     }
 
     setOpacity(value);
-    queueNvUpdate(() => nv.setOpacity(selectedVolume, value));
+    queueNvUpdate(NvUpdateKey.Opacity, () => nv.setOpacity(selectedVolume, value));
 
     // Update stored opacity if volume is visible
     if (volumeVisibility[selectedVolume]) {
@@ -691,8 +714,10 @@ export function VisualizationPage() {
       return;
     }
 
-    nv.setClipPlane([clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]);
-  }, [clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]);
+    queueNvUpdate(NvUpdateKey.ClipPlane, () =>
+      nv.setClipPlane([clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]),
+    );
+  }, [clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation, queueNvUpdate]);
 
   const handleRenderAzimuthChange = (value: number) => {
     const nv = nvRef.current;
@@ -722,7 +747,7 @@ export function VisualizationPage() {
 
     const clamped = Math.min(RENDER_ZOOM_RANGE.max, Math.max(RENDER_ZOOM_RANGE.min, value));
     setRenderZoom(clamped);
-    queueNvUpdate(() => nv.setScale(clamped));
+    queueNvUpdate(NvUpdateKey.RenderZoom, () => nv.setScale(clamped));
   };
 
   useEffect(() => {
