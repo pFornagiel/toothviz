@@ -55,8 +55,8 @@ export function VisualizationPage() {
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
   const [opacity, setOpacity] = useState(1.0);
   const [colormap, setColormap] = useState("gray");
-  const [cal_min, setCalMin] = useState(0);
-  const [cal_max, setCalMax] = useState(100);
+  const [cal_min, _setCalMin] = useState(0);
+  const [cal_max, _setCalMax] = useState(100);
   const [cal_minGlobal, setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_maxGlobal, setCalMaxGlobal] = useState(CAL_MAX_GLOBAL_VAL);
 
@@ -96,6 +96,22 @@ export function VisualizationPage() {
     "red_yellow",
     "blue_green",
   ];
+
+  const setCalMax = (value: number) => {
+    if(value < cal_min) {
+      _setCalMax(cal_min);
+      return
+    }
+    _setCalMax(value);
+  }
+
+  const setCalMin = (value: number) => {
+    if(value > cal_max) {
+      _setCalMin(cal_max);
+      return
+    }
+    _setCalMin(value);
+  }
 
   const disposeNv = useCallback(() => {
     const nv = nvRef.current;
@@ -151,8 +167,8 @@ export function VisualizationPage() {
           setColormap(vol.colormap || "gray");
           setCalMinGlobal(vol.global_min ?? CAL_MIN_GLOBAL_VAL);
           setCalMaxGlobal(vol.global_max ?? CAL_MAX_GLOBAL_VAL);
-          setCalMin(vol.cal_min ?? CAL_MIN_GLOBAL_VAL);
-          setCalMax(vol.cal_max ?? CAL_MAX_GLOBAL_VAL);
+          _setCalMin(vol.cal_min ?? CAL_MIN_GLOBAL_VAL);
+          _setCalMax(vol.cal_max ?? CAL_MAX_GLOBAL_VAL);
           // Initialize visibility and store opacities for all volumes
           setVolumeVisibility(nv.volumes.map(() => true));
           setVolumeOpacities(nv.volumes.map((v) => v.opacity));
@@ -203,8 +219,8 @@ export function VisualizationPage() {
         const vol = nv.volumes[0];
         setOpacity(vol.opacity);
         setColormap(vol.colormap || "gray");
-        setCalMin(vol.cal_min ?? 0);
-        setCalMax(vol.cal_max ?? 100);
+        _setCalMin(vol.cal_min ?? 0);
+        _setCalMax(vol.cal_max ?? 100);
         setVolumeVisibility(nv.volumes.map(() => true));
         setVolumeOpacities(nv.volumes.map((v) => v.opacity));
       }
