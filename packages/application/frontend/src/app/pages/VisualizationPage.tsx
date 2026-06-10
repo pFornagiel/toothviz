@@ -370,6 +370,22 @@ export function VisualizationPage() {
     setCalMax(vol.cal_max ?? 100);
   };
 
+  // Slider drags emit more change events than the GPU pipeline can absorb
+  // (nv.updateGLVolume re-runs the volume display pass), so niivue updates are
+  // coalesced to at most one per animation frame, always applying the latest value.
+  const queuedNvUpdateRef = useRef<(() => void) | null>(null);
+  const queueNvUpdate = useCallback((apply: () => void) => {
+    const alreadyQueued = queuedNvUpdateRef.current !== null;
+    queuedNvUpdateRef.current = apply;
+    if (!alreadyQueued) {
+      requestAnimationFrame(() => {
+        const fn = queuedNvUpdateRef.current;
+        queuedNvUpdateRef.current = null;
+        fn?.();
+      });
+    }
+  }, []);
+
   const handleOpacityChange = (value: number) => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[selectedVolume]) {
@@ -377,7 +393,7 @@ export function VisualizationPage() {
     }
 
     setOpacity(value);
-    nv.setOpacity(selectedVolume, value);
+    queueNvUpdate(() => nv.setOpacity(selectedVolume, value));
 
     // Update stored opacity if volume is visible
     if (volumeVisibility[selectedVolume]) {
@@ -413,8 +429,10 @@ export function VisualizationPage() {
     }
 
     setCalMin(value);
-    nv.volumes[selectedVolume].cal_min = value;
-    nv.updateGLVolume();
+    queueNvUpdate(() => {
+      nv.volumes[selectedVolume].cal_min = value;
+      nv.updateGLVolume();
+    });
   };
 
   const handleCalMaxChange = (value: number) => {
@@ -424,8 +442,10 @@ export function VisualizationPage() {
     }
 
     setCalMax(value);
-    nv.volumes[selectedVolume].cal_max = value;
-    nv.updateGLVolume();
+    queueNvUpdate(() => {
+      nv.volumes[selectedVolume].cal_max = value;
+      nv.updateGLVolume();
+    });
   };
 
   const handleCrosshairToggle = () => {
@@ -531,11 +551,6 @@ export function VisualizationPage() {
       nv.setMultiplanarLayout(2);
     }
   }, [sliceType])
-
-  useEffect(() => {
-    console.log("opacity", opacity);
-  }, [opacity]);
-  console.log("opacity outside", opacity);
 
   return (
     <div className="h-screen flex flex-col bg-background font-sans">
