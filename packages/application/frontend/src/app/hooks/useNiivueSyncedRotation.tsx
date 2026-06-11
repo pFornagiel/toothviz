@@ -5,7 +5,7 @@ export const DEFAULT_RENDER_AZIMUTH = 120;
 export const DEFAULT_RENDER_ELEVATION = 10;
 
 // Degrees of rotation per pixel of pointer movement, matching the feel of
-// niivue's built-in render-tile drag (which this hook's dragRotate replaces).
+// niivue's built-in render-tile drag
 const DRAG_DEG_PER_PX = 0.5;
 
 const normalizeAzimuth = (azimuth: number) => ((azimuth % 360) + 360) % 360;
@@ -24,8 +24,8 @@ interface NiivueRotation {
   setRotation: (azimuth: number, elevation: number) => void;
   /**
    * Apply a pointer-drag delta (in px) to the current rotation. Unlike
-   * niivue's built-in drag this does not clamp elevation to ±90 — the view
-   * can flip all the way over; elevation wraps continuously through ±180.
+   * niivue's built-in drag this does not clamp elevation to ±90, so the view
+   * can flip all the way over;
    */
   dragRotate: (dx: number, dy: number) => void;
   /** Reset rotation to the render defaults. */
@@ -39,9 +39,10 @@ interface NiivueRotation {
  * this hook keeps that mirror in one place. All writes (sliders via
  * `setRotation`, canvas drags via `dragRotate`) go through niivue's
  * `azimuth`/`elevation` property setters, whose `azimuthElevationChange`
- * event mirrors the value straight back into state — so the sliders track
- * drags in real time. Mirroring is coalesced to one state update per
- * animation frame to keep React re-renders off the drag's critical path.
+ * event syncs the value back into state. 
+ * 
+ * Syncing is dispatched one update per
+ * animation frame to not trigger rerendering too many times.
  */
 export default function useNiivueSyncedRotation(nvRef: {
   current: NiiVueGPU | null;
@@ -49,10 +50,10 @@ export default function useNiivueSyncedRotation(nvRef: {
   const [azimuth, setAzimuth] = useState(DEFAULT_RENDER_AZIMUTH);
   const [elevation, setElevation] = useState(DEFAULT_RENDER_ELEVATION);
 
-  // Latest un-mirrored rotation; null means no rAF flush is scheduled.
+  // Latest rotation; null means no requestAnimatinoFrame flush is scheduled.
   const pendingMirror = useRef<{ azimuth: number; elevation: number } | null>(null);
 
-  const mirror = useCallback((rawAzimuth: number, rawElevation: number) => {
+  const syncState = useCallback((rawAzimuth: number, rawElevation: number) => {
     const flushScheduled = pendingMirror.current !== null;
     pendingMirror.current = { azimuth: rawAzimuth, elevation: rawElevation };
     if (!flushScheduled) {
@@ -69,17 +70,15 @@ export default function useNiivueSyncedRotation(nvRef: {
 
   const attach = useCallback(
     (nv: NiiVueGPU) => {
-      // Fired by the azimuth/elevation property setters (sliders, reset,
-      // dragRotate). niivue-internal rotation paths that bypass the setters
-      // (e.g. keyboard shortcuts) don't emit, hence the pointerUp safety net.
+      // Fired by the azimuth/elevation property setters 
       nv.addEventListener("azimuthElevationChange", (e) => {
-        mirror(e.detail.azimuth, e.detail.elevation);
+        syncState(e.detail.azimuth, e.detail.elevation);
       });
       nv.addEventListener("pointerUp", () => {
-        mirror(nv.azimuth, nv.elevation);
+        syncState(nv.azimuth, nv.elevation);
       });
     },
-    [mirror],
+    [syncState],
   );
 
   const setRotation = useCallback(
@@ -88,7 +87,7 @@ export default function useNiivueSyncedRotation(nvRef: {
       if (!nv) {
         return;
       }
-      // the azimuthElevationChange listener mirrors the values back into state.
+      // the azimuthElevationChange listener synces the values back into React state.
       nv.azimuth = normalizeAzimuth(nextAzimuth);
       nv.elevation = normalizeElevation(nextElevation);
     },
@@ -104,7 +103,8 @@ export default function useNiivueSyncedRotation(nvRef: {
       const currentElevation = nv.elevation;
       // Past ±90 the camera is upside down, so horizontal pointer movement
       // must spin azimuth the opposite way to keep the scene following the
-      // pointer (the same reason niivue clamps instead).
+      // pointer
+      // Defined here because Niivue clamps instead
       const upsideDown = Math.cos((currentElevation * Math.PI) / 180) < 0;
       const azimuthDirection = upsideDown ? -1 : 1;
       nv.azimuth = normalizeAzimuth(nv.azimuth + azimuthDirection * dx * DRAG_DEG_PER_PX);

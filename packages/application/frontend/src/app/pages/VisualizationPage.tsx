@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
-// WebGL2-only distribution: pins the backend our perf patch targets and keeps
-// the (much slower here, unpatched) WebGPU view out of the bundle.
 import NiiVueGPU from "@niivue/niivue/webgl2";
 import { SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER } from "@niivue/niivue";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
@@ -53,8 +51,6 @@ enum SliceTypeKey {
   Render = "render",
 }
 
-// niivue stores colormap names with a capitalized first letter ("Gray", not
-// "gray"); use the canonical form so UI state matches nv.colormaps entries.
 const DEFAULT_COLORMAP = "Gray";
 const DEFAULT_SLICE_TYPE = SliceTypeKey.Multiplanar;
 
@@ -72,11 +68,8 @@ const DEFAULT_VISIBLE_OPACITY = 1.0;
 const DEFAULT_BACK_COLOR_DARK: [number, number, number, number] = [0, 0, 0, 1];
 const DEFAULT_BACK_COLOR_LIGHT: [number, number, number, number] = [1, 1, 1, 1];
 const DEFAULT_SHOW_3D_CROSSHAIR = true;
-// niivue 1.x draws the crosshair as world-space geometry, so the width is in
-// mm (scales with volume extent and zoom), not pixels like 0.x.
 const DEFAULT_CROSSHAIR_WIDTH = 0.2;
 const HIDDEN_OPACITY = 0;
-
 
 // niivue normalises every volume into a unit cube and uses clip depth as the
 // SIGNED distance of the plane from the centre (the raw 4th component of the
@@ -106,8 +99,6 @@ const RENDER_ELEVATION_RANGE = { min: -180, max: 180, step: 1 };
 const RENDER_ZOOM_RANGE = { min: 0.1, max: 5, step: 0.1 };
 
 type ViewPhase = "loading" | "ready" | "error";
-
-
 
 export function VisualizationPage() {
   const navigate = useNavigate();
@@ -142,9 +133,8 @@ export function VisualizationPage() {
   const [selectedVolume, setSelectedVolume] = useState(0);
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
-  const [opacity, setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
+  const [opacity, _setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
   const [colormap, _setColormap] = useState(DEFAULT_COLORMAP);
-  // Registered colormap names, read from the niivue instance after init
   const [colormaps, setColormaps] = useState<string[]>([]);
   const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
@@ -255,7 +245,7 @@ export function VisualizationPage() {
     }
 
     queueNvUpdate(NvUpdateKey.CalMin, () => {
-      void nv.setVolume(selectedVolume, { calMin: cal_min });
+      nv.setVolume(selectedVolume, { calMin: cal_min });
     });
   }, [cal_min, queueNvUpdate]);
 
@@ -266,7 +256,7 @@ export function VisualizationPage() {
     }
 
     queueNvUpdate(NvUpdateKey.CalMax, () => {
-      void nv.setVolume(selectedVolume, { calMax: cal_max });
+      nv.setVolume(selectedVolume, { calMax: cal_max });
     });
   }, [cal_max, queueNvUpdate]);
 
@@ -287,6 +277,10 @@ export function VisualizationPage() {
   const setColormap = (value: string | undefined) => {
     _setColormap(value || DEFAULT_COLORMAP);
   };
+
+  const setOpacity = (value: number | undefined) => {
+    _setOpacity(value ?? DEFAULT_VISIBLE_OPACITY);
+  }
 
   const resetSettings = () => {
     const nv = nvRef.current;
@@ -359,7 +353,7 @@ export function VisualizationPage() {
         // Update UI state based on loaded volume
         if (nv.volumes.length > 0) {
           const vol = nv.volumes[0];
-          setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
+          setOpacity(vol.opacity);
           setColormap(vol.colormap);
           setCalMinGlobal(vol.globalMin);
           setCalMaxGlobal(vol.globalMax);
@@ -584,7 +578,7 @@ export function VisualizationPage() {
 
     setSelectedVolume(index);
     const vol = nv.volumes[index];
-    setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
+    setOpacity(vol.opacity);
     setColormap(vol.colormap);
     setCalMin(vol.calMin);
     setCalMax(vol.calMax);
@@ -597,7 +591,7 @@ export function VisualizationPage() {
     }
 
     setOpacity(value);
-    queueNvUpdate(NvUpdateKey.Opacity, () => void nv.setVolume(selectedVolume, { opacity: value }));
+    queueNvUpdate(NvUpdateKey.Opacity, () => nv.setVolume(selectedVolume, { opacity: value }));
 
     // Update stored opacity if volume is visible
     if (volumeVisibility[selectedVolume]) {
@@ -615,7 +609,7 @@ export function VisualizationPage() {
 
     setColormap(value);
     // setVolume only assigns the given keys, so calMin/calMax are preserved
-    void nv.setVolume(selectedVolume, { colormap: value });
+    nv.setVolume(selectedVolume, { colormap: value });
   };
 
   const handleCalMinChange = (value: number) => {
@@ -781,18 +775,10 @@ export function VisualizationPage() {
   }, [viewPhase]);
 
   /*
-    Render-tile drag rotation.
-    niivue's built-in drag clamps elevation to ±90°; to allow flipping the
-    volume all the way over, left-button drags that start inside the 3D
-    render tile are intercepted on the canvas's parent in the capture phase
-    (same pattern as the wheel handler) and routed through dragRotate, which
-    drives niivue's unclamped azimuth/elevation setters. Side effects:
-    - the setters emit azimuthElevationChange, so the rotation sliders track
-      the drag in real time;
-    - drags on 2D slice tiles, right-button drags (niivue clip-plane
-      rotation), and shift-drags pass through to niivue untouched;
-    - pointerdown is NOT preventDefault-ed so the browser still synthesizes
-      dblclick, which niivue uses for depth-pick crosshair placement.
+    Intercept left-button drags on the 3D render tile (capture phase) and route
+    through dragRotate so elevation can exceed niivue's ±90° clamp. 2D tiles,
+    right-button, and shift-drags pass through; pointerdown is not prevented
+    so dblclick depth-pick still works.
   */
   useEffect(() => {
     const canvas = canvasRef.current;
