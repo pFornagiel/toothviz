@@ -1,8 +1,8 @@
-import { Niivue } from "@niivue/niivue";
+import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { useState, useCallback } from "react";
 
-const DEFAULT_RENDER_AZIMUTH = 120;
-const DEFAULT_RENDER_ELEVATION = 10;
+export const DEFAULT_RENDER_AZIMUTH = 120;
+export const DEFAULT_RENDER_ELEVATION = 10;
 
 const normalizeAzimuth = (azimuth: number) => ((azimuth % 360) + 360) % 360;
 const normalizeElevation = (elevation: number) => ((((elevation + 180) % 360) + 360) % 360) - 180;
@@ -12,10 +12,10 @@ interface NiivueRotation {
   azimuth: number;
   /** Render elevation in [-180, 180], mirrored from niivue's scene. */
   elevation: number;
-  /**F
-   * Wire niivue's rotation callbacks so canvas-drag rotation flows back into React state.
+  /**
+   * Wire niivue's rotation events so canvas rotation flows back into React state.
    */
-  attach: (nv: Niivue) => void;
+  attach: (nv: NiiVueGPU) => void;
   /** Push a rotation into niivue (slider handlers) */
   setRotation: (azimuth: number, elevation: number) => void;
   /** Reset rotation to the render defaults. */
@@ -25,38 +25,33 @@ interface NiivueRotation {
 /**
  * Two-way binding for niivue's 3D render rotation.
  *
- * niivue owns the canvas and mutates `scene.renderAzimuth`/`renderElevation`
- * directly on drag, so React state can only ever mirror it — this hook keeps
- * that mirror in one place. The `attach` callback wires niivue → React (drag),
- * `setRotation` pushes React → niivue (sliders / reset), and the wired callback
- * mirrors that push straight back so there is a single source of truth for the
- * displayed values.
+ * niivue owns the canvas and rotation state, so React state can only ever
+ * mirror it — this hook keeps that mirror in one place. `setRotation` pushes
+ * React → niivue through the `azimuth`/`elevation` property setters, whose
+ * `azimuthElevationChange` event mirrors the value straight back into state.
+ * Drag rotation mutates niivue's scene directly without emitting that event,
+ * so `attach` also listens for `pointerUp` and re-reads the scene on release.
  */
-export default function useNiivueSyncedRotation(nvRef: { current: Niivue | null }): NiivueRotation {
+export default function useNiivueSyncedRotation(nvRef: {
+  current: NiiVueGPU | null;
+}): NiivueRotation {
   const [azimuth, setAzimuth] = useState(DEFAULT_RENDER_AZIMUTH);
   const [elevation, setElevation] = useState(DEFAULT_RENDER_ELEVATION);
 
-  const attach = useCallback((nv: Niivue) => {
-    const handleChange = (rawAzimuth: number, rawElevation: number) => {
-      if (rawAzimuth < 0 || rawAzimuth > 360) {
-        const wrapped = normalizeAzimuth(rawAzimuth);
-        nv.scene.sceneData.azimuth = wrapped;
-        setAzimuth(wrapped);
-      } else {
-        setAzimuth(rawAzimuth);
-      }
-
-      if (rawElevation < -180 || rawElevation > 180) {
-        const wrapped = normalizeElevation(rawElevation);
-        nv.scene.sceneData.elevation = wrapped;
-        setElevation(wrapped);
-      } else {
-        setElevation(rawElevation);
-      }
+  const attach = useCallback((nv: NiiVueGPU) => {
+    const mirror = (rawAzimuth: number, rawElevation: number) => {
+      setAzimuth(normalizeAzimuth(rawAzimuth));
+      setElevation(normalizeElevation(rawElevation));
     };
 
-    nv.onAzimuthElevationChange = handleChange;
-    nv.scene.onAzimuthElevationChange = handleChange;
+    // Programmatic sets (sliders, reset) emit the typed event.
+    nv.addEventListener("azimuthElevationChange", (e) => {
+      mirror(e.detail.azimuth, e.detail.elevation);
+    });
+    // Drag rotation mutates nv's scene without emitting; sync when the drag ends.
+    nv.addEventListener("pointerUp", () => {
+      mirror(nv.azimuth, nv.elevation);
+    });
   }, []);
 
   const setRotation = useCallback(
@@ -65,8 +60,9 @@ export default function useNiivueSyncedRotation(nvRef: { current: Niivue | null 
       if (!nv) {
         return;
       }
-      // the wired callback mirrors the value back into state.
-      nv.setRenderAzimuthElevation(nextAzimuth, nextElevation);
+      // the azimuthElevationChange listener mirrors the values back into state.
+      nv.azimuth = normalizeAzimuth(nextAzimuth);
+      nv.elevation = normalizeElevation(nextElevation);
     },
     [nvRef],
   );

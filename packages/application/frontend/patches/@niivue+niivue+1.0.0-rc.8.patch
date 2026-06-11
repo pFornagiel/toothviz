@@ -1,0 +1,109 @@
+diff --git a/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js b/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
+index dcb4298..40fc62a 100644
+--- a/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
++++ b/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
+@@ -17987,7 +17987,7 @@ let gb = class extends EventTarget {
+     return this.model.volume.illumination;
+   }
+   set volumeIllumination(t) {
+-    this.model.volume.illumination = t, this.emit("change", { property: "volumeIllumination", value: t }), this.drawScene();
++    this.model.volume.illumination = t, this.emit("change", { property: "volumeIllumination", value: t }), this.updateGLVolume();
+   }
+   get volumeOutlineWidth() {
+     return this.model.volume.outlineWidth;
+diff --git a/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js b/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
+index 475cb18..3955107 100644
+--- a/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
++++ b/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
+@@ -1719,8 +1719,13 @@ function Fe(t, e, r, i, o = 1, a = null) {
+     r.dimsRAS[2] ?? 0,
+     r.dimsRAS[3] ?? 0
+   ], d = We(e.hdr.datatypeCode), f = e.frame4D ?? 0, c = Tr(e);
+-  if (a && a.datatypeCode === e.hdr.datatypeCode && a.shaderType === d.shaderType && a.frame4D === f && a.imageBuffer === e.img.buffer && Le(a.dimsIn, s) && Le(a.dimsOut, n) && a.colormapKey === c)
++  const __cacheMatchesData = a && a.datatypeCode === e.hdr.datatypeCode && a.shaderType === d.shaderType && a.frame4D === f && a.imageBuffer === e.img.buffer && Le(a.dimsIn, s) && Le(a.dimsOut, n);
++  if (__cacheMatchesData && a.colormapKey === c)
+     return we(t, a, e, i, o), a;
++  if (__cacheMatchesData && !e.colormapLabel && !a.colormapKey.startsWith('label:')) {
++    t.activeTexture(t.TEXTURE1), t.bindTexture(t.TEXTURE_2D, a.colormapTexture), t.texImage2D(t.TEXTURE_2D, 0, t.RGBA, 256, 1, 0, t.RGBA, t.UNSIGNED_BYTE, re(e.colormap)), t.activeTexture(t.TEXTURE2), t.bindTexture(t.TEXTURE_2D, a.negColormapTexture), e.colormapNegative && e.colormapNegative.length > 0 ? t.texImage2D(t.TEXTURE_2D, 0, t.RGBA, 256, 1, 0, t.RGBA, t.UNSIGNED_BYTE, re(e.colormapNegative)) : t.texImage2D(t.TEXTURE_2D, 0, t.RGBA, 1, 1, 0, t.RGBA, t.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0])), t.bindTexture(t.TEXTURE_2D, null), a.colormapKey = c;
++    return we(t, a, e, i, o), a;
++  }
+   pe(t, a);
+   const h = Ve(t)[d.shaderType], T = ze(t, h), { vao: R, vbo: p } = ke(t, h), _ = t, S = t.createTexture(), v = t.createTexture(), b = t.createTexture(), L = t.createTexture(), F = t.createFramebuffer();
+   if (!S || !v || !b || !L || !F)
+@@ -2765,7 +2770,7 @@ void main() {
+ `;
+ class Mr extends K {
+   constructor() {
+-    super(), this.overlayOrientCache = null, this._gl = null, this.shader = null, this.depthPickShaderProgram = null, this.matcapTexture = null, this.volumeTexture = null, this.volumeGradientTexture = null, this.overlayTexture = null, this.paqdTexture = null, this.paqdLutTexture = null, this.drawingTexture = null, this.drawingLinearSampler = null, this.placeholderOverlay = null, this.cubeVAO = null, this.vertexBuffer = null, this.indexBuffer = null, this.cube = ge(), this.max3D = 0;
++    super(), this.overlayOrientCache = null, this.backgroundOrientCache = null, this._matcapName = null, this._gl = null, this.shader = null, this.depthPickShaderProgram = null, this.matcapTexture = null, this.volumeTexture = null, this.volumeGradientTexture = null, this.overlayTexture = null, this.paqdTexture = null, this.paqdLutTexture = null, this.drawingTexture = null, this.drawingLinearSampler = null, this.placeholderOverlay = null, this.cubeVAO = null, this.vertexBuffer = null, this.indexBuffer = null, this.cube = ge(), this.max3D = 0;
+   }
+   async init(e, r) {
+     if (!this.isReady) {
+@@ -2847,7 +2852,7 @@ class Mr extends K {
+   async _loadTexture2DOrFallback(e, r) {
+     return r ? this._loadTexture2D(e, r) : this._createFallbackTexture2D(e);
+   }
+-  async updateVolume(e, r, i = "") {
++  async updateVolume(e, r, i = "", d = !0) {
+     if (!this.isReady) return;
+     const o = Math.max(
+       Math.max(r.hdr.dims[1], r.hdr.dims[2]),
+@@ -2857,19 +2862,27 @@ class Mr extends K {
+       `${o} exceeds the max3D (${this.max3D}) of this WebGL2 context`
+     );
+     const a = ae(r, r);
+-    this.volumeTexture && e.deleteTexture(this.volumeTexture), this.volumeTexture = await Te(
+-      e,
+-      r,
+-      r,
+-      a,
+-      0
+-    ), e.bindTexture(e.TEXTURE_3D, null), this.matcapTexture && e.deleteTexture(this.matcapTexture), this.matcapTexture = await this._loadTexture2DOrFallback(e, i);
++    if (Re(r.hdr.datatypeCode) || !r.img) {
++      this.backgroundOrientCache && (pe(e, this.backgroundOrientCache), this.backgroundOrientCache = null), this.volumeTexture && e.deleteTexture(this.volumeTexture), this.volumeTexture = await Te(
++        e,
++        r,
++        r,
++        a,
++        0
++      );
++    } else {
++      const __bg = this.backgroundOrientCache;
++      this.volumeTexture && (!__bg || this.volumeTexture !== __bg.outputTexture) && e.deleteTexture(this.volumeTexture), this.backgroundOrientCache = Fe(e, r, r, a, 0, __bg), this.volumeTexture = this.backgroundOrientCache.outputTexture;
++    }
++    if (e.bindTexture(e.TEXTURE_3D, null), this._matcapName !== i || !this.matcapTexture)
++      this.matcapTexture && e.deleteTexture(this.matcapTexture), this.matcapTexture = await this._loadTexture2DOrFallback(e, i), this._matcapName = i;
+     const s = [r.hdr.dims[1], r.hdr.dims[2], r.hdr.dims[3]];
+-    this.volumeGradientTexture && e.deleteTexture(this.volumeGradientTexture), this.volumeGradientTexture = wr(
+-      e,
+-      this.volumeTexture,
+-      s
+-    );
++    if (d || !this.volumeGradientTexture)
++      this.volumeGradientTexture && e.deleteTexture(this.volumeGradientTexture), this.volumeGradientTexture = wr(
++        e,
++        this.volumeTexture,
++        s
++      );
+   }
+   async updateOverlays(e, r, i, o = [0, 0, 0, 0]) {
+     if (!this.isReady) return;
+@@ -3070,7 +3083,7 @@ class Mr extends K {
+   }
+   destroy() {
+     const e = this._gl;
+-    e && (this.cubeVAO && e.deleteVertexArray(this.cubeVAO), this.cubeVAO = null, this.vertexBuffer && e.deleteBuffer(this.vertexBuffer), this.indexBuffer && e.deleteBuffer(this.indexBuffer), this.vertexBuffer = null, this.indexBuffer = null, this.matcapTexture && e.deleteTexture(this.matcapTexture), this.volumeTexture && e.deleteTexture(this.volumeTexture), this.volumeGradientTexture && e.deleteTexture(this.volumeGradientTexture), this.clearOverlay(e), this.paqdTexture && e.deleteTexture(this.paqdTexture), this.drawingTexture && e.deleteTexture(this.drawingTexture), this.drawingLinearSampler && e.deleteSampler(this.drawingLinearSampler), this.placeholderOverlay && e.deleteTexture(this.placeholderOverlay), this.matcapTexture = null, this.volumeTexture = null, this.volumeGradientTexture = null, this.overlayTexture = null, this.paqdTexture = null, this.drawingTexture = null, this.drawingLinearSampler = null, this.placeholderOverlay = null, this.shader?.program && e.deleteProgram(this.shader.program), this.shader = null, xr(e), Nr(e), this.isReady = !1, this._gl = null);
++    e && (this.cubeVAO && e.deleteVertexArray(this.cubeVAO), this.cubeVAO = null, this.vertexBuffer && e.deleteBuffer(this.vertexBuffer), this.indexBuffer && e.deleteBuffer(this.indexBuffer), this.vertexBuffer = null, this.indexBuffer = null, this.matcapTexture && e.deleteTexture(this.matcapTexture), this._matcapName = null, this.backgroundOrientCache && (pe(e, this.backgroundOrientCache), this.backgroundOrientCache = null), this.volumeTexture && e.deleteTexture(this.volumeTexture), this.volumeGradientTexture && e.deleteTexture(this.volumeGradientTexture), this.clearOverlay(e), this.paqdTexture && e.deleteTexture(this.paqdTexture), this.drawingTexture && e.deleteTexture(this.drawingTexture), this.drawingLinearSampler && e.deleteSampler(this.drawingLinearSampler), this.placeholderOverlay && e.deleteTexture(this.placeholderOverlay), this.matcapTexture = null, this.volumeTexture = null, this.volumeGradientTexture = null, this.overlayTexture = null, this.paqdTexture = null, this.drawingTexture = null, this.drawingLinearSampler = null, this.placeholderOverlay = null, this.shader?.program && e.deleteProgram(this.shader.program), this.shader = null, xr(e), Nr(e), this.isReady = !1, this._gl = null);
+   }
+ }
+ const Ir = `#version 300 es
+@@ -3621,7 +3634,8 @@ class qr {
+     ), r.length > 0 && await this.volumeRenderer.updateVolume(
+       e,
+       r[0],
+-      this.model.volume.matcap
++      this.model.volume.matcap,
++      this.model.volume.illumination !== 0
+     ), r.length > 1) {
+       if (await this.volumeRenderer.updateOverlays(
+         e,
