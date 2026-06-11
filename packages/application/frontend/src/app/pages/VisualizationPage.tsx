@@ -170,6 +170,7 @@ export function VisualizationPage() {
     elevation: renderElevation,
     attach: attachRotation,
     setRotation,
+    dragRotate,
     resetRotation,
   } = useNiivueSyncedRotation(nvRef);
   const [renderZoom, setRenderZoom] = useState(DEFAULT_RENDER_ZOOM);
@@ -778,6 +779,101 @@ export function VisualizationPage() {
     container.addEventListener("wheel", handleWheel, { capture: true, passive: false });
     return () => container.removeEventListener("wheel", handleWheel, { capture: true });
   }, [viewPhase]);
+
+  /*
+    Render-tile drag rotation.
+    niivue's built-in drag clamps elevation to ±90°; to allow flipping the
+    volume all the way over, left-button drags that start inside the 3D
+    render tile are intercepted on the canvas's parent in the capture phase
+    (same pattern as the wheel handler) and routed through dragRotate, which
+    drives niivue's unclamped azimuth/elevation setters. Side effects:
+    - the setters emit azimuthElevationChange, so the rotation sliders track
+      the drag in real time;
+    - drags on 2D slice tiles, right-button drags (niivue clip-plane
+      rotation), and shift-drags pass through to niivue untouched;
+    - pointerdown is NOT preventDefault-ed so the browser still synthesizes
+      dblclick, which niivue uses for depth-pick crosshair placement.
+  */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = canvas?.parentElement;
+    if (!canvas || !container) {
+      return;
+    }
+
+    let dragging = false;
+    let pointerId: number | null = null;
+    let lastX = 0;
+    let lastY = 0;
+
+    const hitsRenderTile = (e: PointerEvent): boolean => {
+      const nv = nvRef.current;
+      if (!nv?.view) {
+        return false;
+      }
+      // niivue hit-tests in device pixels relative to the canvas
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      return nv.view.hitTest(x, y)?.isRender ?? false;
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.button !== 0 || e.shiftKey || e.target !== canvas) {
+        return;
+      }
+      if (!hitsRenderTile(e)) {
+        return;
+      }
+      e.stopPropagation();
+      dragging = true;
+      pointerId = e.pointerId;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      // keep receiving moves when the pointer leaves the canvas mid-drag
+      canvas.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!dragging || e.pointerId !== pointerId) {
+        return;
+      }
+      e.stopPropagation();
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (dx !== 0 || dy !== 0) {
+        dragRotate(dx, dy);
+      }
+    };
+
+    const endDrag = (e: PointerEvent) => {
+      if (!dragging || e.pointerId !== pointerId) {
+        return;
+      }
+      e.stopPropagation();
+      dragging = false;
+      pointerId = null;
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        /* capture may already be released */
+      }
+    };
+
+    const options = { capture: true } as const;
+    container.addEventListener("pointerdown", handlePointerDown, options);
+    container.addEventListener("pointermove", handlePointerMove, options);
+    container.addEventListener("pointerup", endDrag, options);
+    container.addEventListener("pointercancel", endDrag, options);
+    return () => {
+      container.removeEventListener("pointerdown", handlePointerDown, options);
+      container.removeEventListener("pointermove", handlePointerMove, options);
+      container.removeEventListener("pointerup", endDrag, options);
+      container.removeEventListener("pointercancel", endDrag, options);
+    };
+  }, [viewPhase, dragRotate]);
 
   useEffect(() => {
     // Update multiplanar layout when switching to multiplanar_4view
