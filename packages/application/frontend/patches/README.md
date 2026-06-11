@@ -56,6 +56,31 @@ Notes on what did NOT need porting from the 0.68.1 patch: the drag/resize redraw
 `updateGLVolume()` has single-flight coalescing (`_updating`/`_pendingUpdate`), so redundant
 draw requests collapse to one render per frame by design.
 
+## Running with / without the patch (A-B comparison)
+
+Two npm scripts toggle the patch in place (both also clear vite's prebundle cache, which
+caches niivue):
+
+```bash
+npm run niivue:unpatch    # stock @niivue/niivue 1.0.0-rc.8
+npm run niivue:repatch    # patched again
+```
+
+Restart the dev server after toggling. Notes:
+
+- Any plain `npm install` re-applies the patch via `postinstall`, so the unpatched state
+  is temporary by design — there is deliberately no persistent "no patch" install config.
+- `--reverse` fails if the patched files were modified after patching; recover with
+  `rm -rf node_modules/@niivue && npm install` (clean reinstall + auto-patch).
+- For a fair comparison drag the cal/opacity sliders on a *large* volume (the float64
+  CBCT class): stock cost scales with voxel-buffer size, so small test volumes understate
+  the difference (~11× on Iguana, ~60×+ on a 410³ float64 scan).
+- **Electron:** the same toggle applies — the desktop renderer's vite root IS this
+  package (`electron.vite.config.ts: root = ../frontend`), so it loads the same
+  `node_modules/@niivue/niivue`. Restart `electron-vite dev` after toggling (it serves
+  the prebundled niivue from memory). Packaged builds (`electron-vite build`) bake the
+  patch state present at build time into `frontend/dist`.
+
 ## NiiVue Upgrade
 
 **When upgrading @niivue/niivue:** check whether upstream now caches the *background* volume's
