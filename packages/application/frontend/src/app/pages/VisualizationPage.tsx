@@ -280,7 +280,7 @@ export function VisualizationPage() {
 
   const setOpacity = (value: number | undefined) => {
     _setOpacity(value ?? DEFAULT_VISIBLE_OPACITY);
-  }
+  };
 
   const resetSettings = () => {
     const nv = nvRef.current;
@@ -589,10 +589,10 @@ export function VisualizationPage() {
     if (!nv || !nv.volumes[selectedVolume]) {
       return;
     }
-    
+
     setOpacity(value);
     queueNvUpdate(NvUpdateKey.Opacity, () => {
-      nv.setVolume(selectedVolume, { opacity: value })
+      nv.setVolume(selectedVolume, { opacity: value });
     });
 
     // Update stored opacity if volume is visible

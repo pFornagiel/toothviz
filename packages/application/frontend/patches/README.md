@@ -42,7 +42,32 @@ The patch (all in `dist/NVViewGL-*.js` unless noted):
 4. **Matcap reuse.** Stock re-decoded and re-uploaded the matcap 2D texture on every update;
    it is now cached by name and reloaded only when the name changes (`loadMatcap()` goes
    through `updateGLVolume`, so the documented path picks this up).
-5. The renderer's `destroy()` releases the new background cache alongside the existing
+5. **Background opacity in the 3D render.** Stock rc.8 never consumes `volumes[0].opacity`
+   in the volume raycast: the orient bake hardcodes opacity `0` (the orient shader treats
+   `0` as "don't apply" via `if (overlayOpacity > 0.0)`) and the raycast `draw()` has no
+   opacity uniform — so `setVolume(0, { opacity })` only affected 2D slices. The patch
+   adds a `backOpacity` uniform to the raycast fragment shader and multiplies the
+   accumulated background color by it (`colAcc *= backOpacity;`) after the background
+   ray-march completes, before the overlay/PAQD/drawing passes mix in. Since `colAcc` is
+   premultiplied alpha at that point, this is a uniform "layer opacity" fade of the whole
+   composited background toward the scene background — the image stays identical, just
+   faded. `volumeRenderer.draw()` gained a trailing `__backOpacity = 1` parameter (clamped
+   to [0,1]) and the render call site passes `volumes[0].opacity ?? 1`. Opacity 0 fades
+   `colAcc` to zero, so with no overlays the final `colAcc.a <= 0.001` check discards the
+   fragment — the volume fully disappears.
+   Deliberately NOT done by baking opacity into the orient pass alpha: per-voxel alpha
+   scaling changes ray *penetration*, not overall visibility — rays accumulate slower and
+   travel deeper, revealing interior structures that were previously occluded, with little
+   visible fade until very low values. The orient bake therefore keeps stock's hardcoded
+   `0` (`__bgOpacity = 0` placeholder in `updateVolume`). Side benefits of the uniform
+   approach: 2D slices untouched by construction (texture alpha is stock), `drawDepthPick`
+   thresholds unaffected, and RGB/RGBA volumes (datatype 128/2304) fade too since the
+   uniform applies at draw time regardless of how the texture was built. Overlays behind a
+   faded background show through more (`depthAwareMix` keys off `colAcc.a`), which is the
+   expected translucent-background behavior. Each opacity tick still goes through
+   `updateGLVolume`, which is cheap thanks to patch 1 (orient cache hit), and the actual
+   visual change is just a redraw with a new uniform value.
+6. The renderer's `destroy()` releases the new background cache alongside the existing
    resources.
 
 Net effect on the 410×410×268 float64 CBCT: a cal/opacity slider tick costs one orient pass
