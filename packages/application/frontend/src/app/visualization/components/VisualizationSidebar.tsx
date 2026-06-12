@@ -114,52 +114,7 @@ export function VisualizationSidebar() {
   const { viewer, layout, volumes, view, display, scene, clip, render, onReset } =
     useVisualization();
 
-  const { viewPhase, statusText, isVolatile } = viewer;
-  const { setSidebarVisible } = layout;
-  const { sliceType, handleSliceTypeChange, showsRender } = view;
-  const {
-    selectedVolume,
-    handleVolumeChange,
-    volumeVisibility,
-    handleVolumeVisibilityToggle,
-    opacity,
-    handleOpacityChange,
-    colormap,
-    colormaps,
-    handleColormapChange,
-    cal_min,
-    cal_max,
-    cal_minGlobal,
-    cal_maxGlobal,
-    handleCalMinChange,
-    handleCalMaxChange,
-  } = display;
-  const {
-    showCrosshair,
-    handleCrosshairToggle,
-    crosshairWidth,
-    handleCrosshairWidthChange,
-    lightBackground,
-    handleBackgroundToggle,
-  } = scene;
-  const {
-    clipPlaneDepth,
-    setClipPlaneDepth,
-    clipPlaneAzimuth,
-    setClipPlaneAzimuth,
-    clipPlaneElevation,
-    setClipPlaneElevation,
-  } = clip;
-  const {
-    renderAzimuth,
-    handleRenderAzimuthChange,
-    renderElevation,
-    handleRenderElevationChange,
-    renderZoom,
-    handleRenderZoomChange,
-  } = render;
-
-  const ready = viewPhase === ViewPhase.Ready;
+  const ready = viewer.viewPhase === ViewPhase.Ready;
   const hasMultipleVolumes = volumes.length > 1;
 
   // Sections open by default; clip/render appear only where a 3D tile is shown.
@@ -168,7 +123,7 @@ export function VisualizationSidebar() {
     "view",
     "display",
     "scene",
-    ...(showsRender ? ["clip", "render"] : []),
+    ...(view.showsRender ? ["clip", "render"] : []),
   ];
 
   return (
@@ -177,14 +132,14 @@ export function VisualizationSidebar() {
       <div className="flex items-start justify-between gap-2 border-b border-border px-4 py-4">
         <div className="min-w-0">
           <h2 className="text-base font-semibold tracking-tight text-foreground">NiiVue Controls</h2>
-          <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={statusText}>
-            {isVolatile ? "Volatile mode" : statusText}
+          <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={viewer.statusText}>
+            {viewer.isVolatile ? "Volatile mode" : viewer.statusText}
           </p>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setSidebarVisible(false)}
+          onClick={() => layout.setSidebarVisible(false)}
           className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
           title="Hide sidebar"
         >
@@ -211,8 +166,8 @@ export function VisualizationSidebar() {
                       className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground"
                     >
                       <Checkbox
-                        checked={volumeVisibility[idx] ?? true}
-                        onCheckedChange={() => handleVolumeVisibilityToggle(idx)}
+                        checked={display.volumeVisibility[idx] ?? true}
+                        onCheckedChange={() => display.handleVolumeVisibilityToggle(idx)}
                       />
                       <span className="truncate">{vol.name || `Volume ${idx}`}</span>
                     </label>
@@ -223,8 +178,8 @@ export function VisualizationSidebar() {
                   <div className="space-y-1.5">
                     <span className="text-xs font-medium text-muted-foreground">Active volume</span>
                     <Select
-                      value={String(selectedVolume)}
-                      onValueChange={(v) => handleVolumeChange(parseInt(v))}
+                      value={String(display.selectedVolume)}
+                      onValueChange={(v) => display.handleVolumeChange(parseInt(v))}
                     >
                       <SelectTrigger className="w-full bg-card">
                         <SelectValue />
@@ -246,7 +201,7 @@ export function VisualizationSidebar() {
             <ControlSection value="display" icon={SlidersHorizontal} title="Display">
             <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Slice type</span>
-                <Select value={sliceType} onValueChange={(v) => handleSliceTypeChange(v as SliceTypeKey)}>
+                <Select value={view.sliceType} onValueChange={(v) => view.handleSliceTypeChange(v as SliceTypeKey)}>
                   <SelectTrigger className="w-full bg-card">
                     <SelectValue />
                   </SelectTrigger>
@@ -259,15 +214,15 @@ export function VisualizationSidebar() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Colormap</span>
-                <Select value={colormap} onValueChange={handleColormapChange}>
+                <Select value={display.colormap} onValueChange={display.handleColormapChange}>
                   <SelectTrigger className="w-full bg-card">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {colormaps.map((cm) => (
+                    {display.colormaps.map((cm) => (
                       <SelectItem key={cm} value={cm}>
                         {cm}
                       </SelectItem>
@@ -278,53 +233,53 @@ export function VisualizationSidebar() {
 
               <SliderRow
                 label="Opacity"
-                valueLabel={opacity.toFixed(2)}
-                value={opacity}
+                valueLabel={display.opacity.toFixed(2)}
+                value={display.opacity}
                 min={OPACITY_RANGE.min}
                 max={OPACITY_RANGE.max}
                 step={OPACITY_RANGE.step}
-                onChange={handleOpacityChange}
+                onChange={display.handleOpacityChange}
               />
               <SliderRow
                 label="Cal min"
-                valueLabel={cal_min.toFixed(0)}
-                value={cal_min}
-                min={cal_minGlobal}
-                max={cal_maxGlobal}
+                valueLabel={display.cal_min.toFixed(0)}
+                value={display.cal_min}
+                min={display.cal_minGlobal}
+                max={display.cal_maxGlobal}
                 step={1}
-                onChange={handleCalMinChange}
+                onChange={display.handleCalMinChange}
               />
               <SliderRow
                 label="Cal max"
-                valueLabel={cal_max.toFixed(0)}
-                value={cal_max}
-                min={cal_minGlobal}
-                max={cal_maxGlobal}
+                valueLabel={display.cal_max.toFixed(0)}
+                value={display.cal_max}
+                min={display.cal_minGlobal}
+                max={display.cal_maxGlobal}
                 step={1}
-                onChange={handleCalMaxChange}
+                onChange={display.handleCalMaxChange}
               />
             </ControlSection>
 
             {/* Render view (3D only) */}
-            {showsRender && (
+            {view.showsRender && (
               <ControlSection value="render" icon={Box} title="Render View">
                 <SliderRow
                   label="Azimuth"
-                  valueLabel={`${renderAzimuth.toFixed(0)}°`}
-                  value={renderAzimuth}
+                  valueLabel={`${render.renderAzimuth.toFixed(0)}°`}
+                  value={render.renderAzimuth}
                   min={RENDER_AZIMUTH_RANGE.min}
                   max={RENDER_AZIMUTH_RANGE.max}
                   step={RENDER_AZIMUTH_RANGE.step}
-                  onChange={handleRenderAzimuthChange}
+                  onChange={render.handleRenderAzimuthChange}
                 />
                 <SliderRow
                   label="Elevation"
-                  valueLabel={`${renderElevation.toFixed(0)}°`}
-                  value={renderElevation}
+                  valueLabel={`${render.renderElevation.toFixed(0)}°`}
+                  value={render.renderElevation}
                   min={RENDER_ELEVATION_RANGE.min}
                   max={RENDER_ELEVATION_RANGE.max}
                   step={RENDER_ELEVATION_RANGE.step}
-                  onChange={handleRenderElevationChange}
+                  onChange={render.handleRenderElevationChange}
                 />
                 <div className="space-y-1.5">
                   <span className="text-sm text-foreground">Zoom</span>
@@ -334,17 +289,17 @@ export function VisualizationSidebar() {
                       size="icon"
                       className="size-8 shrink-0 bg-card"
                       title="Zoom out"
-                      onClick={() => handleRenderZoomChange(renderZoom / RENDER_ZOOM_BUTTON_FACTOR)}
+                      onClick={() => render.handleRenderZoomChange(render.renderZoom / RENDER_ZOOM_BUTTON_FACTOR)}
                     >
                       <Minus className="size-4" />
                     </Button>
                     <input
                       type="range"
-                      value={renderZoom}
+                      value={render.renderZoom}
                       min={RENDER_ZOOM_RANGE.min}
                       max={RENDER_ZOOM_RANGE.max}
                       step={RENDER_ZOOM_RANGE.step}
-                      onChange={(e) => handleRenderZoomChange(parseFloat(e.target.value))}
+                      onChange={(e) => render.handleRenderZoomChange(parseFloat(e.target.value))}
                       className="h-1.5 min-w-0 flex-1 cursor-pointer accent-primary"
                     />
                     <Button
@@ -352,12 +307,12 @@ export function VisualizationSidebar() {
                       size="icon"
                       className="size-8 shrink-0 bg-card"
                       title="Zoom in"
-                      onClick={() => handleRenderZoomChange(renderZoom * RENDER_ZOOM_BUTTON_FACTOR)}
+                      onClick={() => render.handleRenderZoomChange(render.renderZoom * RENDER_ZOOM_BUTTON_FACTOR)}
                     >
                       <Plus className="size-4" />
                     </Button>
                     <span className="w-10 shrink-0 text-right text-sm text-foreground">
-                      {renderZoom.toFixed(1)}×
+                      {render.renderZoom.toFixed(1)}×
                     </span>
                   </div>
                 </div>
@@ -365,34 +320,34 @@ export function VisualizationSidebar() {
             )}
 
                         {/* Clip plane (3D only) */}
-            {showsRender && (
+            {view.showsRender && (
               <ControlSection value="clip" icon={Scissors} title="3D Clip Plane">
                 <SliderRow
                   label="Depth"
-                  valueLabel={clipPlaneDepth.toFixed(2)}
-                  value={clipPlaneDepth}
+                  valueLabel={clip.clipPlaneDepth.toFixed(2)}
+                  value={clip.clipPlaneDepth}
                   min={CLIP_DEPTH_RANGE.min}
                   max={CLIP_DEPTH_RANGE.max}
                   step={CLIP_DEPTH_RANGE.step}
-                  onChange={setClipPlaneDepth}
+                  onChange={clip.setClipPlaneDepth}
                 />
                 <SliderRow
                   label="Azimuth"
-                  valueLabel={`${clipPlaneAzimuth.toFixed(0)}°`}
-                  value={clipPlaneAzimuth}
+                  valueLabel={`${clip.clipPlaneAzimuth.toFixed(0)}°`}
+                  value={clip.clipPlaneAzimuth}
                   min={CLIP_AZIMUTH_RANGE.min}
                   max={CLIP_AZIMUTH_RANGE.max}
                   step={CLIP_AZIMUTH_RANGE.step}
-                  onChange={setClipPlaneAzimuth}
+                  onChange={clip.setClipPlaneAzimuth}
                 />
                 <SliderRow
                   label="Elevation"
-                  valueLabel={`${clipPlaneElevation.toFixed(0)}°`}
-                  value={clipPlaneElevation}
+                  valueLabel={`${clip.clipPlaneElevation.toFixed(0)}°`}
+                  value={clip.clipPlaneElevation}
                   min={CLIP_ELEVATION_RANGE.min}
                   max={CLIP_ELEVATION_RANGE.max}
                   step={CLIP_ELEVATION_RANGE.step}
-                  onChange={setClipPlaneElevation}
+                  onChange={clip.setClipPlaneElevation}
                 />
               </ControlSection>
             )}
@@ -402,21 +357,21 @@ export function VisualizationSidebar() {
             <ControlSection value="scene" icon={Crosshair} title="Scene">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground">Crosshair</span>
-                <Switch checked={showCrosshair} onCheckedChange={handleCrosshairToggle} />
+                <Switch checked={scene.showCrosshair} onCheckedChange={scene.handleCrosshairToggle} />
               </div>
               <SliderRow
                 label="Crosshair width"
-                valueLabel={`${crosshairWidth}px`}
-                value={crosshairWidth}
+                valueLabel={`${scene.crosshairWidth}px`}
+                value={scene.crosshairWidth}
                 min={CROSSHAIR_WIDTH_RANGE.min}
                 max={CROSSHAIR_WIDTH_RANGE.max}
                 step={CROSSHAIR_WIDTH_RANGE.step}
-                onChange={handleCrosshairWidthChange}
-                disabled={!showCrosshair}
+                onChange={scene.handleCrosshairWidthChange}
+                disabled={!scene.showCrosshair}
               />
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground">Light background</span>
-                <Switch checked={lightBackground} onCheckedChange={handleBackgroundToggle} />
+                <Switch checked={scene.lightBackground} onCheckedChange={scene.handleBackgroundToggle} />
               </div>
             </ControlSection>
           </Accordion>
