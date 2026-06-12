@@ -1,6 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { FromPage } from "../pipeline";
-import type { SliceTypeKey } from "../pages/visualizationConstants";
+import type { SliceTypeKey } from "./constants";
 
 // Lifecycle phase of the visualization view
 export enum ViewPhase {

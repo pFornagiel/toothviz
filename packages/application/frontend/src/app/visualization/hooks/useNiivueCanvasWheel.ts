@@ -1,13 +1,12 @@
 import {
   useEffect,
   type Dispatch,
-  type MutableRefObject,
   type RefObject,
   type SetStateAction,
 } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
-import type { ViewPhase } from "../visualization/types";
-import { CLIP_DEPTH_RANGE, RENDER_ZOOM_RANGE } from "../pages/visualizationConstants";
+import type { ViewPhase } from "../types";
+import { CLIP_DEPTH_RANGE, RENDER_ZOOM_RANGE } from "../constants";
 
 // Mouse-wheel interaction over the canvas
 const RENDER_ZOOM_SCROLL_FACTOR = 1.1; // multiplicative zoom step per wheel notch
@@ -32,7 +31,7 @@ export default function useNiivueCanvasWheel({
   setRenderZoom,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
-  nvRef: MutableRefObject<NiiVueGPU | null>;
+  nvRef: RefObject<NiiVueGPU | null>;
   viewPhase: ViewPhase;
   setClipPlaneDepth: Dispatch<SetStateAction<number>>;
   setRenderZoom: (zoom: number) => void;

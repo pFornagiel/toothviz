@@ -4,8 +4,12 @@ import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import { getStudy } from "@/api/studies";
 import { PageLayout } from "../components/layout/page-layout";
 import { Button } from "../components/ui/button";
-import { VisualizationSidebar } from "./VisualizationSidebar";
-import { VisualizationProvider, useVisualization, ViewPhase } from "../visualization";
+import {
+  VisualizationProvider,
+  VisualizationSidebar,
+  useVisualization,
+  ViewPhase,
+} from "../visualization";
 
 export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) {

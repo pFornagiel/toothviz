@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import NiiVueGPU from "@niivue/niivue/webgl2";
 import { SLICE_TYPE, MULTIPLANAR_TYPE } from "@niivue/niivue";
 import { listFiles, fileContentUrl } from "@/api/studies";
-import { ViewPhase, type VisualizationLocationState } from "../visualization/types";
+import { ViewPhase, type VisualizationLocationState } from "../types";
 import {
   DEFAULT_BACK_COLOR_DARK,
   DEFAULT_SHOW_3D_CROSSHAIR,
   DEFAULT_CROSSHAIR_WIDTH,
   DEFAULT_RENDER_AZIMUTH,
   DEFAULT_RENDER_ELEVATION,
-} from "../pages/visualizationConstants";
+} from "../constants";
 
 // Colormaps applied to loaded volumes/overlays
 const VOLUME_COLORMAP = "Gray";
@@ -45,7 +45,7 @@ export default function useNiivueViewer({
   studyId?: string;
   routeState: VisualizationLocationState;
   canvasRef: RefObject<HTMLCanvasElement | null>;
-  nvRef: MutableRefObject<NiiVueGPU | null>;
+  nvRef: RefObject<NiiVueGPU | null>;
   configureNv: (nv: NiiVueGPU) => void;
   onVolumesLoaded: (nv: NiiVueGPU) => void;
 }): NiivueViewerState {

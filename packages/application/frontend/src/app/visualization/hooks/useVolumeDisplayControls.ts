@@ -1,46 +1,13 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
-import { SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER } from "@niivue/niivue";
-import useNiivueSyncedRotation from "./useNiivueSyncedRotation";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
-import {
-  SliceTypeKey,
-  CLIP_DEPTH_EDGE,
-  RENDER_ZOOM_RANGE,
-  DEFAULT_COLORMAP,
-  DEFAULT_VISIBLE_OPACITY,
-  DEFAULT_BACK_COLOR_DARK,
-  DEFAULT_BACK_COLOR_LIGHT,
-  DEFAULT_SHOW_3D_CROSSHAIR,
-  DEFAULT_CROSSHAIR_WIDTH,
-} from "../pages/visualizationConstants";
+import { DEFAULT_COLORMAP, DEFAULT_VISIBLE_OPACITY } from "../constants";
 
 const CAL_MIN_GLOBAL_VAL = -1000;
 const CAL_MAX_GLOBAL_VAL = 3000;
-
-const DEFAULT_SLICE_TYPE = SliceTypeKey.Multiplanar;
 const HIDDEN_OPACITY = 0;
 
-// Default initial values for clip plane / render controls
-const DEFAULT_CLIP_PLANE_DEPTH = CLIP_DEPTH_EDGE; // start fully visible (nothing clipped)
-
-const DEFAULT_RENDER_ZOOM = 1.0; // niivue scaleMultiplier default (1 = no zoom)
-
-export interface NiivueControls {
-  // View layout
-  sliceType: SliceTypeKey;
-  handleSliceTypeChange: (type: SliceTypeKey) => void;
-  /** Slice types that include a 3D render tile and therefore expose render controls */
-  showsRender: boolean;
-
+export interface VolumeDisplayControls {
   // Volumes
   selectedVolume: number;
   handleVolumeChange: (index: number) => void;
@@ -60,66 +27,28 @@ export interface NiivueControls {
   handleCalMinChange: (value: number) => void;
   handleCalMaxChange: (value: number) => void;
 
-  // Scene
-  showCrosshair: boolean;
-  handleCrosshairToggle: () => void;
-  crosshairWidth: number;
-  handleCrosshairWidthChange: (value: number) => void;
-  lightBackground: boolean;
-  handleBackgroundToggle: () => void;
-
-  // Clip plane
-  clipPlaneDepth: number;
-  setClipPlaneDepth: Dispatch<SetStateAction<number>>;
-  clipPlaneAzimuth: number;
-  setClipPlaneAzimuth: Dispatch<SetStateAction<number>>;
-  clipPlaneElevation: number;
-  setClipPlaneElevation: Dispatch<SetStateAction<number>>;
-
-  // Render view
-  renderAzimuth: number;
-  handleRenderAzimuthChange: (value: number) => void;
-  renderElevation: number;
-  handleRenderElevationChange: (value: number) => void;
-  renderZoom: number;
-  handleRenderZoomChange: (value: number) => void;
-  setRenderZoom: Dispatch<SetStateAction<number>>;
-
-  // Drag rotation
-  dragRotate: (dx: number, dy: number) => void;
-
-  resetSettings: () => void;
-
-  // Bridges for useNiivueViewer (both identity-stable)
-  /** Wires niivue → React callbacks on a freshly created instance. */
-  configureNv: (nv: NiiVueGPU) => void;
   /** Post-load UI sync: mirrors the loaded volumes into control state. */
   syncFromVolumes: (nv: NiiVueGPU) => void;
+  /** Restores the active volume's display params and all volumes' visibility. */
+  reset: () => void;
 }
 
 /**
- * All control state for the visualization page plus the handlers that push it
- * into niivue. Pure state/handler hook: instance lifecycle and file loading
- * live in `useNiivueViewer`, which talks back to this hook only through the
- * stable `configureNv`/`syncFromVolumes` bridges.
+ * Volume selection plus the active volume's display parameters (opacity,
+ * colormap, cal_min/max windowing). These two concerns share state — switching
+ * the active volume mirrors that volume's display params into the controls, and
+ * the opacity slider writes back into the per-volume opacity store used for
+ * show/hide — so they live in one hook. niivue updates flow through the shared
+ * per-frame queue; instance lifecycle/loading lives in `useNiivueViewer`, which
+ * talks back only through the identity-stable `syncFromVolumes` bridge.
  */
-export default function useNiivueControls({
+export default function useVolumeDisplayControls({
   nvRef,
   queueNvUpdate,
 }: {
-  nvRef: MutableRefObject<NiiVueGPU | null>;
+  nvRef: RefObject<NiiVueGPU | null>;
   queueNvUpdate: QueueNvUpdate;
-}): NiivueControls {
-  const [sliceType, setSliceType] = useState<SliceTypeKey>(DEFAULT_SLICE_TYPE);
-
-  // Slice types that include a 3D render tile and therefore expose render controls
-  const showsRender =
-    sliceType === SliceTypeKey.Render ||
-    sliceType === SliceTypeKey.Multiplanar ||
-    sliceType === SliceTypeKey.Multiplanar4View;
-
-  const [lightBackground, setLightBackground] = useState(false);
-
+}): VolumeDisplayControls {
   // Volume controls
   const [selectedVolume, setSelectedVolume] = useState(0);
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
@@ -135,26 +64,6 @@ export default function useNiivueControls({
   // Initialised cal_min and cal_max for reset
   const initialCalMin = useRef(CAL_MIN_GLOBAL_VAL);
   const initialCalMax = useRef(CAL_MAX_GLOBAL_VAL);
-
-  // Crosshair and display settings
-  const [showCrosshair, setShowCrosshair] = useState(DEFAULT_SHOW_3D_CROSSHAIR);
-  const [crosshairWidth, setCrosshairWidth] = useState(DEFAULT_CROSSHAIR_WIDTH);
-
-  // Clip plane settings
-  const [clipPlaneDepth, setClipPlaneDepth] = useState(DEFAULT_CLIP_PLANE_DEPTH);
-  const [clipPlaneAzimuth, setClipPlaneAzimuth] = useState(0);
-  const [clipPlaneElevation, setClipPlaneElevation] = useState(0);
-
-  // Render settings
-  const {
-    azimuth: renderAzimuth,
-    elevation: renderElevation,
-    attach: attachRotation,
-    setRotation,
-    dragRotate,
-    resetRotation,
-  } = useNiivueSyncedRotation(nvRef);
-  const [renderZoom, setRenderZoom] = useState(DEFAULT_RENDER_ZOOM);
 
   const setCalMax = useCallback(
     (value: number | undefined, setInitial: boolean = false) => {
@@ -251,61 +160,6 @@ export default function useNiivueControls({
     _setColormap(value || DEFAULT_COLORMAP);
   };
 
-  const resetSettings = () => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    setCalMin(initialCalMin.current);
-    setCalMax(initialCalMax.current);
-    setOpacity(DEFAULT_VISIBLE_OPACITY);
-    setColormap(DEFAULT_COLORMAP);
-    setVolumeVisibility(nv.volumes.map(() => true));
-    setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
-
-    resetRotation();
-
-    // reset render zoom
-    queueNvUpdate(NvUpdateKey.RenderZoom, () => {
-      nv.scaleMultiplier = DEFAULT_RENDER_ZOOM;
-      setRenderZoom(DEFAULT_RENDER_ZOOM);
-    });
-  };
-
-  const handleSliceTypeChange = (type: SliceTypeKey) => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-    setSliceType(type);
-
-    switch (type) {
-      case SliceTypeKey.Multiplanar:
-        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
-        nv.multiplanarType = MULTIPLANAR_TYPE.AUTO;
-        nv.showRender = SHOW_RENDER.AUTO;
-        break;
-      case SliceTypeKey.Multiplanar4View:
-        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
-        nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
-        nv.showRender = SHOW_RENDER.ALWAYS;
-        break;
-      case SliceTypeKey.Axial:
-        nv.sliceType = SLICE_TYPE.AXIAL;
-        break;
-      case SliceTypeKey.Coronal:
-        nv.sliceType = SLICE_TYPE.CORONAL;
-        break;
-      case SliceTypeKey.Sagittal:
-        nv.sliceType = SLICE_TYPE.SAGITTAL;
-        break;
-      case SliceTypeKey.Render:
-        nv.sliceType = SLICE_TYPE.RENDER;
-        break;
-    }
-  };
-
   const handleVolumeChange = (index: number) => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[index]) {
@@ -364,27 +218,6 @@ export default function useNiivueControls({
     setCalMax(value);
   };
 
-  const handleCrosshairToggle = () => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    const newValue = !showCrosshair;
-    setShowCrosshair(newValue);
-    nv.is3DCrosshairVisible = newValue;
-  };
-
-  const handleCrosshairWidthChange = (value: number) => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    setCrosshairWidth(value);
-    nv.crosshairWidth = value;
-  };
-
   const handleVolumeVisibilityToggle = (index: number) => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[index]) {
@@ -409,74 +242,6 @@ export default function useNiivueControls({
       void nv.setVolume(index, { opacity: HIDDEN_OPACITY });
     }
   };
-
-  const handleBackgroundToggle = () => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    const newValue = !lightBackground;
-    setLightBackground(newValue);
-    nv.backgroundColor = newValue ? DEFAULT_BACK_COLOR_LIGHT : DEFAULT_BACK_COLOR_DARK;
-  };
-
-  const handleClipPlaneChange = useCallback(() => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    queueNvUpdate(NvUpdateKey.ClipPlane, () =>
-      nv.setClipPlane([clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation]),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clipPlaneDepth, clipPlaneAzimuth, clipPlaneElevation, queueNvUpdate]);
-
-  const handleRenderAzimuthChange = (value: number) => {
-    setRotation(value, renderElevation);
-  };
-
-  const handleRenderElevationChange = (value: number) => {
-    setRotation(renderAzimuth, value);
-  };
-
-  const handleRenderZoomChange = (value: number) => {
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    const clamped = Math.min(RENDER_ZOOM_RANGE.max, Math.max(RENDER_ZOOM_RANGE.min, value));
-    setRenderZoom(clamped);
-    queueNvUpdate(NvUpdateKey.RenderZoom, () => {
-      nv.scaleMultiplier = clamped;
-    });
-  };
-
-  useEffect(() => {
-    handleClipPlaneChange();
-  }, [handleClipPlaneChange]);
-
-  useEffect(() => {
-    // Update multiplanar layout when switching to multiplanar_4view
-    const nv = nvRef.current;
-    if (!nv) {
-      return;
-    }
-
-    if (sliceType === SliceTypeKey.Multiplanar4View) {
-      nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sliceType]);
-
-  const configureNv = useCallback(
-    (nv: NiiVueGPU) => {
-      attachRotation(nv);
-    },
-    [attachRotation],
-  );
 
   /**
    * Post-load UI sync, identity-stable via the latest-ref pattern: the
@@ -504,10 +269,21 @@ export default function useNiivueControls({
   };
   const syncFromVolumes = useCallback((nv: NiiVueGPU) => syncFromVolumesRef.current(nv), []);
 
+  const reset = () => {
+    const nv = nvRef.current;
+    if (!nv) {
+      return;
+    }
+
+    setCalMin(initialCalMin.current);
+    setCalMax(initialCalMax.current);
+    setOpacity(DEFAULT_VISIBLE_OPACITY);
+    setColormap(DEFAULT_COLORMAP);
+    setVolumeVisibility(nv.volumes.map(() => true));
+    setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
+  };
+
   return {
-    sliceType,
-    handleSliceTypeChange,
-    showsRender,
     selectedVolume,
     handleVolumeChange,
     volumeVisibility,
@@ -523,28 +299,7 @@ export default function useNiivueControls({
     cal_maxGlobal,
     handleCalMinChange,
     handleCalMaxChange,
-    showCrosshair,
-    handleCrosshairToggle,
-    crosshairWidth,
-    handleCrosshairWidthChange,
-    lightBackground,
-    handleBackgroundToggle,
-    clipPlaneDepth,
-    setClipPlaneDepth,
-    clipPlaneAzimuth,
-    setClipPlaneAzimuth,
-    clipPlaneElevation,
-    setClipPlaneElevation,
-    renderAzimuth,
-    handleRenderAzimuthChange,
-    renderElevation,
-    handleRenderElevationChange,
-    renderZoom,
-    handleRenderZoomChange,
-    setRenderZoom,
-    dragRotate,
-    resetSettings,
-    configureNv,
     syncFromVolumes,
+    reset,
   };
 }

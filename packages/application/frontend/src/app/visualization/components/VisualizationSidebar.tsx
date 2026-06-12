@@ -11,22 +11,22 @@ import {
   Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "../components/ui/button";
-import { Switch } from "../components/ui/switch";
-import { Checkbox } from "../components/ui/checkbox";
+import { Button } from "../../components/ui/button";
+import { Switch } from "../../components/ui/switch";
+import { Checkbox } from "../../components/ui/checkbox";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "../components/ui/accordion";
+} from "../../components/ui/accordion";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select";
+} from "../../components/ui/select";
 import {
   SliceTypeKey,
   SLICE_TYPE_LABELS,
@@ -39,8 +39,9 @@ import {
   RENDER_ELEVATION_RANGE,
   RENDER_ZOOM_RANGE,
   RENDER_ZOOM_BUTTON_FACTOR,
-} from "./visualizationConstants";
-import { useVisualization, ViewPhase } from "../visualization";
+} from "../constants";
+import { useVisualization } from "../VisualizationProvider";
+import { ViewPhase } from "../types";
 
 /** Collapsible, icon-headed control group matching the clinical sidebar design. */
 function ControlSection({

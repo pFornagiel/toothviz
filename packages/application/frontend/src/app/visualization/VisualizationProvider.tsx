@@ -10,11 +10,15 @@ import {
 import { useLocation, useNavigate, useParams } from "react-router";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { FromPage } from "../pipeline";
-import useNvUpdateQueue from "../hooks/useNvUpdateQueue";
-import useNiivueControls from "../hooks/useNiivueControls";
-import useNiivueViewer from "../hooks/useNiivueViewer";
-import useNiivueCanvasWheel from "../hooks/useNiivueCanvasWheel";
-import useNiivueDragRotation from "../hooks/useNiivueDragRotation";
+import useNvUpdateQueue from "./hooks/useNvUpdateQueue";
+import useViewLayoutControls from "./hooks/useViewLayoutControls";
+import useVolumeDisplayControls from "./hooks/useVolumeDisplayControls";
+import useSceneControls from "./hooks/useSceneControls";
+import useClipPlaneControls from "./hooks/useClipPlaneControls";
+import useRenderControls from "./hooks/useRenderControls";
+import useNiivueViewer from "./hooks/useNiivueViewer";
+import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
+import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
 
 const VisualizationContext = createContext<VisualizationContextValue | null>(null);
@@ -42,29 +46,46 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   // UI state
   const [sidebarVisible, setSidebarVisible] = useState(true);
 
-  // Single queue instance shared by every hook that pokes niivue — see useNvUpdateQueue.
+  // Single queue instance shared by every control hook that pokes niivue — a
+  // lone instance is what lets resetSettings' cal/zoom updates flush in one
+  // frame. See useNvUpdateQueue.
   const queueNvUpdate = useNvUpdateQueue();
-  const controls = useNiivueControls({ nvRef, queueNvUpdate });
+
+  // Control state, split by domain. Each hook owns one slice and pushes it into
+  // the shared niivue instance; the provider just composes them.
+  const viewLayout = useViewLayoutControls({ nvRef });
+  const volumeDisplay = useVolumeDisplayControls({ nvRef, queueNvUpdate });
+  const scene = useSceneControls({ nvRef });
+  const clipPlane = useClipPlaneControls({ nvRef, queueNvUpdate });
+  const render = useRenderControls({ nvRef, queueNvUpdate });
+
+  // Page-wide reset folds in the only two domains with reset semantics; scene
+  // and clip-plane settings are deliberately left untouched.
+  const resetSettings = () => {
+    volumeDisplay.reset();
+    render.reset();
+  };
+
   const viewer = useNiivueViewer({
     studyId,
     routeState,
     canvasRef,
     nvRef,
-    configureNv: controls.configureNv,
-    onVolumesLoaded: controls.syncFromVolumes,
+    configureNv: render.configureNv,
+    onVolumesLoaded: volumeDisplay.syncFromVolumes,
   });
   useNiivueCanvasWheel({
     canvasRef,
     nvRef,
     viewPhase: viewer.viewPhase,
-    setClipPlaneDepth: controls.setClipPlaneDepth,
-    setRenderZoom: controls.setRenderZoom,
+    setClipPlaneDepth: clipPlane.setClipPlaneDepth,
+    setRenderZoom: render.setRenderZoom,
   });
   useNiivueDragRotation({
     canvasRef,
     nvRef,
     viewPhase: viewer.viewPhase,
-    dragRotate: controls.dragRotate,
+    dragRotate: render.dragRotate,
   });
 
   const handleBackFromError = useCallback(() => {
@@ -98,49 +119,49 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     setSidebarVisible,
 
     volumes: volumeList.map((v) => ({ name: v.name })),
-    volumeVisibility: controls.volumeVisibility,
-    onToggleVolumeVisibility: controls.handleVolumeVisibilityToggle,
-    selectedVolume: controls.selectedVolume,
-    onSelectVolume: controls.handleVolumeChange,
+    volumeVisibility: volumeDisplay.volumeVisibility,
+    onToggleVolumeVisibility: volumeDisplay.handleVolumeVisibilityToggle,
+    selectedVolume: volumeDisplay.selectedVolume,
+    onSelectVolume: volumeDisplay.handleVolumeChange,
 
-    sliceType: controls.sliceType,
-    onSliceTypeChange: controls.handleSliceTypeChange,
+    sliceType: viewLayout.sliceType,
+    onSliceTypeChange: viewLayout.handleSliceTypeChange,
 
-    colormap: controls.colormap,
-    colormaps: controls.colormaps,
-    onColormapChange: controls.handleColormapChange,
-    opacity: controls.opacity,
-    onOpacityChange: controls.handleOpacityChange,
-    calMin: controls.cal_min,
-    calMax: controls.cal_max,
-    calMinGlobal: controls.cal_minGlobal,
-    calMaxGlobal: controls.cal_maxGlobal,
-    onCalMinChange: controls.handleCalMinChange,
-    onCalMaxChange: controls.handleCalMaxChange,
+    colormap: volumeDisplay.colormap,
+    colormaps: volumeDisplay.colormaps,
+    onColormapChange: volumeDisplay.handleColormapChange,
+    opacity: volumeDisplay.opacity,
+    onOpacityChange: volumeDisplay.handleOpacityChange,
+    calMin: volumeDisplay.cal_min,
+    calMax: volumeDisplay.cal_max,
+    calMinGlobal: volumeDisplay.cal_minGlobal,
+    calMaxGlobal: volumeDisplay.cal_maxGlobal,
+    onCalMinChange: volumeDisplay.handleCalMinChange,
+    onCalMaxChange: volumeDisplay.handleCalMaxChange,
 
-    showCrosshair: controls.showCrosshair,
-    onToggleCrosshair: controls.handleCrosshairToggle,
-    crosshairWidth: controls.crosshairWidth,
-    onCrosshairWidthChange: controls.handleCrosshairWidthChange,
-    lightBackground: controls.lightBackground,
-    onToggleBackground: controls.handleBackgroundToggle,
+    showCrosshair: scene.showCrosshair,
+    onToggleCrosshair: scene.handleCrosshairToggle,
+    crosshairWidth: scene.crosshairWidth,
+    onCrosshairWidthChange: scene.handleCrosshairWidthChange,
+    lightBackground: scene.lightBackground,
+    onToggleBackground: scene.handleBackgroundToggle,
 
-    clipPlaneDepth: controls.clipPlaneDepth,
-    onClipDepthChange: controls.setClipPlaneDepth,
-    clipPlaneAzimuth: controls.clipPlaneAzimuth,
-    onClipAzimuthChange: controls.setClipPlaneAzimuth,
-    clipPlaneElevation: controls.clipPlaneElevation,
-    onClipElevationChange: controls.setClipPlaneElevation,
+    clipPlaneDepth: clipPlane.clipPlaneDepth,
+    onClipDepthChange: clipPlane.setClipPlaneDepth,
+    clipPlaneAzimuth: clipPlane.clipPlaneAzimuth,
+    onClipAzimuthChange: clipPlane.setClipPlaneAzimuth,
+    clipPlaneElevation: clipPlane.clipPlaneElevation,
+    onClipElevationChange: clipPlane.setClipPlaneElevation,
 
-    showsRender: controls.showsRender,
-    renderAzimuth: controls.renderAzimuth,
-    onRenderAzimuthChange: controls.handleRenderAzimuthChange,
-    renderElevation: controls.renderElevation,
-    onRenderElevationChange: controls.handleRenderElevationChange,
-    renderZoom: controls.renderZoom,
-    onRenderZoomChange: controls.handleRenderZoomChange,
+    showsRender: viewLayout.showsRender,
+    renderAzimuth: render.renderAzimuth,
+    onRenderAzimuthChange: render.handleRenderAzimuthChange,
+    renderElevation: render.renderElevation,
+    onRenderElevationChange: render.handleRenderElevationChange,
+    renderZoom: render.renderZoom,
+    onRenderZoomChange: render.handleRenderZoomChange,
 
-    onReset: controls.resetSettings,
+    onReset: resetSettings,
   };
 
   return <VisualizationContext.Provider value={value}>{children}</VisualizationContext.Provider>;

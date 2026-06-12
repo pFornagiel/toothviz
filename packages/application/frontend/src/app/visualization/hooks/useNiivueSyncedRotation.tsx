@@ -62,7 +62,9 @@ export default function useNiivueSyncedRotation(nvRef: {
   const setRotation = useCallback(
     (nextAzimuth: number, nextElevation: number) => {
       const nv = nvRef.current;
-      if (!nv) return;
+      if (!nv) {
+        return;
+      }
       nv.azimuth = normalizeAzimuth(nextAzimuth);
       nv.elevation = normalizeElevation(nextElevation);
     },
@@ -72,7 +74,9 @@ export default function useNiivueSyncedRotation(nvRef: {
   const dragRotate = useCallback(
     (dx: number, dy: number) => {
       const nv = nvRef.current;
-      if (!nv) return;
+      if (!nv) {
+        return;
+      }
       const currentElevation = nv.elevation;
       const upsideDown = Math.cos((currentElevation * Math.PI) / 180) < 0;
       const azimuthDirection = upsideDown ? -1 : 1;

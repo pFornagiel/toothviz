@@ -21,10 +21,6 @@ export type QueueNvUpdate = (key: NvUpdateKey, apply: () => void) => void;
  * Keyed per setting: updates to different settings queued in the same frame
  * (mainly for resetSettings which touches cal_min, cal_max and zoom in one commit) must
  * all apply, not overwrite one another.
- *
- * Must be instantiated exactly once (in `VisualizationProvider`) and shared by
- * everything that pokes niivue — a single queue instance is what makes
- * `resetSettings`' cal/zoom updates flush together in one frame.
  */
 export default function useNvUpdateQueue(): QueueNvUpdate {
   const queuedNvUpdatesRef = useRef<Map<NvUpdateKey, () => void>>(new Map());
