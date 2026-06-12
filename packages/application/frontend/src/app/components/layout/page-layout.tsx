@@ -10,6 +10,12 @@ interface PageLayoutProps {
   onBack?: () => void;
   children: React.ReactNode;
   mainClassName?: string;
+  /**
+   * Lock the layout to the viewport height (h-screen, no page scroll) and let
+   * the <main> region own its overflow. Used by full-bleed screens such as the
+   * visualization workspace, where the sidebar/canvas scroll internally.
+   */
+  fullHeight?: boolean;
 }
 
 export function PageLayout({
@@ -18,6 +24,7 @@ export function PageLayout({
   onBack,
   children,
   mainClassName,
+  fullHeight = false,
 }: PageLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,7 +41,12 @@ export function PageLayout({
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col font-sans">
+    <div
+      className={cn(
+        "bg-background flex flex-col font-sans",
+        fullHeight ? "h-screen overflow-hidden" : "min-h-screen",
+      )}
+    >
       <header className="border-b border-border bg-card p-0 shadow-sm flex items-stretch">
         <div className="flex shrink-0 items-center gap-4 px-6 py-4">
           {showBackButton ? (
@@ -78,7 +90,7 @@ export function PageLayout({
           </Button>
         </div>
       </header>
-      <main className={cn("flex-1", mainClassName)}>{children}</main>
+      <main className={cn("flex-1", fullHeight && "min-h-0", mainClassName)}>{children}</main>
     </div>
   );
 }
