@@ -589,9 +589,11 @@ export function VisualizationPage() {
     if (!nv || !nv.volumes[selectedVolume]) {
       return;
     }
-
+    
     setOpacity(value);
-    queueNvUpdate(NvUpdateKey.Opacity, () => nv.setVolume(selectedVolume, { opacity: value }));
+    queueNvUpdate(NvUpdateKey.Opacity, () => {
+      nv.setVolume(selectedVolume, { opacity: value })
+    });
 
     // Update stored opacity if volume is visible
     if (volumeVisibility[selectedVolume]) {
@@ -775,10 +777,18 @@ export function VisualizationPage() {
   }, [viewPhase]);
 
   /*
-    Intercept left-button drags on the 3D render tile (capture phase) and route
-    through dragRotate so elevation can exceed niivue's ±90° clamp. 2D tiles,
-    right-button, and shift-drags pass through; pointerdown is not prevented
-    so dblclick depth-pick still works.
+    Render-tile drag rotation.
+    niivue's built-in drag clamps elevation to ±90°; to allow flipping the
+    volume all the way over, left-button drags that start inside the 3D
+    render tile are intercepted on the canvas's parent in the capture phase
+    (same pattern as the wheel handler) and routed through dragRotate, which
+    drives niivue's unclamped azimuth/elevation setters. Side effects:
+    - the setters emit azimuthElevationChange, so the rotation sliders track
+      the drag in real time;
+    - drags on 2D slice tiles, right-button drags (niivue clip-plane
+      rotation), and shift-drags pass through to niivue untouched;
+    - pointerdown is NOT preventDefault-ed so the browser still synthesizes
+      dblclick, which niivue uses for depth-pick crosshair placement.
   */
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -12,7 +12,7 @@ index dcb4298..40fc62a 100644
    get volumeOutlineWidth() {
      return this.model.volume.outlineWidth;
 diff --git a/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js b/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
-index 475cb18..3955107 100644
+index 475cb18..a261c40 100644
 --- a/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
 +++ b/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
 @@ -1719,8 +1719,13 @@ function Fe(t, e, r, i, o = 1, a = null) {
@@ -30,7 +30,25 @@ index 475cb18..3955107 100644
    pe(t, a);
    const h = Ve(t)[d.shaderType], T = ze(t, h), { vao: R, vbo: p } = ke(t, h), _ = t, S = t.createTexture(), v = t.createTexture(), b = t.createTexture(), L = t.createTexture(), F = t.createFramebuffer();
    if (!S || !v || !b || !L || !F)
-@@ -2765,7 +2770,7 @@ void main() {
+@@ -2344,6 +2349,7 @@ uniform mat4 normMtx;
+ uniform float gradientAmount;
+ uniform float numVolumes;  // number of loaded volumes (1 = no overlay, 2+ = has overlay)
+ uniform float numPaqd;
++uniform float backOpacity;
+ uniform vec4 clipPlaneColor;
+ uniform vec4 paqdUniforms;
+ uniform sampler2D matcap;
+@@ -2704,6 +2710,9 @@ void main() {
+       }
+     }
+   }
++  // Uniform fade of the whole composited background (layer opacity), applied
++  // before overlay/drawing passes so only the background volume is affected.
++  colAcc *= backOpacity;
+   // --- Optional passes (no clip plane) ---
+   float backNearest = clipOffset + firstHit.a;
+   float depthFactor = 0.3;
+@@ -2765,7 +2774,7 @@ void main() {
  `;
  class Mr extends K {
    constructor() {
@@ -39,7 +57,7 @@ index 475cb18..3955107 100644
    }
    async init(e, r) {
      if (!this.isReady) {
-@@ -2847,7 +2852,7 @@ class Mr extends K {
+@@ -2847,7 +2856,7 @@ class Mr extends K {
    async _loadTexture2DOrFallback(e, r) {
      return r ? this._loadTexture2D(e, r) : this._createFallbackTexture2D(e);
    }
@@ -48,7 +66,7 @@ index 475cb18..3955107 100644
      if (!this.isReady) return;
      const o = Math.max(
        Math.max(r.hdr.dims[1], r.hdr.dims[2]),
-@@ -2857,19 +2862,27 @@ class Mr extends K {
+@@ -2857,19 +2866,28 @@ class Mr extends K {
        `${o} exceeds the max3D (${this.max3D}) of this WebGL2 context`
      );
      const a = ae(r, r);
@@ -59,17 +77,18 @@ index 475cb18..3955107 100644
 -      a,
 -      0
 -    ), e.bindTexture(e.TEXTURE_3D, null), this.matcapTexture && e.deleteTexture(this.matcapTexture), this.matcapTexture = await this._loadTexture2DOrFallback(e, i);
++    const __bgOpacity = 0;
 +    if (Re(r.hdr.datatypeCode) || !r.img) {
 +      this.backgroundOrientCache && (pe(e, this.backgroundOrientCache), this.backgroundOrientCache = null), this.volumeTexture && e.deleteTexture(this.volumeTexture), this.volumeTexture = await Te(
 +        e,
 +        r,
 +        r,
 +        a,
-+        0
++        __bgOpacity
 +      );
 +    } else {
 +      const __bg = this.backgroundOrientCache;
-+      this.volumeTexture && (!__bg || this.volumeTexture !== __bg.outputTexture) && e.deleteTexture(this.volumeTexture), this.backgroundOrientCache = Fe(e, r, r, a, 0, __bg), this.volumeTexture = this.backgroundOrientCache.outputTexture;
++      this.volumeTexture && (!__bg || this.volumeTexture !== __bg.outputTexture) && e.deleteTexture(this.volumeTexture), this.backgroundOrientCache = Fe(e, r, r, a, __bgOpacity, __bg), this.volumeTexture = this.backgroundOrientCache.outputTexture;
 +    }
 +    if (e.bindTexture(e.TEXTURE_3D, null), this._matcapName !== i || !this.matcapTexture)
 +      this.matcapTexture && e.deleteTexture(this.matcapTexture), this.matcapTexture = await this._loadTexture2DOrFallback(e, i), this._matcapName = i;
@@ -88,7 +107,25 @@ index 475cb18..3955107 100644
    }
    async updateOverlays(e, r, i, o = [0, 0, 0, 0]) {
      if (!this.isReady) return;
-@@ -3070,7 +3083,7 @@ class Mr extends K {
+@@ -2987,7 +3005,7 @@ class Mr extends K {
+   clearPaqd(e) {
+     this.paqdTexture && (e.deleteTexture(this.paqdTexture), this.paqdTexture = null), this.paqdLutTexture && (e.deleteTexture(this.paqdLutTexture), this.paqdLutTexture = null);
+   }
+-  draw(e, r, i, o, a, s, n, d, f, c, u = !1, l = [0, 0, 0, 0]) {
++  draw(e, r, i, o, a, s, n, d, f, c, u = !1, l = [0, 0, 0, 0], __backOpacity = 1) {
+     if (!this.isReady || !this.shader || !this.cubeVAO || !this.indexBuffer || !this.volumeTexture || !this.matcapTexture || !this.volumeGradientTexture)
+       return;
+     const h = this.shader, T = this.cube.indices.length;
+@@ -3006,7 +3024,7 @@ class Mr extends K {
+       this.drawingTexture || this.placeholderOverlay
+     ), e.bindSampler(7, this.drawingLinearSampler), h.uniforms.drawingLinear && e.uniform1i(h.uniforms.drawingLinear, 7), e.activeTexture(e.TEXTURE6), this.paqdLutTexture ? e.bindTexture(e.TEXTURE_2D, this.paqdLutTexture) : e.bindTexture(e.TEXTURE_2D, null), h.uniforms.paqdLut && e.uniform1i(h.uniforms.paqdLut, 6), h.uniforms.mvpMtx && e.uniformMatrix4fv(h.uniforms.mvpMtx, !1, r), h.uniforms.normMtx && e.uniformMatrix4fv(h.uniforms.normMtx, !1, i), h.uniforms.matRAS && e.uniformMatrix4fv(h.uniforms.matRAS, !1, o), h.uniforms.volScale && e.uniform3fv(h.uniforms.volScale, a);
+     const R = s ?? [0, 0, 1];
+-    h.uniforms.rayDir && e.uniform3fv(h.uniforms.rayDir, R.slice(0, 3)), h.uniforms.gradientAmount && e.uniform1f(h.uniforms.gradientAmount, n), h.uniforms.numVolumes && e.uniform1f(h.uniforms.numVolumes, d), h.uniforms.clipPlanes && e.uniform4fv(h.uniforms.clipPlanes, c), h.uniforms.clipPlaneColor && e.uniform4fv(h.uniforms.clipPlaneColor, f), h.uniforms.isClipCutaway && e.uniform1f(h.uniforms.isClipCutaway, u ? 1 : 0), h.uniforms.numPaqd && e.uniform1f(h.uniforms.numPaqd, 0), h.uniforms.paqdUniforms && e.uniform4fv(h.uniforms.paqdUniforms, l), e.bindVertexArray(this.cubeVAO), e.bindBuffer(e.ELEMENT_ARRAY_BUFFER, this.indexBuffer), e.blendFunc(e.ONE, e.ONE_MINUS_SRC_ALPHA), e.drawElements(e.TRIANGLE_STRIP, T, e.UNSIGNED_SHORT, 0), e.blendFunc(e.SRC_ALPHA, e.ONE_MINUS_SRC_ALPHA), e.bindVertexArray(null);
++    h.uniforms.rayDir && e.uniform3fv(h.uniforms.rayDir, R.slice(0, 3)), h.uniforms.gradientAmount && e.uniform1f(h.uniforms.gradientAmount, n), h.uniforms.numVolumes && e.uniform1f(h.uniforms.numVolumes, d), h.uniforms.clipPlanes && e.uniform4fv(h.uniforms.clipPlanes, c), h.uniforms.clipPlaneColor && e.uniform4fv(h.uniforms.clipPlaneColor, f), h.uniforms.isClipCutaway && e.uniform1f(h.uniforms.isClipCutaway, u ? 1 : 0), h.uniforms.numPaqd && e.uniform1f(h.uniforms.numPaqd, 0), h.uniforms.paqdUniforms && e.uniform4fv(h.uniforms.paqdUniforms, l), h.uniforms.backOpacity && e.uniform1f(h.uniforms.backOpacity, Math.min(Math.max(__backOpacity, 0), 1)), e.bindVertexArray(this.cubeVAO), e.bindBuffer(e.ELEMENT_ARRAY_BUFFER, this.indexBuffer), e.blendFunc(e.ONE, e.ONE_MINUS_SRC_ALPHA), e.drawElements(e.TRIANGLE_STRIP, T, e.UNSIGNED_SHORT, 0), e.blendFunc(e.SRC_ALPHA, e.ONE_MINUS_SRC_ALPHA), e.bindVertexArray(null);
+   }
+   drawDepthPick(e, r, i, o, a, s, n = !1, d = 1) {
+     if (!this.isReady || !this.depthPickShaderProgram || !this.cubeVAO || !this.indexBuffer || !this.volumeTexture) return;
+@@ -3070,7 +3088,7 @@ class Mr extends K {
    }
    destroy() {
      const e = this._gl;
@@ -97,7 +134,7 @@ index 475cb18..3955107 100644
    }
  }
  const Ir = `#version 300 es
-@@ -3621,7 +3634,8 @@ class qr {
+@@ -3621,7 +3639,8 @@ class qr {
      ), r.length > 0 && await this.volumeRenderer.updateVolume(
        e,
        r[0],
@@ -107,3 +144,13 @@ index 475cb18..3955107 100644
      ), r.length > 1) {
        if (await this.volumeRenderer.updateOverlays(
          e,
+@@ -3814,7 +3833,8 @@ class qr {
+             r.scene.clipPlaneColor,
+             r.clipPlanes,
+             r.scene.isClipPlaneCutaway,
+-            r.volume.paqdUniforms
++            r.volume.paqdUniforms,
++            x.opacity ?? 1
+           );
+       }
+       const V = m.renderOrientation !== void 0 || m.sliceMM !== void 0;
