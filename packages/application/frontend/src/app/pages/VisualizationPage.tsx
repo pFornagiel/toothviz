@@ -88,6 +88,12 @@ const RENDER_ZOOM_BUTTON_FACTOR = 1.2; // multiplicative step for the +/- button
 const RENDER_ZOOM_SCROLL_FACTOR = 1.1; // multiplicative zoom step per wheel notch
 const CLIP_DEPTH_SCROLL_STEP = 0.05; // additive clip-depth step per wheel notch
 
+// The 3D render is a per-pixel raycaster, so cost scales with pixels covered.
+// While dragging we shrink the drawing buffer (fewer rays) and restore native
+// DPR on release.
+const RENDER_DRAG_DPR_SCALE = 0.8;
+const NATIVE_DPR_AUTO = 0; // devicePixelRatio <= 0 = track the display automatically
+
 // Slider bounds for UI controls
 const CROSSHAIR_WIDTH_RANGE = { min: 0.1, max: 2, step: 0.1 };
 const OPACITY_RANGE = { min: 0, max: 1, step: 0.01 };
@@ -802,6 +808,22 @@ export function VisualizationPage() {
     let lastX = 0;
     let lastY = 0;
 
+    // Lower render resolution for the duration of a drag, restore on end.
+    const beginInteractiveResolution = () => {
+      const nv = nvRef.current;
+      if (!nv) {
+        return;
+      }
+      nv.devicePixelRatio = (window.devicePixelRatio || 1) * RENDER_DRAG_DPR_SCALE;
+    };
+    const endInteractiveResolution = () => {
+      const nv = nvRef.current;
+      if (!nv) {
+        return;
+      }
+      nv.devicePixelRatio = NATIVE_DPR_AUTO;
+    };
+
     const hitsRenderTile = (e: PointerEvent): boolean => {
       const nv = nvRef.current;
       if (!nv?.view) {
@@ -826,6 +848,7 @@ export function VisualizationPage() {
       pointerId = e.pointerId;
       lastX = e.clientX;
       lastY = e.clientY;
+      beginInteractiveResolution();
       // keep receiving moves when the pointer leaves the canvas mid-drag
       canvas.setPointerCapture(e.pointerId);
     };
@@ -851,6 +874,7 @@ export function VisualizationPage() {
       e.stopPropagation();
       dragging = false;
       pointerId = null;
+      endInteractiveResolution();
       try {
         canvas.releasePointerCapture(e.pointerId);
       } catch {
@@ -868,6 +892,10 @@ export function VisualizationPage() {
       container.removeEventListener("pointermove", handlePointerMove, options);
       container.removeEventListener("pointerup", endDrag, options);
       container.removeEventListener("pointercancel", endDrag, options);
+      // If the effect tears down mid-drag, don't leave the canvas downscaled.
+      if (dragging) {
+        endInteractiveResolution();
+      }
     };
   }, [viewPhase, dragRotate]);
 
