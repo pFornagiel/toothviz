@@ -111,50 +111,53 @@ function SliderRow({
 }
 
 export function VisualizationSidebar() {
+  const { viewer, layout, volumes, view, display, scene, clip, render, onReset } =
+    useVisualization();
+
+  const { viewPhase, statusText, isVolatile } = viewer;
+  const { setSidebarVisible } = layout;
+  const { sliceType, handleSliceTypeChange, showsRender } = view;
   const {
-    statusText,
-    isVolatile,
-    viewPhase,
-    setSidebarVisible,
-    volumes,
-    volumeVisibility,
-    onToggleVolumeVisibility,
     selectedVolume,
-    onSelectVolume,
-    sliceType,
-    onSliceTypeChange,
+    handleVolumeChange,
+    volumeVisibility,
+    handleVolumeVisibilityToggle,
+    opacity,
+    handleOpacityChange,
     colormap,
     colormaps,
-    onColormapChange,
-    opacity,
-    onOpacityChange,
-    calMin,
-    calMax,
-    calMinGlobal,
-    calMaxGlobal,
-    onCalMinChange,
-    onCalMaxChange,
+    handleColormapChange,
+    cal_min,
+    cal_max,
+    cal_minGlobal,
+    cal_maxGlobal,
+    handleCalMinChange,
+    handleCalMaxChange,
+  } = display;
+  const {
     showCrosshair,
-    onToggleCrosshair,
+    handleCrosshairToggle,
     crosshairWidth,
-    onCrosshairWidthChange,
+    handleCrosshairWidthChange,
     lightBackground,
-    onToggleBackground,
+    handleBackgroundToggle,
+  } = scene;
+  const {
     clipPlaneDepth,
-    onClipDepthChange,
+    setClipPlaneDepth,
     clipPlaneAzimuth,
-    onClipAzimuthChange,
+    setClipPlaneAzimuth,
     clipPlaneElevation,
-    onClipElevationChange,
-    showsRender,
+    setClipPlaneElevation,
+  } = clip;
+  const {
     renderAzimuth,
-    onRenderAzimuthChange,
+    handleRenderAzimuthChange,
     renderElevation,
-    onRenderElevationChange,
+    handleRenderElevationChange,
     renderZoom,
-    onRenderZoomChange,
-    onReset,
-  } = useVisualization();
+    handleRenderZoomChange,
+  } = render;
 
   const ready = viewPhase === ViewPhase.Ready;
   const hasMultipleVolumes = volumes.length > 1;
@@ -209,7 +212,7 @@ export function VisualizationSidebar() {
                     >
                       <Checkbox
                         checked={volumeVisibility[idx] ?? true}
-                        onCheckedChange={() => onToggleVolumeVisibility(idx)}
+                        onCheckedChange={() => handleVolumeVisibilityToggle(idx)}
                       />
                       <span className="truncate">{vol.name || `Volume ${idx}`}</span>
                     </label>
@@ -221,7 +224,7 @@ export function VisualizationSidebar() {
                     <span className="text-xs font-medium text-muted-foreground">Active volume</span>
                     <Select
                       value={String(selectedVolume)}
-                      onValueChange={(v) => onSelectVolume(parseInt(v))}
+                      onValueChange={(v) => handleVolumeChange(parseInt(v))}
                     >
                       <SelectTrigger className="w-full bg-card">
                         <SelectValue />
@@ -243,7 +246,7 @@ export function VisualizationSidebar() {
             <ControlSection value="display" icon={SlidersHorizontal} title="Display">
             <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Slice type</span>
-                <Select value={sliceType} onValueChange={(v) => onSliceTypeChange(v as SliceTypeKey)}>
+                <Select value={sliceType} onValueChange={(v) => handleSliceTypeChange(v as SliceTypeKey)}>
                   <SelectTrigger className="w-full bg-card">
                     <SelectValue />
                   </SelectTrigger>
@@ -259,7 +262,7 @@ export function VisualizationSidebar() {
               
               <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Colormap</span>
-                <Select value={colormap} onValueChange={onColormapChange}>
+                <Select value={colormap} onValueChange={handleColormapChange}>
                   <SelectTrigger className="w-full bg-card">
                     <SelectValue />
                   </SelectTrigger>
@@ -280,25 +283,25 @@ export function VisualizationSidebar() {
                 min={OPACITY_RANGE.min}
                 max={OPACITY_RANGE.max}
                 step={OPACITY_RANGE.step}
-                onChange={onOpacityChange}
+                onChange={handleOpacityChange}
               />
               <SliderRow
                 label="Cal min"
-                valueLabel={calMin.toFixed(0)}
-                value={calMin}
-                min={calMinGlobal}
-                max={calMaxGlobal}
+                valueLabel={cal_min.toFixed(0)}
+                value={cal_min}
+                min={cal_minGlobal}
+                max={cal_maxGlobal}
                 step={1}
-                onChange={onCalMinChange}
+                onChange={handleCalMinChange}
               />
               <SliderRow
                 label="Cal max"
-                valueLabel={calMax.toFixed(0)}
-                value={calMax}
-                min={calMinGlobal}
-                max={calMaxGlobal}
+                valueLabel={cal_max.toFixed(0)}
+                value={cal_max}
+                min={cal_minGlobal}
+                max={cal_maxGlobal}
                 step={1}
-                onChange={onCalMaxChange}
+                onChange={handleCalMaxChange}
               />
             </ControlSection>
 
@@ -312,7 +315,7 @@ export function VisualizationSidebar() {
                   min={RENDER_AZIMUTH_RANGE.min}
                   max={RENDER_AZIMUTH_RANGE.max}
                   step={RENDER_AZIMUTH_RANGE.step}
-                  onChange={onRenderAzimuthChange}
+                  onChange={handleRenderAzimuthChange}
                 />
                 <SliderRow
                   label="Elevation"
@@ -321,7 +324,7 @@ export function VisualizationSidebar() {
                   min={RENDER_ELEVATION_RANGE.min}
                   max={RENDER_ELEVATION_RANGE.max}
                   step={RENDER_ELEVATION_RANGE.step}
-                  onChange={onRenderElevationChange}
+                  onChange={handleRenderElevationChange}
                 />
                 <div className="space-y-1.5">
                   <span className="text-sm text-foreground">Zoom</span>
@@ -331,7 +334,7 @@ export function VisualizationSidebar() {
                       size="icon"
                       className="size-8 shrink-0 bg-card"
                       title="Zoom out"
-                      onClick={() => onRenderZoomChange(renderZoom / RENDER_ZOOM_BUTTON_FACTOR)}
+                      onClick={() => handleRenderZoomChange(renderZoom / RENDER_ZOOM_BUTTON_FACTOR)}
                     >
                       <Minus className="size-4" />
                     </Button>
@@ -341,7 +344,7 @@ export function VisualizationSidebar() {
                       min={RENDER_ZOOM_RANGE.min}
                       max={RENDER_ZOOM_RANGE.max}
                       step={RENDER_ZOOM_RANGE.step}
-                      onChange={(e) => onRenderZoomChange(parseFloat(e.target.value))}
+                      onChange={(e) => handleRenderZoomChange(parseFloat(e.target.value))}
                       className="h-1.5 min-w-0 flex-1 cursor-pointer accent-primary"
                     />
                     <Button
@@ -349,7 +352,7 @@ export function VisualizationSidebar() {
                       size="icon"
                       className="size-8 shrink-0 bg-card"
                       title="Zoom in"
-                      onClick={() => onRenderZoomChange(renderZoom * RENDER_ZOOM_BUTTON_FACTOR)}
+                      onClick={() => handleRenderZoomChange(renderZoom * RENDER_ZOOM_BUTTON_FACTOR)}
                     >
                       <Plus className="size-4" />
                     </Button>
@@ -371,7 +374,7 @@ export function VisualizationSidebar() {
                   min={CLIP_DEPTH_RANGE.min}
                   max={CLIP_DEPTH_RANGE.max}
                   step={CLIP_DEPTH_RANGE.step}
-                  onChange={onClipDepthChange}
+                  onChange={setClipPlaneDepth}
                 />
                 <SliderRow
                   label="Azimuth"
@@ -380,7 +383,7 @@ export function VisualizationSidebar() {
                   min={CLIP_AZIMUTH_RANGE.min}
                   max={CLIP_AZIMUTH_RANGE.max}
                   step={CLIP_AZIMUTH_RANGE.step}
-                  onChange={onClipAzimuthChange}
+                  onChange={setClipPlaneAzimuth}
                 />
                 <SliderRow
                   label="Elevation"
@@ -389,7 +392,7 @@ export function VisualizationSidebar() {
                   min={CLIP_ELEVATION_RANGE.min}
                   max={CLIP_ELEVATION_RANGE.max}
                   step={CLIP_ELEVATION_RANGE.step}
-                  onChange={onClipElevationChange}
+                  onChange={setClipPlaneElevation}
                 />
               </ControlSection>
             )}
@@ -399,7 +402,7 @@ export function VisualizationSidebar() {
             <ControlSection value="scene" icon={Crosshair} title="Scene">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground">Crosshair</span>
-                <Switch checked={showCrosshair} onCheckedChange={onToggleCrosshair} />
+                <Switch checked={showCrosshair} onCheckedChange={handleCrosshairToggle} />
               </div>
               <SliderRow
                 label="Crosshair width"
@@ -408,12 +411,12 @@ export function VisualizationSidebar() {
                 min={CROSSHAIR_WIDTH_RANGE.min}
                 max={CROSSHAIR_WIDTH_RANGE.max}
                 step={CROSSHAIR_WIDTH_RANGE.step}
-                onChange={onCrosshairWidthChange}
+                onChange={handleCrosshairWidthChange}
                 disabled={!showCrosshair}
               />
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground">Light background</span>
-                <Switch checked={lightBackground} onCheckedChange={onToggleBackground} />
+                <Switch checked={lightBackground} onCheckedChange={handleBackgroundToggle} />
               </div>
             </ControlSection>
           </Accordion>

@@ -1,6 +1,11 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { FromPage } from "../pipeline";
-import type { SliceTypeKey } from "./constants";
+import type { NiivueViewerState } from "./hooks/useNiivueViewer";
+import type { ViewLayoutControls } from "./hooks/useViewLayoutControls";
+import type { VolumeDisplayControls } from "./hooks/useVolumeDisplayControls";
+import type { SceneControls } from "./hooks/useSceneControls";
+import type { ClipPlaneControls } from "./hooks/useClipPlaneControls";
+import type { RenderControls } from "./hooks/useRenderControls";
 
 // Lifecycle phase of the visualization view
 export enum ViewPhase {
@@ -20,77 +25,38 @@ export interface VolumeInfo {
   name: string;
 }
 
-/**
- * Flat context shape consumed by `VisualizationView` and `VisualizationSidebar`
- * via `useVisualization()`; mirrors the sidebar's former props plus the canvas
- * and error-screen needs of the page itself.
- */
-export interface VisualizationContextValue {
-  // Canvas + lifecycle
-  canvasRef: RefObject<HTMLCanvasElement | null>;
-  viewPhase: ViewPhase;
-  statusText: string;
+/** Viewer lifecycle + error-screen state, surfaced to the page shell. */
+export interface ViewerInfo extends NiivueViewerState {
   isVolatile: boolean;
-
-  // Error screen
-  errorTitle: string;
-  errorMessage: string;
-  errorHints: string[];
   errorBackLabel: string;
   onBackFromError: () => void;
+}
 
-  // Layout
+/** Sidebar show/hide, owned by the provider. */
+export interface LayoutControls {
   sidebarVisible: boolean;
   setSidebarVisible: Dispatch<SetStateAction<boolean>>;
+}
 
-  // Volumes
+/**
+ * Domain-grouped context exposed via `useVisualization()`. Each control group
+ * is the verbatim return of its hook (`useViewLayoutControls`,
+ * `useVolumeDisplayControls`, …), so the names match the hook that owns them and
+ * there's no translation layer to cross-reference. A few fields on those groups
+ * (`render.configureNv`, `display.syncFromVolumes`, the per-group `reset`s) are
+ * provider↔hook wiring rather than consumer API — the provider uses them; the
+ * sidebar ignores them.
+ */
+export interface VisualizationContextValue {
+  canvasRef: RefObject<HTMLCanvasElement | null>;
+  viewer: ViewerInfo;
+  layout: LayoutControls;
+  /** Loaded volumes, read off the niivue instance each render. */
   volumes: VolumeInfo[];
-  volumeVisibility: boolean[];
-  onToggleVolumeVisibility: (index: number) => void;
-  selectedVolume: number;
-  onSelectVolume: (index: number) => void;
-
-  // View layout
-  sliceType: SliceTypeKey;
-  onSliceTypeChange: (type: SliceTypeKey) => void;
-
-  // Display (active volume)
-  colormap: string;
-  colormaps: string[];
-  onColormapChange: (value: string) => void;
-  opacity: number;
-  onOpacityChange: (value: number) => void;
-  calMin: number;
-  calMax: number;
-  calMinGlobal: number;
-  calMaxGlobal: number;
-  onCalMinChange: (value: number) => void;
-  onCalMaxChange: (value: number) => void;
-
-  // Scene
-  showCrosshair: boolean;
-  onToggleCrosshair: () => void;
-  crosshairWidth: number;
-  onCrosshairWidthChange: (value: number) => void;
-  lightBackground: boolean;
-  onToggleBackground: () => void;
-
-  // Clip plane
-  clipPlaneDepth: number;
-  onClipDepthChange: (value: number) => void;
-  clipPlaneAzimuth: number;
-  onClipAzimuthChange: (value: number) => void;
-  clipPlaneElevation: number;
-  onClipElevationChange: (value: number) => void;
-
-  // Render view
-  showsRender: boolean;
-  renderAzimuth: number;
-  onRenderAzimuthChange: (value: number) => void;
-  renderElevation: number;
-  onRenderElevationChange: (value: number) => void;
-  renderZoom: number;
-  onRenderZoomChange: (value: number) => void;
-
+  view: ViewLayoutControls;
+  display: VolumeDisplayControls;
+  scene: SceneControls;
+  clip: ClipPlaneControls;
+  render: RenderControls;
   onReset: () => void;
 }

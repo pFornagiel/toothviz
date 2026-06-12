@@ -30,19 +30,12 @@ export function VisualizationPage() {
 
 /** Layout shell: error screen, sidebar mount, canvas + loading overlay. */
 function VisualizationView() {
-  const {
-    canvasRef,
-    viewPhase,
-    statusText,
-    errorTitle,
-    errorMessage,
-    errorHints,
-    errorBackLabel,
-    onBackFromError,
-    sidebarVisible,
-    setSidebarVisible,
-    lightBackground,
-  } = useVisualization();
+  const { canvasRef, viewer, layout, scene } = useVisualization();
+
+  const { viewPhase, statusText, errorTitle, errorMessage, errorHints, errorBackLabel, onBackFromError } =
+    viewer;
+  const { sidebarVisible, setSidebarVisible } = layout;
+  const { lightBackground } = scene;
 
   return (
     <PageLayout fullHeight title="ToothViz" mainClassName="flex min-h-0 overflow-hidden">

@@ -103,64 +103,28 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
 
   // Deliberately not memoised: the sidebar re-renders on every page render
   // today, and memoising the value would change that.
+  //
+  // Grouped by domain — each control group is the verbatim hook return, so the
+  // sidebar reads e.g. `display.colormap` straight off the hook that owns it.
   const value: VisualizationContextValue = {
     canvasRef,
-    viewPhase: viewer.viewPhase,
-    statusText: viewer.statusText,
-    isVolatile: !studyId,
-
-    errorTitle: viewer.errorTitle,
-    errorMessage: viewer.errorMessage,
-    errorHints: viewer.errorHints,
-    errorBackLabel: routeState.from === FromPage.Browse ? "Back to studies" : "Back to home",
-    onBackFromError: handleBackFromError,
-
-    sidebarVisible,
-    setSidebarVisible,
-
+    viewer: {
+      viewPhase: viewer.viewPhase,
+      statusText: viewer.statusText,
+      errorTitle: viewer.errorTitle,
+      errorMessage: viewer.errorMessage,
+      errorHints: viewer.errorHints,
+      isVolatile: !studyId,
+      errorBackLabel: routeState.from === FromPage.Browse ? "Back to studies" : "Back to home",
+      onBackFromError: handleBackFromError,
+    },
+    layout: { sidebarVisible, setSidebarVisible },
     volumes: volumeList.map((v) => ({ name: v.name })),
-    volumeVisibility: volumeDisplay.volumeVisibility,
-    onToggleVolumeVisibility: volumeDisplay.handleVolumeVisibilityToggle,
-    selectedVolume: volumeDisplay.selectedVolume,
-    onSelectVolume: volumeDisplay.handleVolumeChange,
-
-    sliceType: viewLayout.sliceType,
-    onSliceTypeChange: viewLayout.handleSliceTypeChange,
-
-    colormap: volumeDisplay.colormap,
-    colormaps: volumeDisplay.colormaps,
-    onColormapChange: volumeDisplay.handleColormapChange,
-    opacity: volumeDisplay.opacity,
-    onOpacityChange: volumeDisplay.handleOpacityChange,
-    calMin: volumeDisplay.cal_min,
-    calMax: volumeDisplay.cal_max,
-    calMinGlobal: volumeDisplay.cal_minGlobal,
-    calMaxGlobal: volumeDisplay.cal_maxGlobal,
-    onCalMinChange: volumeDisplay.handleCalMinChange,
-    onCalMaxChange: volumeDisplay.handleCalMaxChange,
-
-    showCrosshair: scene.showCrosshair,
-    onToggleCrosshair: scene.handleCrosshairToggle,
-    crosshairWidth: scene.crosshairWidth,
-    onCrosshairWidthChange: scene.handleCrosshairWidthChange,
-    lightBackground: scene.lightBackground,
-    onToggleBackground: scene.handleBackgroundToggle,
-
-    clipPlaneDepth: clipPlane.clipPlaneDepth,
-    onClipDepthChange: clipPlane.setClipPlaneDepth,
-    clipPlaneAzimuth: clipPlane.clipPlaneAzimuth,
-    onClipAzimuthChange: clipPlane.setClipPlaneAzimuth,
-    clipPlaneElevation: clipPlane.clipPlaneElevation,
-    onClipElevationChange: clipPlane.setClipPlaneElevation,
-
-    showsRender: viewLayout.showsRender,
-    renderAzimuth: render.renderAzimuth,
-    onRenderAzimuthChange: render.handleRenderAzimuthChange,
-    renderElevation: render.renderElevation,
-    onRenderElevationChange: render.handleRenderElevationChange,
-    renderZoom: render.renderZoom,
-    onRenderZoomChange: render.handleRenderZoomChange,
-
+    view: viewLayout,
+    display: volumeDisplay,
+    scene,
+    clip: clipPlane,
+    render,
     onReset: resetSettings,
   };
 
