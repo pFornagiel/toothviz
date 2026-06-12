@@ -3,7 +3,103 @@
 Applied automatically by `patch-package` via the `postinstall` script - no manual step needed
 after `npm install`.
 
-## @niivue/niivue+0.68.1
+## @niivue/niivue+1.0.0-rc.8 — what is done where
+
+The patch file is one flat diff over two dist chunks (`NVControlBase-*.js`, `NVViewGL-*.js`);
+it has no notion of "which edit session added which hunk", so this section is the map. Hunks
+are identified by their `@@ -<line>` header (the *original*, unpatched line number) plus a
+content anchor. If the patch is ever regenerated against a different base these numbers move —
+trust the anchors.
+
+The WebGPU chunk (`NVViewGPU-*.js`) is intentionally NOT patched: the app pins the WebGL2
+entry (`@niivue/niivue/webgl2`), which statically imports only `NVViewGL`.
+
+### A. Gradient gating — skip the gradient texture while illumination is off (perf)
+
+Stock rc.8 rebuilds the 3D gradient texture (blur + Sobel passes over the full volume) on
+every `updateVolume`, even though it is only sampled when matcap illumination is enabled.
+
+- `NVControlBase @@ -17987` — `volumeIllumination` setter calls `updateGLVolume()` instead of
+  `drawScene()`, so turning illumination on builds the (until then skipped) gradient texture.
+- `NVViewGL @@ -2847` — `updateVolume(e, r, i = "", d = !0)`: new "compute gradient" flag.
+- `NVViewGL @@ -2857` (SHARED hunk, also B) — the `if (d || !this.volumeGradientTexture)`
+  guard around the gradient build.
+- `NVViewGL @@ -3621` — caller passes `this.model.volume.illumination !== 0` as the flag.
+
+### B. Background orient cache + colormap hot-swap + matcap reuse (perf)
+
+Stock rc.8 deletes and rebuilds the background volume's oriented RGBA texture (and the matcap
+texture) on every `updateVolume`; display-parameter tweaks paid a full re-orient + re-upload.
+
+- `NVViewGL @@ -1719` — in `Fe(...)` (orient pipeline with cache parameter): when the cached
+  resources match the volume data and only the colormap changed (non-label), re-upload just
+  the two 256×1 colormap LUT textures and re-run the cached orient render ("colormap
+  hot-swap") instead of rebuilding the whole pipeline.
+- `NVViewGL @@ -2765` — adds the `backgroundOrientCache` and `_matcapName` fields.
+- `NVViewGL @@ -2857` (SHARED hunk, also A) — background volume goes through the cached
+  orient pipeline (`Fe(..., __bg)`) instead of delete+rebuild (`Te`); RGBA/no-img volumes keep
+  the stock path. Matcap texture is only re-created when the matcap *name* changed.
+- `NVViewGL @@ -3070` — `destroy()` releases the cache and `_matcapName`.
+
+### C. Background layer opacity in the 3D render (`backOpacity`)
+
+Stock rc.8 ignores the background volume's `opacity` in the 3D render pass (only 2D slices
+honored it). The patch fades the composited background by
+`volumes[0].opacity` before the overlay passes, so `nv.setVolume(0, { opacity })` works in 3D.
+
+- `NVViewGL @@ -2344` — `uniform float backOpacity;` declaration in the render fragment.
+- `NVViewGL @@ -2704` (SHARED hunk, also D) — the `colAcc *= backOpacity;` line.
+- `NVViewGL @@ -2987` — `draw(..., __backOpacity = 1)` parameter.
+- `NVViewGL @@ -3006` — uploads the clamped uniform.
+- `NVViewGL @@ -3814` — draw-loop caller passes `x.opacity ?? 1` (the background NVImage).
+
+### D. Clip planes affect ALL volumes, not just the background
+
+Stock rc.8 clips only the background pass; overlay/PAQD/drawing passes deliberately marched
+the original unclipped ray, so overlays floated over the cut surface. The patch threads the
+background's clip range (`sampleRange`/`cutaway`/`hasClip`) into every pass, in both normal
+and cutaway mode, and into the depth-pick shader so clicks land on visible surfaces only.
+Granularity is per-pass (all overlays share one composited texture), not per overlay volume.
+
+- `NVViewGL @@ -426` — `isSampleClipped()` helper in the shared fragment preamble (used by
+  both the render and depth-pick shaders).
+- `NVViewGL @@ -448`, `@@ -2549` — comment-only updates ("overlay ignores clip planes" no
+  longer true).
+- `NVViewGL @@ -527` (comment), `@@ -536`, `@@ -546` — depth-pick shader: overlay fast/fine
+  loops skip clipped samples.
+- `NVViewGL @@ -2379`, `@@ -2396`, `@@ -2408` — `rayMarchPass` (overlay + drawing): clip
+  params added to the signature; fast/fine loops skip clipped samples.
+- `NVViewGL @@ -2444`, `@@ -2461`, `@@ -2474` — `rayMarchPaqd`: same.
+- `NVViewGL @@ -2704` (SHARED hunk, also C) — the three call sites pass
+  `sampleRange, cutaway, hasClip`.
+
+### Removing a single change
+
+`patch-package` applies each hunk *independently* against the pristine file: the `@@ -<line>`
+original position is matched with up to ±20 lines of drift, and insert offsets are bookkept
+only at apply time. Consequence: **deleting all hunks of one change from the patch file does
+not break the remaining hunks.** Mind the two SHARED hunks though — `@@ -2857` mixes A+B and
+`@@ -2704` mixes C+D; splitting those means editing inside a hunk and fixing the
+`@@ -a,b +c,d` line counts by hand, which is fragile.
+
+The always-safe procedure (also the only sane one for the shared hunks):
+
+```bash
+cd packages/application/frontend
+npm run niivue:unpatch              # 1. reverse with the CURRENT patch file (do this FIRST)
+# 2. re-apply only the edits you want to keep in node_modules/@niivue/niivue/dist/...
+npx patch-package @niivue/niivue    # 3. regenerate the patch from the diff
+rm -rf node_modules/.vite           # 4. vite prebundles niivue - always clear after patching
+```
+
+(Steps 3+4 are `npm run niivue:repatch`.) Never edit the patch file before reversing - the
+reverse needs node_modules to match the patch being reversed. Then update this map.
+
+## @niivue/niivue+0.68.1 (HISTORICAL — patch file no longer exists)
+
+The notes below describe the patch for the pre-rewrite 0.68.1 architecture. They are kept
+because the analysis (what was slow and why) still informs the rc.8 patch above; the file
+references (e.g. `build/niivue/index.js`, `mouseMoveListener`) no longer apply.
 
 Five performance fixes (full background and benchmarks in
 `notes/other/visualization-performance-investigation.md`). Fixes 1-3 target the volume display
@@ -91,6 +187,8 @@ frontend directory (re-apply later with the same command without `-R`).
 
 ## NiiVue Upgrade
 
-**When upgrading @niivue/niivue:** check whether upstream has fixed this (0.69.0 had not); if not,
-re-apply the same five edits to the new version's `build/niivue/index.js` and `dist/index.js`,
-then run `npx patch-package @niivue/niivue` and delete the old patch file.
+**When upgrading @niivue/niivue:** the dist chunk filenames carry content hashes
+(`NVViewGL-ChZkTHkv.js` etc.), so the old patch will not apply to a new version. Check which
+of the changes in the map above upstream has fixed; re-apply the remaining edits to the new
+version's dist chunks in `node_modules`, run `npx patch-package @niivue/niivue`, delete the
+old patch file, clear `node_modules/.vite`, and update the map in this README.
