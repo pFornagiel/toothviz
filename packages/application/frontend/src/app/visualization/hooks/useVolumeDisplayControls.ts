@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
-import {
-  DEFAULT_COLORMAP,
-  DEFAULT_VISIBLE_OPACITY,
-  CAL_MIN_GLOBAL_VAL,
-  CAL_MAX_GLOBAL_VAL,
-  HIDDEN_OPACITY,
-} from "../constants";
-
+import { DEFAULT_COLORMAP, DEFAULT_VISIBLE_OPACITY, CAL_MIN_GLOBAL_VAL, CAL_MAX_GLOBAL_VAL, HIDDEN_OPACITY } from "../constants";
 export interface VolumeDisplayControls {
   // Volumes
   selectedVolume: number;
@@ -269,6 +262,7 @@ export default function useVolumeDisplayControls({
     setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
     setColormaps(nv.colormaps);
   };
+  
   const syncFromVolumes = useCallback((nv: NiiVueGPU) => syncFromVolumesRef.current(nv), []);
 
   const reset = () => {
