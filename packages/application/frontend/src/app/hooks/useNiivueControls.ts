@@ -212,8 +212,7 @@ export default function useNiivueControls({
     }
 
     queueNvUpdate(NvUpdateKey.CalMin, () => {
-      nv.volumes[selectedVolume].cal_min = cal_min;
-      nv.updateGLVolume();
+      void nv.setVolume(selectedVolume, { calMin: cal_min });
     });
     // Deliberately omits selectedVolume: switching the active volume must not
     // push the previous volume's cal_min into the new one.
@@ -227,8 +226,7 @@ export default function useNiivueControls({
     }
 
     queueNvUpdate(NvUpdateKey.CalMax, () => {
-      nv.volumes[selectedVolume].cal_max = cal_max;
-      nv.updateGLVolume();
+      void nv.setVolume(selectedVolume, { calMax: cal_max });
     });
     // Deliberately omits selectedVolume: switching the active volume must not
     // push the previous volume's cal_max into the new one.
