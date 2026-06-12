@@ -2,9 +2,8 @@ import { useCallback, useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import useNiivueSyncedRotation from "./useNiivueSyncedRotation";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
-import { RENDER_ZOOM_RANGE } from "../constants";
-
-const DEFAULT_RENDER_ZOOM = 1.0; // niivue scaleMultiplier default (1 = no zoom)
+import { RENDER_ZOOM_RANGE, DEFAULT_RENDER_ZOOM } from "../constants";
+import { clamp } from "../../utils/clamp";
 
 export interface RenderControls {
   renderAzimuth: number;
@@ -61,7 +60,7 @@ export default function useRenderControls({
       return;
     }
 
-    const clamped = Math.min(RENDER_ZOOM_RANGE.max, Math.max(RENDER_ZOOM_RANGE.min, value));
+    const clamped = clamp(value, RENDER_ZOOM_RANGE.min, RENDER_ZOOM_RANGE.max);
     setRenderZoom(clamped);
     queueNvUpdate(NvUpdateKey.RenderZoom, () => {
       nv.scaleMultiplier = clamped;

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
-import { DEFAULT_COLORMAP, DEFAULT_VISIBLE_OPACITY } from "../constants";
-
-const CAL_MIN_GLOBAL_VAL = -1000;
-const CAL_MAX_GLOBAL_VAL = 3000;
-const HIDDEN_OPACITY = 0;
+import {
+  DEFAULT_COLORMAP,
+  DEFAULT_VISIBLE_OPACITY,
+  CAL_MIN_GLOBAL_VAL,
+  CAL_MAX_GLOBAL_VAL,
+  HIDDEN_OPACITY,
+} from "../constants";
 
 export interface VolumeDisplayControls {
   // Volumes

@@ -24,10 +24,8 @@ import type { VisualizationContextValue, VisualizationLocationState } from "./ty
 const VisualizationContext = createContext<VisualizationContextValue | null>(null);
 
 /**
- * Context boundary for the visualization page. Reads the route, owns the
- * niivue/canvas refs, and composes the viewer-lifecycle, control-state and
- * wheel-interaction hooks around a single per-frame update queue, exposing the
- * result to descendants via `useVisualization()`.
+ * Owns the niivue/canvas refs, initializes a single nvUpdateQueue for performance,
+ * exposes the result via `useVisualization()`.
  */
 export function VisualizationProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -46,21 +44,17 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   // UI state
   const [sidebarVisible, setSidebarVisible] = useState(true);
 
-  // Single queue instance shared by every control hook that pokes niivue — a
-  // lone instance is what lets resetSettings' cal/zoom updates flush in one
-  // frame. See useNvUpdateQueue.
+  // Single queue instance shared by every hook 
   const queueNvUpdate = useNvUpdateQueue();
 
-  // Control state, split by domain. Each hook owns one slice and pushes it into
-  // the shared niivue instance; the provider just composes them.
+  // Control state hooks
   const viewLayout = useViewLayoutControls({ nvRef });
   const volumeDisplay = useVolumeDisplayControls({ nvRef, queueNvUpdate });
   const scene = useSceneControls({ nvRef });
   const clipPlane = useClipPlaneControls({ nvRef, queueNvUpdate });
   const render = useRenderControls({ nvRef, queueNvUpdate });
 
-  // Page-wide reset folds in the only two domains with reset semantics; scene
-  // and clip-plane settings are deliberately left untouched.
+  // Global reset
   const resetSettings = () => {
     volumeDisplay.reset();
     render.reset();
@@ -74,6 +68,8 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     configureNv: render.configureNv,
     onVolumesLoaded: volumeDisplay.syncFromVolumes,
   });
+
+  // Wire the mouse-wheel interaction and sync with react state
   useNiivueCanvasWheel({
     canvasRef,
     nvRef,
@@ -81,6 +77,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     setClipPlaneDepth: clipPlane.setClipPlaneDepth,
     setRenderZoom: render.setRenderZoom,
   });
+
   useNiivueDragRotation({
     canvasRef,
     nvRef,
@@ -101,11 +98,8 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   // outside React state, and the page re-renders often enough to stay fresh.
   const volumeList = nvRef.current?.volumes ?? [];
 
-  // Deliberately not memoised: the sidebar re-renders on every page render
-  // today, and memoising the value would change that.
-  //
-  // Grouped by domain — each control group is the verbatim hook return, so the
-  // sidebar reads e.g. `display.colormap` straight off the hook that owns it.
+  // Not memoised: the sidebar re-renders on every page render
+  // and memoising the value would change that.
   const value: VisualizationContextValue = {
     canvasRef,
     viewer: {

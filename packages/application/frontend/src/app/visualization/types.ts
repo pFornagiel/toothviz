@@ -40,12 +40,7 @@ export interface LayoutControls {
 
 /**
  * Domain-grouped context exposed via `useVisualization()`. Each control group
- * is the verbatim return of its hook (`useViewLayoutControls`,
- * `useVolumeDisplayControls`, …), so the names match the hook that owns them and
- * there's no translation layer to cross-reference. A few fields on those groups
- * (`render.configureNv`, `display.syncFromVolumes`, the per-group `reset`s) are
- * provider↔hook wiring rather than consumer API — the provider uses them; the
- * sidebar ignores them.
+ * is tied to a hook, so the names match the hook that owns them.
  */
 export interface VisualizationContextValue {
   canvasRef: RefObject<HTMLCanvasElement | null>;

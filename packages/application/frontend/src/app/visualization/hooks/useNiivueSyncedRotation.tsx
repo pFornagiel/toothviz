@@ -1,10 +1,6 @@
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { useState, useCallback, useRef } from "react";
-
-export const DEFAULT_RENDER_AZIMUTH = 120;
-export const DEFAULT_RENDER_ELEVATION = 10;
-
-const DRAG_DEG_PER_PX = 0.5;
+import { DEFAULT_RENDER_AZIMUTH, DEFAULT_RENDER_ELEVATION, DRAG_DEG_PER_PX } from "../constants";
 
 const normalizeAzimuth = (azimuth: number) => ((azimuth % 360) + 360) % 360;
 const normalizeElevation = (elevation: number) => ((((elevation + 180) % 360) + 360) % 360) - 180;
@@ -22,7 +18,7 @@ interface NiivueRotation {
  * Two-way binding for niivue's 3D render rotation.
  *
  * All writes go through niivue's azimuth/elevation property setters, whose
- * azimuthElevationChange event syncs back to React state batched via rAF.
+ * azimuthElevationChange event syncs back to React state batched in requestAnimationFrame.
  */
 export default function useNiivueSyncedRotation(nvRef: {
   current: NiiVueGPU | null;
@@ -30,15 +26,15 @@ export default function useNiivueSyncedRotation(nvRef: {
   const [azimuth, setAzimuth] = useState(DEFAULT_RENDER_AZIMUTH);
   const [elevation, setElevation] = useState(DEFAULT_RENDER_ELEVATION);
 
-  const pendingMirror = useRef<{ azimuth: number; elevation: number } | null>(null);
+  const pendingSync = useRef<{ azimuth: number; elevation: number } | null>(null);
 
   const syncState = useCallback((rawAzimuth: number, rawElevation: number) => {
-    const flushScheduled = pendingMirror.current !== null;
-    pendingMirror.current = { azimuth: rawAzimuth, elevation: rawElevation };
+    const flushScheduled = pendingSync.current !== null;
+    pendingSync.current = { azimuth: rawAzimuth, elevation: rawElevation };
     if (!flushScheduled) {
       requestAnimationFrame(() => {
-        const value = pendingMirror.current;
-        pendingMirror.current = null;
+        const value = pendingSync.current;
+        pendingSync.current = null;
         if (value) {
           setAzimuth(normalizeAzimuth(value.azimuth));
           setElevation(normalizeElevation(value.elevation));

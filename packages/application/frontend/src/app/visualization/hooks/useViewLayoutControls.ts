@@ -1,9 +1,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER } from "@niivue/niivue";
-import { SliceTypeKey } from "../constants";
-
-const DEFAULT_SLICE_TYPE = SliceTypeKey.Multiplanar;
+import { SliceTypeKey, DEFAULT_SLICE_TYPE } from "../constants";
 
 export interface ViewLayoutControls {
   sliceType: SliceTypeKey;

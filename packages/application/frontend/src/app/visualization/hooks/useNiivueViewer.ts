@@ -9,16 +9,12 @@ import {
   DEFAULT_CROSSHAIR_WIDTH,
   DEFAULT_RENDER_AZIMUTH,
   DEFAULT_RENDER_ELEVATION,
+  VOLUME_COLORMAP,
+  OVERLAY_COLORMAP,
+  DEFAULT_OVERLAY_OPACITY,
+  DEFAULT_VOLUME_NAME,
+  DEFAULT_OVERLAY_NAME,
 } from "../constants";
-
-// Colormaps applied to loaded volumes/overlays
-const VOLUME_COLORMAP = "Gray";
-const OVERLAY_COLORMAP = "Red";
-
-// Default values for newly loaded volumes/overlays
-const DEFAULT_OVERLAY_OPACITY = 0.5;
-const DEFAULT_VOLUME_NAME = "volume";
-const DEFAULT_OVERLAY_NAME = "overlay";
 
 export interface NiivueViewerState {
   viewPhase: ViewPhase;
@@ -183,7 +179,7 @@ export default function useNiivueViewer({
     setViewPhase(ViewPhase.Error);
   }, []);
 
-  /** Volatile (no persisted study) */
+  /** Volatile handling (no persisted study) */
   useEffect(() => {
     if (studyId) {
       return;
@@ -222,7 +218,7 @@ export default function useNiivueViewer({
     };
   }, [studyId, initNiivue, loadVolatileFiles, goError, disposeNv]);
 
-  /** Load persisted study: status + ready path */
+  /** Persistent study handling: status + ready path */
   useEffect(() => {
     if (!studyId) {
       return;

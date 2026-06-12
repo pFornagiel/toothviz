@@ -8,10 +8,7 @@ import {
 } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
-import { CLIP_DEPTH_EDGE } from "../constants";
-
-// start fully visible (nothing clipped)
-const DEFAULT_CLIP_PLANE_DEPTH = CLIP_DEPTH_EDGE;
+import { DEFAULT_CLIP_PLANE_DEPTH } from "../constants";
 
 export interface ClipPlaneControls {
   clipPlaneDepth: number;
@@ -23,9 +20,8 @@ export interface ClipPlaneControls {
 }
 
 /**
- * 3D clip-plane orientation (depth/azimuth/elevation). The setters are exposed
- * raw — the wheel-interaction hook drives `setClipPlaneDepth` directly — and an
- * effect pushes the composed plane into niivue through the shared update queue.
+ * 3D clip-plane orientation (depth/azimuth/elevation).
+ * Changes from state are then pushed into niivue.
  */
 export default function useClipPlaneControls({
   nvRef,

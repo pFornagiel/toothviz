@@ -6,22 +6,22 @@ import {
 } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import type { ViewPhase } from "../types";
-import { CLIP_DEPTH_RANGE, RENDER_ZOOM_RANGE } from "../constants";
-
-// Mouse-wheel interaction over the canvas
-const RENDER_ZOOM_SCROLL_FACTOR = 1.1; // multiplicative zoom step per wheel notch
-const CLIP_DEPTH_SCROLL_STEP = 0.05; // additive clip-depth step per wheel notch
-
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+import {
+  CLIP_DEPTH_RANGE,
+  RENDER_ZOOM_RANGE,
+  RENDER_ZOOM_SCROLL_FACTOR,
+  CLIP_DEPTH_SCROLL_STEP,
+} from "../constants";
+import { clamp } from "../../utils/clamp";
 
 /*
   Wheel-canvas interaction.
-  Niivue registers its own `wheel` listener on the canvas to scroll slices/zoom;
-  we intercept on the canvas's parent in the capture phase and call stopPropagation,
+  Niivue registers its own `wheel` listener on the canvas to scroll slices/zoom.
+  We intercept on the canvas's parent in the capture phase and call stopPropagation,
   so the event never reaches niivue's handler.
   Plain scroll zooms the render (scaleMultiplier),
   Shift+scroll nudges the clip-plane depth.
-  Re-attaches whenever the canvas mounts, which is keyed off viewPhase.
+  Re-attaches whenever the canvas mounts.
 */
 export default function useNiivueCanvasWheel({
   canvasRef,
@@ -76,7 +76,7 @@ export default function useNiivueCanvasWheel({
 
     container.addEventListener("wheel", handleWheel, { capture: true, passive: false });
     return () => container.removeEventListener("wheel", handleWheel, { capture: true });
-    // Keyed on viewPhase only (byte-identical to the original page effect): the
+    // Keyed on viewPhase only is enough.
     // refs and the state setter are stable, and the listener must re-attach
     // exactly when the canvas (re)mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps

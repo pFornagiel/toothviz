@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 
-// Keys for the per-frame niivue update queue; one pending update per key,
+// Keys for the per-frame niivue update queue,
 // so distinct settings changed in the same frame never overwrite each other
 export enum NvUpdateKey {
   CalMin = "cal_min",

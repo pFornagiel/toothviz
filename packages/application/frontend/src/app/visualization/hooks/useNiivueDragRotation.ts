@@ -6,8 +6,8 @@ import { RENDER_DRAG_DPR_SCALE, NATIVE_DPR_AUTO } from "../constants";
 /*
   Render-tile drag rotation.
   Left-button drags that start inside the 3D render tile are intercepted on the
-  canvas's parent in the capture phase and routed through dragRotate (unclamped
-  elevation). Resolution is scaled down during the drag and restored on release.
+  canvas's parent in the capture phase and routed through dragRotate.
+  Resolution is scaled down during the drag and restored on release for performance.
 */
 export default function useNiivueDragRotation({
   canvasRef,
@@ -37,27 +37,27 @@ export default function useNiivueDragRotation({
       if (!nv) {
         return;
       }
-      (nv as unknown as { devicePixelRatio: number }).devicePixelRatio =
-        (window.devicePixelRatio || 1) * RENDER_DRAG_DPR_SCALE;
+      nv.devicePixelRatio = (window.devicePixelRatio || 1) * RENDER_DRAG_DPR_SCALE;
     };
     const endInteractiveResolution = () => {
       const nv = nvRef.current;
       if (!nv) {
         return;
       }
-      (nv as unknown as { devicePixelRatio: number }).devicePixelRatio = NATIVE_DPR_AUTO;
+      nv.devicePixelRatio = NATIVE_DPR_AUTO;
     };
 
     const hitsRenderTile = (e: PointerEvent): boolean => {
       const nv = nvRef.current;
-      if (!(nv as unknown as { view: unknown })?.view) {
+      if (!nv || !nv.view) {
         return false;
       }
+
       const rect = canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) * (canvas.width / rect.width);
       const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (nv as any).view?.hitTest(x, y)?.isRender ?? false;
+      
+      return nv.view.hitTest(x, y)?.isRender ?? false;
     };
 
     const handlePointerDown = (e: PointerEvent) => {
