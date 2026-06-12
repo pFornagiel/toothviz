@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
-import { Niivue } from "@niivue/niivue";
+import NiiVueGPU from "@niivue/niivue/webgl2";
+import { SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER } from "@niivue/niivue";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import { FromPage } from "../pipeline";
 import { listFiles, fileContentUrl, getStudy } from "@/api/studies";
-import useNiivueSyncedRotation from "../hooks/useNiivueSyncedRotation";
+import useNiivueSyncedRotation, {
+  DEFAULT_RENDER_AZIMUTH,
+  DEFAULT_RENDER_ELEVATION,
+} from "../hooks/useNiivueSyncedRotation";
 
 export async function visualizationLoader({ params }: LoaderFunctionArgs) {
   if (!params.studyId) {
@@ -47,12 +51,12 @@ enum SliceTypeKey {
   Render = "render",
 }
 
-const DEFAULT_COLORMAP = "gray";
+const DEFAULT_COLORMAP = "Gray";
 const DEFAULT_SLICE_TYPE = SliceTypeKey.Multiplanar;
 
 // Colormaps applied to loaded volumes/overlays
-const VOLUME_COLORMAP = "gray";
-const OVERLAY_COLORMAP = "red";
+const VOLUME_COLORMAP = "Gray";
+const OVERLAY_COLORMAP = "Red";
 
 // Default values for newly loaded volumes/overlays
 const DEFAULT_OVERLAY_OPACITY = 0.5;
@@ -64,12 +68,8 @@ const DEFAULT_VISIBLE_OPACITY = 1.0;
 const DEFAULT_BACK_COLOR_DARK: [number, number, number, number] = [0, 0, 0, 1];
 const DEFAULT_BACK_COLOR_LIGHT: [number, number, number, number] = [1, 1, 1, 1];
 const DEFAULT_SHOW_3D_CROSSHAIR = true;
-const DEFAULT_CROSSHAIR_WIDTH = 1;
+const DEFAULT_CROSSHAIR_WIDTH = 0.2;
 const HIDDEN_OPACITY = 0;
-
-// Niivue multiplanar layout modes
-const MULTIPLANAR_LAYOUT_DEFAULT = 0;
-const MULTIPLANAR_LAYOUT_GRID = 2;
 
 // niivue normalises every volume into a unit cube and uses clip depth as the
 // SIGNED distance of the plane from the centre (the raw 4th component of the
@@ -88,8 +88,14 @@ const RENDER_ZOOM_BUTTON_FACTOR = 1.2; // multiplicative step for the +/- button
 const RENDER_ZOOM_SCROLL_FACTOR = 1.1; // multiplicative zoom step per wheel notch
 const CLIP_DEPTH_SCROLL_STEP = 0.05; // additive clip-depth step per wheel notch
 
+// The 3D render is a per-pixel raycaster, so cost scales with pixels covered.
+// While dragging we shrink the drawing buffer (fewer rays) and restore native
+// DPR on release.
+const RENDER_DRAG_DPR_SCALE = 0.8;
+const NATIVE_DPR_AUTO = 0; // devicePixelRatio <= 0 = track the display automatically
+
 // Slider bounds for UI controls
-const CROSSHAIR_WIDTH_RANGE = { min: 1, max: 5, step: 1 };
+const CROSSHAIR_WIDTH_RANGE = { min: 0.1, max: 2, step: 0.1 };
 const OPACITY_RANGE = { min: 0, max: 1, step: 0.01 };
 const CLIP_DEPTH_RANGE = { min: -CLIP_DEPTH_EDGE, max: CLIP_DEPTH_EDGE, step: 0.01 };
 const CLIP_AZIMUTH_RANGE = { min: -90, max: 90, step: 1 };
@@ -98,33 +104,7 @@ const RENDER_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
 const RENDER_ELEVATION_RANGE = { min: -180, max: 180, step: 1 };
 const RENDER_ZOOM_RANGE = { min: 0.1, max: 5, step: 0.1 };
 
-// Available colormaps
-const COLORMAPS = [
-  "gray",
-  "red",
-  "green",
-  "blue",
-  "plasma",
-  "viridis",
-  "inferno",
-  "magma",
-  "hot",
-  "winter",
-  "cool",
-  "spring",
-  "summer",
-  "autumn",
-  "bone",
-  "copper",
-  "grays",
-  "warm",
-  "red_yellow",
-  "blue_green",
-];
-
 type ViewPhase = "loading" | "ready" | "error";
-
-
 
 export function VisualizationPage() {
   const navigate = useNavigate();
@@ -133,7 +113,7 @@ export function VisualizationPage() {
   const routeState = useMemo(() => (location.state ?? {}) as LocationState, [location.state]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const nvRef = useRef<Niivue | null>(null);
+  const nvRef = useRef<NiiVueGPU | null>(null);
   const blobUrlsRef = useRef<string[]>([]);
 
   const [statusText, setStatusText] = useState("Ready");
@@ -159,8 +139,9 @@ export function VisualizationPage() {
   const [selectedVolume, setSelectedVolume] = useState(0);
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
-  const [opacity, setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
+  const [opacity, _setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
   const [colormap, _setColormap] = useState(DEFAULT_COLORMAP);
+  const [colormaps, setColormaps] = useState<string[]>([]);
   const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
   const [cal_minGlobal, _setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
@@ -185,6 +166,7 @@ export function VisualizationPage() {
     elevation: renderElevation,
     attach: attachRotation,
     setRotation,
+    dragRotate,
     resetRotation,
   } = useNiivueSyncedRotation(nvRef);
   const [renderZoom, setRenderZoom] = useState(DEFAULT_RENDER_ZOOM);
@@ -269,8 +251,7 @@ export function VisualizationPage() {
     }
 
     queueNvUpdate(NvUpdateKey.CalMin, () => {
-      nv.volumes[selectedVolume].cal_min = cal_min;
-      nv.updateGLVolume();
+      nv.setVolume(selectedVolume, { calMin: cal_min });
     });
   }, [cal_min, queueNvUpdate]);
 
@@ -281,8 +262,7 @@ export function VisualizationPage() {
     }
 
     queueNvUpdate(NvUpdateKey.CalMax, () => {
-      nv.volumes[selectedVolume].cal_max = cal_max;
-      nv.updateGLVolume();
+      nv.setVolume(selectedVolume, { calMax: cal_max });
     });
   }, [cal_max, queueNvUpdate]);
 
@@ -304,6 +284,10 @@ export function VisualizationPage() {
     _setColormap(value || DEFAULT_COLORMAP);
   };
 
+  const setOpacity = (value: number | undefined) => {
+    _setOpacity(value ?? DEFAULT_VISIBLE_OPACITY);
+  };
+
   const resetSettings = () => {
     const nv = nvRef.current;
     if (!nv) {
@@ -315,20 +299,22 @@ export function VisualizationPage() {
     setOpacity(DEFAULT_VISIBLE_OPACITY);
     setColormap(DEFAULT_COLORMAP);
     setVolumeVisibility(nv.volumes.map(() => true));
-    setVolumeOpacities(nv.volumes.map((v) => v.opacity));
+    setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
 
     resetRotation();
 
     // reset render zoom with our scroll fix in mind
-    queueNvUpdate(NvUpdateKey.RenderZoom, () => nv.setScale(DEFAULT_RENDER_ZOOM));
+    queueNvUpdate(NvUpdateKey.RenderZoom, () => {
+      nv.scaleMultiplier = DEFAULT_RENDER_ZOOM;
+      setRenderZoom(DEFAULT_RENDER_ZOOM);
+    });
   };
 
   const disposeNv = useCallback(() => {
     const nv = nvRef.current;
     if (nv) {
       try {
-        [...nv.volumes].forEach((vol) => nv.removeVolume(vol));
-        nv.cleanup();
+        nv.destroy();
       } catch {
         /* ignore */
       }
@@ -339,7 +325,7 @@ export function VisualizationPage() {
   }, []);
 
   const loadStudyFiles = useCallback(
-    async (nv: Niivue) => {
+    async (nv: NiiVueGPU) => {
       if (!studyId) {
         return;
       }
@@ -375,16 +361,16 @@ export function VisualizationPage() {
           const vol = nv.volumes[0];
           setOpacity(vol.opacity);
           setColormap(vol.colormap);
-          setCalMinGlobal(vol.global_min);
-          setCalMaxGlobal(vol.global_max);
-          setCalMin(vol.cal_min, true);
-          setCalMax(vol.cal_max, true);
+          setCalMinGlobal(vol.globalMin);
+          setCalMaxGlobal(vol.globalMax);
+          setCalMin(vol.calMin, true);
+          setCalMax(vol.calMax, true);
           // Initialize visibility and store opacities for all volumes
           setVolumeVisibility(nv.volumes.map(() => true));
-          setVolumeOpacities(nv.volumes.map((v) => v.opacity));
+          setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
         }
-        nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
+        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
+        nv.multiplanarType = MULTIPLANAR_TYPE.AUTO;
       } else {
         setStatusText("No viewable files found for this study");
         throw new Error("No viewable volume or overlay files are available yet.");
@@ -394,7 +380,7 @@ export function VisualizationPage() {
   );
 
   const loadVolatileFiles = useCallback(
-    async (nv: Niivue) => {
+    async (nv: NiiVueGPU) => {
       const { primary, mask } = routeState;
       if (!primary) {
         throw new Error("No file was provided. Go back and choose Open Raw File.");
@@ -415,7 +401,7 @@ export function VisualizationPage() {
         setStatusText("Loading overlay...");
         const maskUrl = URL.createObjectURL(mask);
         blobUrlsRef.current.push(maskUrl);
-        await nv.addVolumeFromUrl({
+        await nv.addVolume({
           url: maskUrl,
           name: mask.name,
           opacity: DEFAULT_OVERLAY_OPACITY,
@@ -427,36 +413,38 @@ export function VisualizationPage() {
 
       if (nv.volumes.length > 0) {
         const vol = nv.volumes[0];
-        setOpacity(vol.opacity);
+        setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
         setColormap(vol.colormap);
-        setCalMin(vol.cal_min, true);
-        setCalMax(vol.cal_max, true);
-        setCalMinGlobal(vol.global_min);
-        setCalMaxGlobal(vol.global_max);
+        setCalMin(vol.calMin, true);
+        setCalMax(vol.calMax, true);
+        setCalMinGlobal(vol.globalMin);
+        setCalMaxGlobal(vol.globalMax);
         setVolumeVisibility(nv.volumes.map(() => true));
-        setVolumeOpacities(nv.volumes.map((v) => v.opacity));
+        setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
       }
-      nv.setSliceType(nv.sliceTypeMultiplanar);
-      nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
+      nv.sliceType = SLICE_TYPE.MULTIPLANAR;
+      nv.multiplanarType = MULTIPLANAR_TYPE.AUTO;
     },
     [routeState],
   );
 
-  const initNiivue = useCallback(() => {
+  const initNiivue = useCallback(async () => {
     if (!canvasRef.current) {
       return null;
     }
     if (nvRef.current) {
       return nvRef.current;
     }
-    const nv = new Niivue({
-      backColor: DEFAULT_BACK_COLOR_DARK,
-      show3Dcrosshair: DEFAULT_SHOW_3D_CROSSHAIR,
+    const nv = new NiiVueGPU({
+      backgroundColor: DEFAULT_BACK_COLOR_DARK,
+      is3DCrosshairVisible: DEFAULT_SHOW_3D_CROSSHAIR,
       crosshairWidth: DEFAULT_CROSSHAIR_WIDTH,
+      azimuth: DEFAULT_RENDER_AZIMUTH,
+      elevation: DEFAULT_RENDER_ELEVATION,
     });
-    nv.attachToCanvas(canvasRef.current);
-    nv.onZoom3DChange = (zoom) => setRenderZoom(zoom);
     attachRotation(nv);
+    await nv.attachToCanvas(canvasRef.current);
+    setColormaps(nv.colormaps);
     nvRef.current = nv;
     return nv;
   }, [attachRotation]);
@@ -489,7 +477,7 @@ export function VisualizationPage() {
       setStatusText("Loading...");
       try {
         await new Promise((r) => requestAnimationFrame(() => r(null)));
-        const nv = initNiivue();
+        const nv = await initNiivue();
         if (!nv || cancelled) {
           return;
         }
@@ -528,7 +516,7 @@ export function VisualizationPage() {
       setViewPhase("loading");
       setStatusText("Loading study files...");
       try {
-        const nv = initNiivue();
+        const nv = await initNiivue();
         if (!nv || cancelled) {
           return;
         }
@@ -564,24 +552,26 @@ export function VisualizationPage() {
 
     switch (type) {
       case SliceTypeKey.Multiplanar:
-        nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_DEFAULT);
+        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
+        nv.multiplanarType = MULTIPLANAR_TYPE.AUTO;
+        nv.showRender = SHOW_RENDER.AUTO;
         break;
       case SliceTypeKey.Multiplanar4View:
-        nv.setSliceType(nv.sliceTypeMultiplanar);
-        nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_GRID); // Grid layout with 3 slices + 3D render
+        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
+        nv.multiplanarType = MULTIPLANAR_TYPE.GRID; // Grid layout with 3 slices + 3D render
+        nv.showRender = SHOW_RENDER.ALWAYS;
         break;
       case SliceTypeKey.Axial:
-        nv.setSliceType(nv.sliceTypeAxial);
+        nv.sliceType = SLICE_TYPE.AXIAL;
         break;
       case SliceTypeKey.Coronal:
-        nv.setSliceType(nv.sliceTypeCoronal);
+        nv.sliceType = SLICE_TYPE.CORONAL;
         break;
       case SliceTypeKey.Sagittal:
-        nv.setSliceType(nv.sliceTypeSagittal);
+        nv.sliceType = SLICE_TYPE.SAGITTAL;
         break;
       case SliceTypeKey.Render:
-        nv.setSliceType(nv.sliceTypeRender);
+        nv.sliceType = SLICE_TYPE.RENDER;
         break;
     }
   };
@@ -596,8 +586,8 @@ export function VisualizationPage() {
     const vol = nv.volumes[index];
     setOpacity(vol.opacity);
     setColormap(vol.colormap);
-    setCalMin(vol.cal_min);
-    setCalMax(vol.cal_max);
+    setCalMin(vol.calMin);
+    setCalMax(vol.calMax);
   };
 
   const handleOpacityChange = (value: number) => {
@@ -607,7 +597,9 @@ export function VisualizationPage() {
     }
 
     setOpacity(value);
-    queueNvUpdate(NvUpdateKey.Opacity, () => nv.setOpacity(selectedVolume, value));
+    queueNvUpdate(NvUpdateKey.Opacity, () => {
+      nv.setVolume(selectedVolume, { opacity: value });
+    });
 
     // Update stored opacity if volume is visible
     if (volumeVisibility[selectedVolume]) {
@@ -624,16 +616,8 @@ export function VisualizationPage() {
     }
 
     setColormap(value);
-    const vol = nv.volumes[selectedVolume];
-
-    // Preserve cal_min and cal_max
-    const currentCalMin = cal_min;
-    const currentCalMax = cal_max;
-
-    vol.colormap = value;
-    vol.cal_min = currentCalMin;
-    vol.cal_max = currentCalMax;
-    nv.updateGLVolume();
+    // setVolume only assigns the given keys, so calMin/calMax are preserved
+    nv.setVolume(selectedVolume, { colormap: value });
   };
 
   const handleCalMinChange = (value: number) => {
@@ -661,8 +645,7 @@ export function VisualizationPage() {
 
     const newValue = !showCrosshair;
     setShowCrosshair(newValue);
-    nv.opts.show3Dcrosshair = newValue;
-    nv.drawScene();
+    nv.is3DCrosshairVisible = newValue;
   };
 
   const handleCrosshairWidthChange = (value: number) => {
@@ -672,7 +655,7 @@ export function VisualizationPage() {
     }
 
     setCrosshairWidth(value);
-    nv.setCrosshairWidth(value);
+    nv.crosshairWidth = value;
   };
 
   const handleVolumeVisibilityToggle = (index: number) => {
@@ -689,14 +672,14 @@ export function VisualizationPage() {
     if (newVisibility[index]) {
       // Restore the stored opacity
       const opacityToRestore = volumeOpacities[index] ?? DEFAULT_VISIBLE_OPACITY;
-      nv.setOpacity(index, opacityToRestore);
+      void nv.setVolume(index, { opacity: opacityToRestore });
     } else {
       // Store current opacity before hiding
       const newOpacities = [...volumeOpacities];
-      newOpacities[index] = nv.volumes[index].opacity;
+      newOpacities[index] = nv.volumes[index].opacity ?? DEFAULT_VISIBLE_OPACITY;
       setVolumeOpacities(newOpacities);
       // Hide by setting opacity to 0
-      nv.setOpacity(index, HIDDEN_OPACITY);
+      void nv.setVolume(index, { opacity: HIDDEN_OPACITY });
     }
   };
 
@@ -708,8 +691,7 @@ export function VisualizationPage() {
 
     const newValue = !lightBackground;
     setLightBackground(newValue);
-    nv.opts.backColor = newValue ? DEFAULT_BACK_COLOR_LIGHT : DEFAULT_BACK_COLOR_DARK;
-    nv.drawScene();
+    nv.backgroundColor = newValue ? DEFAULT_BACK_COLOR_LIGHT : DEFAULT_BACK_COLOR_DARK;
   };
 
   const handleClipPlaneChange = useCallback(() => {
@@ -739,7 +721,9 @@ export function VisualizationPage() {
 
     const clamped = Math.min(RENDER_ZOOM_RANGE.max, Math.max(RENDER_ZOOM_RANGE.min, value));
     setRenderZoom(clamped);
-    queueNvUpdate(NvUpdateKey.RenderZoom, () => nv.setScale(clamped));
+    queueNvUpdate(NvUpdateKey.RenderZoom, () => {
+      nv.scaleMultiplier = clamped;
+    });
   };
 
   useEffect(() => {
@@ -784,18 +768,136 @@ export function VisualizationPage() {
       } else {
         const factor = direction > 0 ? RENDER_ZOOM_SCROLL_FACTOR : 1 / RENDER_ZOOM_SCROLL_FACTOR;
         const next = clamp(
-          nv.volScaleMultiplier * factor,
+          nv.scaleMultiplier * factor,
           RENDER_ZOOM_RANGE.min,
           RENDER_ZOOM_RANGE.max,
         );
-        // setScale fires onZoom3DChange, which keeps the renderZoom slider in sync.
-        nv.setScale(next);
+        nv.scaleMultiplier = next;
+        // keep the renderZoom slider in sync
+        setRenderZoom(next);
       }
     };
 
     container.addEventListener("wheel", handleWheel, { capture: true, passive: false });
     return () => container.removeEventListener("wheel", handleWheel, { capture: true });
   }, [viewPhase]);
+
+  /*
+    Render-tile drag rotation.
+    niivue's built-in drag clamps elevation to ±90°; to allow flipping the
+    volume all the way over, left-button drags that start inside the 3D
+    render tile are intercepted on the canvas's parent in the capture phase
+    (same pattern as the wheel handler) and routed through dragRotate, which
+    drives niivue's unclamped azimuth/elevation setters. Side effects:
+    - the setters emit azimuthElevationChange, so the rotation sliders track
+      the drag in real time;
+    - drags on 2D slice tiles, right-button drags (niivue clip-plane
+      rotation), and shift-drags pass through to niivue untouched;
+    - pointerdown is NOT preventDefault-ed so the browser still synthesizes
+      dblclick, which niivue uses for depth-pick crosshair placement.
+  */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = canvas?.parentElement;
+    if (!canvas || !container) {
+      return;
+    }
+
+    let dragging = false;
+    let pointerId: number | null = null;
+    let lastX = 0;
+    let lastY = 0;
+
+    // Lower render resolution for the duration of a drag, restore on end.
+    const beginInteractiveResolution = () => {
+      const nv = nvRef.current;
+      if (!nv) {
+        return;
+      }
+      nv.devicePixelRatio = (window.devicePixelRatio || 1) * RENDER_DRAG_DPR_SCALE;
+    };
+    const endInteractiveResolution = () => {
+      const nv = nvRef.current;
+      if (!nv) {
+        return;
+      }
+      nv.devicePixelRatio = NATIVE_DPR_AUTO;
+    };
+
+    const hitsRenderTile = (e: PointerEvent): boolean => {
+      const nv = nvRef.current;
+      if (!nv?.view) {
+        return false;
+      }
+      // niivue hit-tests in device pixels relative to the canvas
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      return nv.view.hitTest(x, y)?.isRender ?? false;
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.button !== 0 || e.shiftKey || e.target !== canvas) {
+        return;
+      }
+      if (!hitsRenderTile(e)) {
+        return;
+      }
+      e.stopPropagation();
+      dragging = true;
+      pointerId = e.pointerId;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      beginInteractiveResolution();
+      // keep receiving moves when the pointer leaves the canvas mid-drag
+      canvas.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!dragging || e.pointerId !== pointerId) {
+        return;
+      }
+      e.stopPropagation();
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (dx !== 0 || dy !== 0) {
+        dragRotate(dx, dy);
+      }
+    };
+
+    const endDrag = (e: PointerEvent) => {
+      if (!dragging || e.pointerId !== pointerId) {
+        return;
+      }
+      e.stopPropagation();
+      dragging = false;
+      pointerId = null;
+      endInteractiveResolution();
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        /* capture may already be released */
+      }
+    };
+
+    const options = { capture: true } as const;
+    container.addEventListener("pointerdown", handlePointerDown, options);
+    container.addEventListener("pointermove", handlePointerMove, options);
+    container.addEventListener("pointerup", endDrag, options);
+    container.addEventListener("pointercancel", endDrag, options);
+    return () => {
+      container.removeEventListener("pointerdown", handlePointerDown, options);
+      container.removeEventListener("pointermove", handlePointerMove, options);
+      container.removeEventListener("pointerup", endDrag, options);
+      container.removeEventListener("pointercancel", endDrag, options);
+      // If the effect tears down mid-drag, don't leave the canvas downscaled.
+      if (dragging) {
+        endInteractiveResolution();
+      }
+    };
+  }, [viewPhase, dragRotate]);
 
   useEffect(() => {
     // Update multiplanar layout when switching to multiplanar_4view
@@ -805,7 +907,7 @@ export function VisualizationPage() {
     }
 
     if (sliceType === SliceTypeKey.Multiplanar4View) {
-      nv.setMultiplanarLayout(MULTIPLANAR_LAYOUT_GRID);
+      nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
     }
   }, [sliceType]);
 
@@ -1017,7 +1119,7 @@ export function VisualizationPage() {
                       onChange={(e) => handleColormapChange(e.target.value)}
                       className="w-full bg-card text-foreground border border-border shadow-sm rounded px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                     >
-                      {COLORMAPS.map((cm) => (
+                      {colormaps.map((cm) => (
                         <option key={cm} value={cm}>
                           {cm}
                         </option>
