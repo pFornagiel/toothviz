@@ -5,32 +5,35 @@ import { VisualizationPage } from "@/app/pages/VisualizationPage";
 
 const mockLoadVolumes = vi.fn().mockResolvedValue(undefined);
 
-// Plain-object mock: the page assigns flat properties (sliceType, azimuth,
-// scaleMultiplier, ...) directly, which plain objects absorb without setup.
-const makeNvMock = () => ({
-  attachToCanvas: vi.fn().mockResolvedValue(undefined),
-  addEventListener: vi.fn(),
-  removeEventListener: vi.fn(),
-  loadVolumes: mockLoadVolumes,
-  addVolume: vi.fn().mockResolvedValue(undefined),
-  setVolume: vi.fn().mockResolvedValue(undefined),
-  setClipPlane: vi.fn(),
-  drawScene: vi.fn(),
-  updateGLVolume: vi.fn().mockResolvedValue(undefined),
-  destroy: vi.fn(),
-  volumes: [],
-  colormaps: ["Gray", "Red"],
-});
-
 vi.mock("@niivue/niivue/webgl2", () => ({
-  default: vi.fn().mockImplementation(() => makeNvMock()),
-  NiiVueGPU: vi.fn().mockImplementation(() => makeNvMock()),
+  default: vi.fn().mockImplementation(() => ({
+    attachToCanvas: vi.fn().mockResolvedValue(undefined),
+    loadVolumes: mockLoadVolumes,
+    addVolume: vi.fn().mockResolvedValue(undefined),
+    sliceType: 0,
+    multiplanarType: 0,
+    showRender: 0,
+    azimuth: 120,
+    elevation: 10,
+    scaleMultiplier: 1,
+    is3DCrosshairVisible: true,
+    crosshairWidth: 0.2,
+    backgroundColor: [0, 0, 0, 1],
+    devicePixelRatio: 1,
+    colormaps: ["Gray", "Red", "Green"],
+    volumes: [],
+    setClipPlane: vi.fn(),
+    setVolume: vi.fn(),
+    destroy: vi.fn(),
+    addEventListener: vi.fn(),
+    view: null,
+  })),
 }));
 
 vi.mock("@niivue/niivue", () => ({
-  SLICE_TYPE: { AXIAL: 0, CORONAL: 1, SAGITTAL: 2, MULTIPLANAR: 3, RENDER: 4 },
-  MULTIPLANAR_TYPE: { AUTO: 0, COLUMN: 1, GRID: 2, ROW: 3 },
-  SHOW_RENDER: { NEVER: 0, ALWAYS: 1, AUTO: 2 },
+  SLICE_TYPE: { MULTIPLANAR: 0, AXIAL: 1, CORONAL: 2, SAGITTAL: 3, RENDER: 4 },
+  MULTIPLANAR_TYPE: { AUTO: 0, GRID: 2 },
+  SHOW_RENDER: { AUTO: 0, ALWAYS: 1 },
 }));
 
 const getStudyMock = vi.fn();
