@@ -1,0 +1,84 @@
+import {
+  useEffect,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
+import type NiiVueGPU from "@niivue/niivue/webgl2";
+import type { ViewPhase } from "../types";
+import {
+  CLIP_DEPTH_RANGE,
+  RENDER_ZOOM_RANGE,
+  RENDER_ZOOM_SCROLL_FACTOR,
+  CLIP_DEPTH_SCROLL_STEP,
+} from "../constants";
+import { clamp } from "../../utils/clamp";
+
+/*
+  Wheel-canvas interaction.
+  Niivue registers its own `wheel` listener on the canvas to scroll slices/zoom.
+  We intercept on the canvas's parent in the capture phase and call stopPropagation,
+  so the event never reaches niivue's handler.
+  Plain scroll zooms the render (scaleMultiplier),
+  Shift+scroll nudges the clip-plane depth.
+  Re-attaches whenever the canvas mounts.
+*/
+export default function useNiivueCanvasWheel({
+  canvasRef,
+  nvRef,
+  viewPhase,
+  setClipPlaneDepth,
+  setRenderZoom,
+}: {
+  canvasRef: RefObject<HTMLCanvasElement | null>;
+  nvRef: RefObject<NiiVueGPU | null>;
+  viewPhase: ViewPhase;
+  setClipPlaneDepth: Dispatch<SetStateAction<number>>;
+  setRenderZoom: (zoom: number) => void;
+}): void {
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = canvas?.parentElement;
+    if (!canvas || !container) {
+      return;
+    }
+
+    const handleWheel = (e: WheelEvent) => {
+      const nv = nvRef.current;
+      if (!nv || e.target !== canvas) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+
+      // deltaY < 0 means scrolling up: zoom in / increase depth.
+      const direction = e.deltaY < 0 ? 1 : -1;
+
+      if (e.shiftKey) {
+        setClipPlaneDepth((prev) =>
+          clamp(
+            prev + direction * CLIP_DEPTH_SCROLL_STEP,
+            CLIP_DEPTH_RANGE.min,
+            CLIP_DEPTH_RANGE.max,
+          ),
+        );
+      } else {
+        const factor = direction > 0 ? RENDER_ZOOM_SCROLL_FACTOR : 1 / RENDER_ZOOM_SCROLL_FACTOR;
+        const next = clamp(
+          nv.scaleMultiplier * factor,
+          RENDER_ZOOM_RANGE.min,
+          RENDER_ZOOM_RANGE.max,
+        );
+        nv.scaleMultiplier = next;
+        setRenderZoom(next);
+      }
+    };
+
+    container.addEventListener("wheel", handleWheel, { capture: true, passive: false });
+    return () => container.removeEventListener("wheel", handleWheel, { capture: true });
+    // Keyed on viewPhase only is enough.
+    // refs and the state setter are stable, and the listener must re-attach
+    // exactly when the canvas (re)mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewPhase]);
+}
