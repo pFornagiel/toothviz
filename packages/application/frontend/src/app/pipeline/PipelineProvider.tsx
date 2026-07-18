@@ -1,6 +1,5 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useReducer,
@@ -8,20 +7,19 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation, useNavigate, useParams, useLoaderData } from "react-router";
-import { deleteStudy, getStudy } from "@/api/studies";
+import { deleteStudy, getStudy, listFiles } from "@/api/studies";
 import { uploadFile } from "@/api/upload";
 import { establishWebsocketConnection } from "@/api/ws";
 import type { StudyResponse } from "@/api/types";
 import { initialState, type LocationState, type PipelineContextValue } from "./types";
-import { pipelineReducer } from "./reducer";
+import { PipelineActionType, pipelineReducer } from "./reducer";
 import { PipelineEngine, type PipelineApi } from "./pipelineEngine";
 
 const PipelineContext = createContext<PipelineContextValue | null>(null);
 
 /**
  * Context boundary for the study-processing lifecycle. Reads the router state,
- * owns a `PipelineEngine`, and exposes the reducer state plus a `reconnect()`
- * action to descendants via `usePipeline()`.
+ * owns a `PipelineEngine`, and exposes the reducer state to descendants via `usePipeline()`.
  */
 export function PipelineProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -38,17 +36,28 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (routeState.volumePreviewFileId) {
+      dispatch({
+        type: PipelineActionType.SetVolumePreview,
+        fileId: routeState.volumePreviewFileId,
+      });
+    }
+
     const api: PipelineApi = {
       getStudy,
       deleteStudy,
       uploadFile,
+      listFiles,
       establishWebsocketConnection,
     };
     const engine = new PipelineEngine({
       dispatch,
       api,
-      onNavigateToViewer: (id, from) =>
-        navigate(`/visualize/${id}`, { state: { from }, replace: true }),
+      onNavigateToViewer: (id, { from, volumeFileId, overlayFileId, previewWhileProcessing }) =>
+        navigate(`/visualize/${id}`, {
+          state: { from, volumeFileId, overlayFileId, previewWhileProcessing },
+          replace: true,
+        }),
     });
     engineRef.current = engine;
     engine.start({ studyId, study, routeState });
@@ -66,15 +75,12 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     study.job_id,
     routeState.uploadPayload,
     routeState.from,
+    routeState.volumePreviewFileId,
     location.key,
     navigate,
   ]);
 
-  const reconnect = useCallback(() => engineRef.current?.reconnect(), []);
-
-  return (
-    <PipelineContext.Provider value={{ ...state, reconnect }}>{children}</PipelineContext.Provider>
-  );
+  return <PipelineContext.Provider value={state}>{children}</PipelineContext.Provider>;
 }
 
 export function usePipeline(): PipelineContextValue {

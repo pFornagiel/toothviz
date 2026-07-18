@@ -34,16 +34,7 @@ function PipelineScreens() {
   const location = useLocation();
   const routeState = (location.state ?? {}) as LocationState;
 
-  const {
-    error,
-    steps,
-    completedSteps,
-    currentStepIndex,
-    progress,
-    statusText,
-    connectionLost,
-    reconnect,
-  } = usePipeline();
+  const { error, steps, completedSteps, currentStepIndex, progress, statusText } = usePipeline();
 
   const handleBack = () => {
     const from = routeState.from ?? FromPage.Home;
@@ -77,7 +68,6 @@ function PipelineScreens() {
         currentStepIndex={currentStepIndex}
         progressFraction={progress ?? 0}
         statusLine={statusText}
-        onReconnect={connectionLost ? reconnect : undefined}
       />
     </div>
   );

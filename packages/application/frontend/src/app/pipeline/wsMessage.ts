@@ -9,7 +9,7 @@ export interface WsHandlerOptions {
   getPipelineFinished: () => boolean;
   markPipelineFinished: () => void;
   disconnect: () => void;
-  onPipelineCompleted: () => void;
+  onPipelineCompleted: (msg: PipelineMessage) => void;
   onPipelineFailed: (msg: PipelineMessage) => void;
   onPipelineCancelled: () => void;
 }
@@ -34,7 +34,7 @@ export function applyWsMessage(
     markPipelineFinished();
     disconnect();
     dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
-    onPipelineCompleted();
+    onPipelineCompleted(msg);
     return;
   }
 
@@ -58,12 +58,25 @@ export function applyWsMessage(
     return;
   }
 
+  if (msg.event === "step_completed" && msg.volume_file_id) {
+    dispatch({
+      type: PipelineActionType.SetVolumePreview,
+      fileId: msg.volume_file_id,
+    });
+  }
+
   const step = pipelineStepProgress(msg);
   if (!step) {
     return;
   }
 
   const stepIndex = step.stepIndex + stepOffset;
+  if (msg.step_index != null && msg.step_index > 0) {
+    dispatch({
+      type: PipelineActionType.CompleteStep,
+      stepIndex: msg.step_index + stepOffset - 1,
+    });
+  }
   dispatch({
     type: PipelineActionType.Progress,
     stepIndex,

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { PipelineEngine, type PipelineApi } from "@/app/pipeline/pipelineEngine";
+
 import { PipelineActionType, FinishMode, type PipelineAction } from "@/app/pipeline/reducer";
 import { FromPage } from "@/app/pipeline/types";
 import { ApiError } from "@/api/client";
@@ -70,6 +71,7 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
   const api: PipelineApi = {
     getStudy: vi.fn(async () => makeStudy({ status: "ready" })),
     deleteStudy: vi.fn(async () => {}),
+    listFiles: vi.fn(async () => []),
     uploadFile: vi.fn(async (_studyId, _file, _kind, _pipelines, onProgress) => {
       onProgress?.({ phase: "begin" });
       onProgress?.({ phase: "uploading", chunkIndex: 0, totalChunks: 1 });
@@ -126,7 +128,7 @@ describe("PipelineEngine - start routing", () => {
       study: makeStudy({ status: "processing", job_id: null }),
       routeState: { from: FromPage.Browse },
     });
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Browse);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Browse });
   });
 });
 
@@ -161,11 +163,16 @@ describe("PipelineEngine - upload flow", () => {
       actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2),
     ).toBe(true);
 
-    ws.onMessage({ event: "pipeline_completed" });
+    ws.onMessage({ event: "pipeline_completed", overlay_file_id: "mask-1" });
     expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.Completed);
 
     await flush();
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Home);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", {
+      from: FromPage.Home,
+      overlayFileId: "mask-1",
+      volumeFileId: undefined,
+    });
+    expect(api.getStudy).not.toHaveBeenCalled();
   });
 
   it("uploads volume then mask, sharing the trailing finalize step", async () => {
@@ -224,7 +231,7 @@ describe("PipelineEngine - upload flow", () => {
 
     expect(api.establishWebsocketConnection).not.toHaveBeenCalled();
     expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.NoPipeline);
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Browse);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Browse });
   });
 
   it("deletes the study and surfaces an error when upload fails", async () => {
@@ -247,15 +254,19 @@ describe("PipelineEngine - upload flow", () => {
   });
 });
 
-describe("PipelineEngine - reconnect flow", () => {
-  const reconnectApi = () => ({
+describe("PipelineEngine - resume processing", () => {
+  const resumeApi = () => ({
     getStudy: vi.fn(async () =>
-      makeStudy({ status: "processing", steps: [PipelineStepName.SegmentNifti] }),
+      makeStudy({
+        status: "processing",
+        job_id: "job1",
+        steps: [PipelineStepName.SegmentNifti],
+      }),
     ),
   });
 
   it("adopts server steps, enters the pipeline at step 0, and connects", async () => {
-    const { engine, api, actions } = setup(reconnectApi());
+    const { engine, api, actions } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -285,8 +296,23 @@ describe("PipelineEngine - reconnect flow", () => {
     expect(findAction(actions, PipelineActionType.SetError)?.error.title).toBe("Study not found");
   });
 
-  it("dispatches ConnectionClosed on socket close; reconnect() re-runs", async () => {
-    const { engine, api, actions, ws } = setup(reconnectApi());
+  it("navigates without opening a socket when the study is already ready", async () => {
+    const { engine, api, onNavigateToViewer } = setup({
+      getStudy: vi.fn(async () => makeStudy({ status: "ready", job_id: "job1" })),
+    });
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    expect(api.establishWebsocketConnection).not.toHaveBeenCalled();
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Home });
+  });
+
+  it("dispatches ConnectionClosed on socket close without reopening", async () => {
+    const { engine, api, actions, ws } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -296,31 +322,14 @@ describe("PipelineEngine - reconnect flow", () => {
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
 
     ws.onClose();
+    await flush();
+
     expect(actions.some((a) => a.type === PipelineActionType.ConnectionClosed)).toBe(true);
-
-    engine.reconnect();
-    await flush();
-    expect(actions.some((a) => a.type === PipelineActionType.ClearConnectionLost)).toBe(true);
-    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(2);
-  });
-
-  it("ignores reconnect() while the socket is still connected", async () => {
-    const { engine, api } = setup(reconnectApi());
-    engine.start({
-      studyId: "s1",
-      study: makeStudy({ job_id: "job1" }),
-      routeState: {},
-    });
-    await flush();
-    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
-
-    engine.reconnect();
-    await flush();
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
   });
 
   it("dispose() cancels work and tears down the socket", async () => {
-    const { engine, ws } = setup(reconnectApi());
+    const { engine, ws } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -330,5 +339,22 @@ describe("PipelineEngine - reconnect flow", () => {
 
     engine.dispose();
     expect(ws.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops terminal poll after pipeline_completed", async () => {
+    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    const { engine, ws } = setup(resumeApi());
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    ws.onMessage({ event: "pipeline_completed", overlay_file_id: "mask-1" });
+    await flush();
+
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    clearIntervalSpy.mockRestore();
   });
 });
