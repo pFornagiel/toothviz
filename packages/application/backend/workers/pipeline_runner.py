@@ -88,10 +88,10 @@ async def run_pipeline(
                         "event": "step_completed",
                         "job_id": job_id,
                         "step": step.name,
-                        "status": "completed",
                         "progress": (i + 1) / total if total else 1.0,
                         "total_steps": total,
                         "step_index": i,
+                        "step_progress": 1.0,
                     },
                 )
 
