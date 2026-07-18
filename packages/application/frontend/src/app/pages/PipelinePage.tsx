@@ -1,6 +1,7 @@
 import { useNavigate, useLocation, redirect, useParams } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { getStudy } from "@/api/studies";
+import { PageLayout } from "../components/layout/page-layout";
 import { StudyLoadingScreen } from "./screens/StudyLoadingScreen";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import { PipelineProvider, usePipeline, FromPage, type LocationState } from "../pipeline";
@@ -72,7 +73,7 @@ function PipelineScreens() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex flex-col font-sans">
+      <PageLayout title="ToothViz">
         <StudyErrorScreen
           title={error.title}
           message={error.message}
@@ -81,12 +82,12 @@ function PipelineScreens() {
           onBack={handleBack}
           onRetry={canRetry ? retryFailedPipeline : undefined}
         />
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col font-sans">
+    <PageLayout title="ToothViz">
       <StudyLoadingScreen
         title="Processing scan"
         steps={steps}
@@ -98,6 +99,6 @@ function PipelineScreens() {
         pipelineFinished={pipelineFinished}
         onPreviewRawScan={handlePreviewRawScan}
       />
-    </div>
+    </PageLayout>
   );
 }
