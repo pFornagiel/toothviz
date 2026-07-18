@@ -52,8 +52,9 @@ async def run_pipeline(
         collected: dict[str, OutputArtifact] = {}
 
         for i, step in enumerate(steps):
+            step_ctx = replace(ctx, step_index=i, total_steps=total)
             if total:
-                await ctx.broadcaster.broadcast(
+                await step_ctx.broadcaster.broadcast(
                     job_id,
                     {
                         "event": "step_started",
@@ -66,7 +67,7 @@ async def run_pipeline(
                     },
                 )
             try:
-                result = await step.run(ctx)
+                result = await step.run(step_ctx)
             except Exception as exc:
                 raise RuntimeError(
                     f"Pipeline step {step.name!r} failed"
@@ -81,7 +82,7 @@ async def run_pipeline(
                 collected[artifact.purpose] = artifact
 
             if total:
-                await ctx.broadcaster.broadcast(
+                await step_ctx.broadcaster.broadcast(
                     job_id,
                     {
                         "event": "step_completed",
