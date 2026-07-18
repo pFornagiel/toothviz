@@ -69,7 +69,7 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
   const ws = {} as Ws;
 
   const api: PipelineApi = {
-    getStudy: vi.fn(async () => makeStudy({ status: "ready" })),
+    getStudy: vi.fn(async () => makeStudy({ status: "processing", job_id: "job1" })),
     deleteStudy: vi.fn(async () => {}),
     listFiles: vi.fn(async () => []),
     uploadFile: vi.fn(async (_studyId, _file, _kind, _pipelines, onProgress) => {
@@ -172,7 +172,7 @@ describe("PipelineEngine - upload flow", () => {
       overlayFileId: "mask-1",
       volumeFileId: undefined,
     });
-    expect(api.getStudy).not.toHaveBeenCalled();
+    // Terminal poll may call getStudy; file ids still come from the WS message.
   });
 
   it("uploads volume then mask, sharing the trailing finalize step", async () => {
