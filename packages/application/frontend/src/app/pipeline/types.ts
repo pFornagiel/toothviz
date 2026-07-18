@@ -57,6 +57,8 @@ export interface PipelineState {
 export type PipelineContextValue = PipelineState & {
   retryFailedPipeline?: () => void;
   canRetry?: boolean;
+  /** True while a retry request is in flight. */
+  retrying?: boolean;
 };
 
 export const initialState: PipelineState = {

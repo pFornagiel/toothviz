@@ -47,6 +47,7 @@ function PipelineScreens() {
     pipelineFinished,
     canRetry,
     retryFailedPipeline,
+    retrying,
   } = usePipeline();
 
   const handleBack = () => {
@@ -81,6 +82,7 @@ function PipelineScreens() {
           backLabel={routeState.from === FromPage.Browse ? "Back to studies" : "Back to home"}
           onBack={handleBack}
           onRetry={canRetry ? retryFailedPipeline : undefined}
+          retryDisabled={Boolean(retrying)}
         />
       </PageLayout>
     );

@@ -13,7 +13,8 @@ import { deleteStudy, getStudy, listFiles, retryStudyPipeline } from "@/api/stud
 import { uploadFile } from "@/api/upload";
 import { establishWebsocketConnection } from "@/api/ws";
 import type { StudyResponse } from "@/api/types";
-import { initialState, type LocationState, type PipelineContextValue } from "./types";
+import { errorHints } from "./errorHints";
+import { FromPage, initialState, type LocationState, type PipelineContextValue } from "./types";
 import { PipelineActionType, pipelineReducer } from "./reducer";
 import { PipelineEngine, type PipelineApi } from "./pipelineEngine";
 
@@ -85,13 +86,38 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   ]);
 
   const retryFailedPipeline = useCallback(() => {
-    const engine = engineRef.current;
-    if (!engine || retrying) {
+    if (!studyId || retrying) {
       return;
     }
     setRetrying(true);
-    void engine.retryFailedPipeline().finally(() => setRetrying(false));
-  }, [retrying]);
+    // Leave the error screen immediately so the user sees the loading UI.
+    dispatch({ type: PipelineActionType.Begin, steps: [] });
+    dispatch({ type: PipelineActionType.EnterPipeline, stepIndex: null });
+
+    // Same hand-off as Browse retry: re-queue on the server, then land on
+    // /pipeline/:id with a fresh loader study (status processing + job_id).
+    // In-place WS reconnect left the loader stuck on "failed", so returning
+    // from scan preview remounted the engine into the error path.
+    void retryStudyPipeline(studyId)
+      .then(() => {
+        navigate(`/pipeline/${studyId}`, {
+          replace: true,
+          state: { from: routeState.from ?? FromPage.Home },
+        });
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        dispatch({
+          type: PipelineActionType.SetError,
+          error: {
+            title: "Retry failed",
+            message: msg,
+            hints: errorHints(null),
+          },
+        });
+      })
+      .finally(() => setRetrying(false));
+  }, [studyId, retrying, navigate, routeState.from]);
 
   const canRetry = Boolean(state.error && study.source_file_id);
 
@@ -101,6 +127,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
         ...state,
         canRetry,
         retryFailedPipeline: canRetry ? retryFailedPipeline : undefined,
+        retrying,
       }}
     >
       {children}

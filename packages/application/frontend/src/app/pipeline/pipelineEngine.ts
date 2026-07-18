@@ -121,7 +121,8 @@ export class PipelineEngine {
 
   /**
    * Re-run a failed/cancelled pipeline when the source upload is still on the study.
-   * Resets UI state and reconnects to the (same) job after the backend re-queues it.
+   * Resets UI state, clears any stale preview id, then resumes like a normal
+   * processing visit (restore mid-pipeline volume if already committed, connect WS).
    */
   async retryFailedPipeline(): Promise<void> {
     if (this.cancelled) {
@@ -152,13 +153,9 @@ export class PipelineEngine {
         );
         return;
       }
-      const stepNames = (fresh.steps ?? []) as LoadingStepId[];
-      this.dispatch({ type: PipelineActionType.SetSteps, steps: stepNames });
-      this.dispatch({
-        type: PipelineActionType.EnterPipeline,
-        stepIndex: stepNames.length > 0 ? 0 : null,
-      });
-      this.connect(fresh.job_id, 0);
+      // Same attach path as resumeProcessing so late-connecting clients still
+      // pick up a volume committed before the socket was open.
+      await this.attachToRunningJob(fresh);
     } catch (e: unknown) {
       if (this.cancelled) {
         return;
@@ -244,8 +241,6 @@ export class PipelineEngine {
   }
 
   private async resumeProcessing(): Promise<void> {
-    let stepNames: LoadingStepId[];
-    let jobId: string | null = null;
     try {
       const fresh = await this.api.getStudy(this.studyId);
       if (this.cancelled) {
@@ -256,8 +251,7 @@ export class PipelineEngine {
         return;
       }
 
-      jobId = fresh.job_id ?? null;
-      if (!jobId) {
+      if (!fresh.job_id) {
         this.goError(
           "Processing unavailable",
           "No active pipeline job was found for this study.",
@@ -266,9 +260,7 @@ export class PipelineEngine {
         return;
       }
 
-      stepNames = fresh.steps ?? [];
-      this.dispatch({ type: PipelineActionType.SetSteps, steps: stepNames });
-      await this.restorePreviewVolume();
+      await this.attachToRunningJob(fresh);
     } catch (e: unknown) {
       if (this.cancelled) {
         return;
@@ -279,9 +271,24 @@ export class PipelineEngine {
       }
       const msg = e instanceof Error ? e.message : String(e);
       this.goError("Could not load study", msg, errorHints(null));
+    }
+  }
+
+  /** Adopt server steps, restore volume preview if present, enter pipeline UI, connect WS. */
+  private async attachToRunningJob(study: StudyResponse): Promise<void> {
+    const jobId = study.job_id;
+    if (!jobId) {
+      this.goError(
+        "Processing unavailable",
+        "No active pipeline job was found for this study.",
+        errorHints(null),
+      );
       return;
     }
 
+    const stepNames = (study.steps ?? []) as LoadingStepId[];
+    this.dispatch({ type: PipelineActionType.SetSteps, steps: stepNames });
+    await this.restorePreviewVolume();
     if (this.cancelled) {
       return;
     }
