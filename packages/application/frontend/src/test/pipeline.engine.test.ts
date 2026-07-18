@@ -72,6 +72,7 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
     getStudy: vi.fn(async () => makeStudy({ status: "processing", job_id: "job1" })),
     deleteStudy: vi.fn(async () => {}),
     listFiles: vi.fn(async () => []),
+    retryPipeline: vi.fn(async () => makeStudy({ status: "processing", job_id: "job1", steps: ["segment_nifti"] })),
     uploadFile: vi.fn(async (_studyId, _file, _kind, _pipelines, onProgress) => {
       onProgress?.({ phase: "begin" });
       onProgress?.({ phase: "uploading", chunkIndex: 0, totalChunks: 1 });

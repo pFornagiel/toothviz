@@ -28,6 +28,12 @@ export async function deleteStudy(studyId: string): Promise<void> {
   return fetchJson<void>(`/storage/studies/${studyId}`, { method: "DELETE" });
 }
 
+export async function retryStudyPipeline(studyId: string): Promise<StudyResponse> {
+  return fetchJson<StudyResponse>(`/storage/studies/${studyId}/pipeline:retry`, {
+    method: "POST",
+  });
+}
+
 export async function listFiles(
   studyId: string,
   viewerPurpose?: string,

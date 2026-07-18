@@ -1,13 +1,15 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useReducer,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 import { useLocation, useNavigate, useParams, useLoaderData } from "react-router";
-import { deleteStudy, getStudy, listFiles } from "@/api/studies";
+import { deleteStudy, getStudy, listFiles, retryStudyPipeline } from "@/api/studies";
 import { uploadFile } from "@/api/upload";
 import { establishWebsocketConnection } from "@/api/ws";
 import type { StudyResponse } from "@/api/types";
@@ -29,6 +31,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const study = useLoaderData() as StudyResponse;
 
   const [state, dispatch] = useReducer(pipelineReducer, initialState);
+  const [retrying, setRetrying] = useState(false);
   const engineRef = useRef<PipelineEngine | null>(null);
 
   useEffect(() => {
@@ -48,6 +51,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       deleteStudy,
       uploadFile,
       listFiles,
+      retryPipeline: retryStudyPipeline,
       establishWebsocketConnection,
     };
     const engine = new PipelineEngine({
@@ -80,7 +84,28 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     navigate,
   ]);
 
-  return <PipelineContext.Provider value={state}>{children}</PipelineContext.Provider>;
+  const retryFailedPipeline = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || retrying) {
+      return;
+    }
+    setRetrying(true);
+    void engine.retryFailedPipeline().finally(() => setRetrying(false));
+  }, [retrying]);
+
+  const canRetry = Boolean(state.error && study.source_file_id);
+
+  return (
+    <PipelineContext.Provider
+      value={{
+        ...state,
+        canRetry,
+        retryFailedPipeline: canRetry ? retryFailedPipeline : undefined,
+      }}
+    >
+      {children}
+    </PipelineContext.Provider>
+  );
 }
 
 export function usePipeline(): PipelineContextValue {

@@ -44,6 +44,8 @@ function PipelineScreens() {
     statusText,
     volumePreviewFileId,
     pipelineFinished,
+    canRetry,
+    retryFailedPipeline,
   } = usePipeline();
 
   const handleBack = () => {
@@ -77,6 +79,7 @@ function PipelineScreens() {
           hints={error.hints}
           backLabel={routeState.from === FromPage.Browse ? "Back to studies" : "Back to home"}
           onBack={handleBack}
+          onRetry={canRetry ? retryFailedPipeline : undefined}
         />
       </div>
     );

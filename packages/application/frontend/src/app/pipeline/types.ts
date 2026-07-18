@@ -54,7 +54,10 @@ export interface PipelineState {
 }
 
 /** What `usePipeline()` returns from the pipeline reducer. */
-export type PipelineContextValue = PipelineState;
+export type PipelineContextValue = PipelineState & {
+  retryFailedPipeline?: () => void;
+  canRetry?: boolean;
+};
 
 export const initialState: PipelineState = {
   steps: [],

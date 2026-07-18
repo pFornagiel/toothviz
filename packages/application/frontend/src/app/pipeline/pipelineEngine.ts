@@ -23,6 +23,7 @@ export interface PipelineApi {
   getStudy: (studyId: string) => Promise<StudyResponse>;
   deleteStudy: (studyId: string) => Promise<void>;
   listFiles: (studyId: string, viewerPurpose?: string) => Promise<FileRecordResponse[]>;
+  retryPipeline: (studyId: string) => Promise<StudyResponse>;
   uploadFile: (
     studyId: string,
     file: File,
@@ -116,6 +117,55 @@ export class PipelineEngine {
     this.cancelled = true;
     this.clearTerminalPoll();
     this.disconnect?.();
+  }
+
+  /**
+   * Re-run a failed/cancelled pipeline when the source upload is still on the study.
+   * Resets UI state and reconnects to the (same) job after the backend re-queues it.
+   */
+  async retryFailedPipeline(): Promise<void> {
+    if (this.cancelled) {
+      return;
+    }
+    this.clearTerminalPoll();
+    this.disconnect?.();
+    this.finished = false;
+    this.dispatch({
+      type: PipelineActionType.Begin,
+      steps: [],
+    });
+    this.dispatch({
+      type: PipelineActionType.EnterPipeline,
+      stepIndex: null,
+    });
+
+    try {
+      const fresh = await this.api.retryPipeline(this.studyId);
+      if (this.cancelled) {
+        return;
+      }
+      if (!fresh.job_id) {
+        this.goError(
+          "Retry failed",
+          "The server did not return a pipeline job to reconnect to.",
+          errorHints(null),
+        );
+        return;
+      }
+      const stepNames = (fresh.steps ?? []) as LoadingStepId[];
+      this.dispatch({ type: PipelineActionType.SetSteps, steps: stepNames });
+      this.dispatch({
+        type: PipelineActionType.EnterPipeline,
+        stepIndex: stepNames.length > 0 ? 0 : null,
+      });
+      this.connect(fresh.job_id, 0);
+    } catch (e: unknown) {
+      if (this.cancelled) {
+        return;
+      }
+      const msg = e instanceof Error ? e.message : String(e);
+      this.goError("Retry failed", msg, errorHints(null));
+    }
   }
 
   private async runUpload(payload: UploadPayload): Promise<void> {

@@ -111,9 +111,10 @@ function ExpandedContent({
       );
     case "processing-failed":
       return (
-        <p className="text-muted-foreground">
-          Scan preview remains available. Reopen from Browse Studies to retry or check details.
-        </p>
+          <p className="text-muted-foreground">
+            Scan preview remains available. Use Retry on the progress error screen, or reopen from
+            Browse Studies.
+          </p>
       );
   }
 }

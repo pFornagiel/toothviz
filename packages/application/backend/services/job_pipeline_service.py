@@ -8,8 +8,9 @@ from typing import Callable
 from sqlalchemy.orm import Session
 
 from backend.db.models import FileRecord
+from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
-from backend.exceptions import ConflictError
+from backend.exceptions import ConflictError, ValidationError
 from backend.services.storage_service import StorageService
 from backend.workers.pipeline_runner import run_pipeline
 from backend.workers.steps.base import PipelineStep, StepContext, StepFactory
@@ -145,6 +146,94 @@ class JobPipelineService:
 
         logger.debug("Dispatched pipeline job %s with %d step(s)", job.id, len(steps))
         return job.id
+
+    def retry(self, study_id: str, db: Session) -> str:
+        """Re-run the pipeline for a failed/cancelled study that still has a source upload."""
+        job = PipelineJobRepo(db).get_by_study_id(study_id)
+        if job.status in ("queued", "running"):
+            raise ConflictError(
+                f"pipeline already {job.status} for this study (job_id={job.id})"
+            )
+        if job.status not in ("failed", "cancelled"):
+            raise ValidationError(
+                f"pipeline can only be retried when failed or cancelled "
+                f"(current status={job.status})"
+            )
+        if not job.source_file_id:
+            raise ValidationError("study has no uploaded source file to retry")
+
+        file_record = FileRepo(db).get(job.source_file_id)
+        # Clear prior derived viewer bindings so a fresh run can replace them.
+        file_repo = FileRepo(db)
+        file_repo.clear_viewer_purpose(study_id, "viewer_volume")
+        file_repo.clear_viewer_purpose(study_id, "viewer_overlay")
+        db.commit()
+
+        steps = self._steps_from_names(list(job.steps or []), file_record)
+        if not steps:
+            raise ValidationError("no pipeline steps available to retry")
+
+        prepared = PipelineJobRepo(db).prepare_dispatch(
+            study_id,
+            [s.name for s in steps],
+        )
+
+        display = file_record.display_name or "file"
+        current_path = self._storage_service.engine.get_study_file_path(
+            file_record.study_id,
+            file_record.id,
+            display,
+        )
+
+        ctx = StepContext(
+            job_id=prepared.id,
+            study_id=file_record.study_id,
+            current_input_path=current_path,
+            work_dir=self._storage_service.engine.get_job_workspace_dir(prepared.id),
+            broadcaster=self._broadcaster,
+            worker_pools=self._worker_pools,
+        )
+
+        future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
+            run_pipeline(
+                prepared.id,
+                steps,
+                ctx,
+                self._storage_service,
+            ),
+            self._loop,
+        )
+
+        self._running[prepared.id] = future
+        future.add_done_callback(lambda _f: self._running.pop(prepared.id, None))
+
+        logger.debug("Retried pipeline job %s with %d step(s)", prepared.id, len(steps))
+        return prepared.id
+
+    def _steps_from_names(
+        self,
+        step_names: list[str],
+        file_record: FileRecord,
+    ) -> list[PipelineStep]:
+        """Rebuild a step chain from stored names (and file kind for DICOM)."""
+        steps: list[PipelineStep] = []
+        seen: set[str] = set()
+
+        if file_record.kind == "dicom_zip" and "dicom_to_nifti" not in step_names:
+            steps.append(DicomToNiftiStep())
+            seen.add("dicom_to_nifti")
+
+        for name in step_names:
+            if name in seen:
+                continue
+            seen.add(name)
+            if name == "dicom_to_nifti":
+                steps.append(DicomToNiftiStep())
+            elif name in self._step_registry:
+                steps.append(self._step_registry[name]({}))
+            else:
+                raise ValidationError(f"unknown pipeline step: {name}")
+        return steps
 
     def cancel(self, job_id: str) -> bool:
         """Request cancellation of a running pipeline job.
