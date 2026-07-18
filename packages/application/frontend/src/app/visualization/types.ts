@@ -1,4 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import type { ProcessingNotice } from "../pages/screens/ProcessingNoticeBar";
 import type { FromPage } from "../pipeline";
 import type { NiivueViewerState } from "./hooks/useNiivueViewer";
 import type { ViewLayoutControls } from "./hooks/useViewLayoutControls";
@@ -19,6 +20,10 @@ export interface VisualizationLocationState {
   primary?: File;
   mask?: File;
   from?: FromPage;
+  volumeFileId?: string | null;
+  overlayFileId?: string | null;
+  /** Open volume-only while the pipeline is still running. */
+  previewWhileProcessing?: boolean;
 }
 
 export interface VolumeInfo {
@@ -30,6 +35,8 @@ export interface ViewerInfo extends NiivueViewerState {
   isVolatile: boolean;
   errorBackLabel: string;
   onBackFromError: () => void;
+  processingNotice: ProcessingNotice;
+  onReturnToProgress: () => void;
 }
 
 /** Sidebar show/hide, owned by the provider. */

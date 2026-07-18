@@ -16,9 +16,7 @@ import { createLoadingSteps as getLoadingSteps } from "./steps";
 import { CANCELLED_HINTS, errorHints } from "./errorHints";
 import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
-
-/** Poll study status while a pipeline job is in flight (catches completion if WS drops). */
-const TERMINAL_POLL_MS = 5_000;
+import { watchStudyUntilTerminal, STUDY_TERMINAL_POLL_MS } from "./studyWatch";
 
 /** The slice of the API the engine drives - injected so it can be mocked. */
 export interface PipelineApi {
@@ -59,7 +57,7 @@ export class PipelineEngine {
   private cancelled = false;
   private finished = false;
   private disconnect: (() => void) | null = null;
-  private terminalPollTimer: ReturnType<typeof setInterval> | null = null;
+  private stopTerminalPoll: (() => void) | null = null;
   private studyId = "";
   private routeState: LocationState = {};
 
@@ -289,31 +287,20 @@ export class PipelineEngine {
 
   private startTerminalPoll(): void {
     this.clearTerminalPoll();
-    this.terminalPollTimer = setInterval(() => {
-      void this.pollStudyTerminal();
-    }, TERMINAL_POLL_MS);
+    this.stopTerminalPoll = watchStudyUntilTerminal({
+      getStudy: this.api.getStudy,
+      studyId: this.studyId,
+      intervalMs: STUDY_TERMINAL_POLL_MS,
+      isCancelled: () => this.cancelled || this.finished,
+      onTerminal: (fresh) => {
+        this.handleTerminalStudyStatus(fresh);
+      },
+    });
   }
 
   private clearTerminalPoll(): void {
-    if (this.terminalPollTimer != null) {
-      clearInterval(this.terminalPollTimer);
-      this.terminalPollTimer = null;
-    }
-  }
-
-  private async pollStudyTerminal(): Promise<void> {
-    if (this.cancelled || this.finished) {
-      return;
-    }
-    try {
-      const fresh = await this.api.getStudy(this.studyId);
-      if (this.cancelled || this.finished) {
-        return;
-      }
-      this.handleTerminalStudyStatus(fresh);
-    } catch {
-      /* best-effort while resuming */
-    }
+    this.stopTerminalPoll?.();
+    this.stopTerminalPoll = null;
   }
 
   /** @returns true when a terminal status was handled (ready / failed / cancelled). */

@@ -74,23 +74,41 @@ export default function useNiivueViewer({
         return;
       }
       setStatusText("Loading files...");
-      const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
+      const { volumeFileId, overlayFileId, previewWhileProcessing } = routeState;
+      const skipOverlay = previewWhileProcessing === true;
+
+      let volumeId = volumeFileId ?? undefined;
+      let overlayId = overlayFileId ?? undefined;
+      let volumeName = DEFAULT_VOLUME_NAME;
+      let overlayName = DEFAULT_OVERLAY_NAME;
+
+      if (volumeId == null || (!skipOverlay && overlayId == null)) {
+        const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
+        const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
+        const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
+        if (volumeId == null && volume) {
+          volumeId = volume.id;
+          volumeName = volume.display_name ?? volumeName;
+        }
+        if (!skipOverlay && overlayId == null && overlay) {
+          overlayId = overlay.id;
+          overlayName = overlay.display_name ?? overlayName;
+        }
+      }
 
       const volumes: { url: string; name: string; opacity?: number; colormap?: string }[] = [];
-      const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
-      const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
 
-      if (volume) {
+      if (volumeId) {
         volumes.push({
-          url: fileContentUrl(studyId, volume.id),
-          name: volume.display_name ?? DEFAULT_VOLUME_NAME,
+          url: fileContentUrl(studyId, volumeId),
+          name: volumeName,
           colormap: VOLUME_COLORMAP,
         });
       }
-      if (overlay) {
+      if (!skipOverlay && overlayId) {
         volumes.push({
-          url: fileContentUrl(studyId, overlay.id),
-          name: overlay.display_name ?? DEFAULT_OVERLAY_NAME,
+          url: fileContentUrl(studyId, overlayId),
+          name: overlayName,
           opacity: DEFAULT_OVERLAY_OPACITY,
           colormap: OVERLAY_COLORMAP,
         });
@@ -109,7 +127,13 @@ export default function useNiivueViewer({
         throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
-    [studyId, onVolumesLoaded],
+    [
+      studyId,
+      routeState.volumeFileId,
+      routeState.overlayFileId,
+      routeState.previewWhileProcessing,
+      onVolumesLoaded,
+    ],
   );
 
   const loadVolatileFiles = useCallback(

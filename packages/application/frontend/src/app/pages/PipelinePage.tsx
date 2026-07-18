@@ -1,4 +1,4 @@
-import { useNavigate, useLocation, redirect } from "react-router";
+import { useNavigate, useLocation, redirect, useParams } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { getStudy } from "@/api/studies";
 import { StudyLoadingScreen } from "./screens/StudyLoadingScreen";
@@ -32,9 +32,19 @@ export function PipelinePage() {
 function PipelineScreens() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { studyId } = useParams();
   const routeState = (location.state ?? {}) as LocationState;
 
-  const { error, steps, completedSteps, currentStepIndex, progress, statusText } = usePipeline();
+  const {
+    error,
+    steps,
+    completedSteps,
+    currentStepIndex,
+    progress,
+    statusText,
+    volumePreviewFileId,
+    pipelineFinished,
+  } = usePipeline();
 
   const handleBack = () => {
     const from = routeState.from ?? FromPage.Home;
@@ -43,6 +53,19 @@ function PipelineScreens() {
     } else {
       navigate("/");
     }
+  };
+
+  const handlePreviewRawScan = () => {
+    if (!studyId || !volumePreviewFileId) {
+      return;
+    }
+    navigate(`/visualize/${studyId}`, {
+      state: {
+        from: routeState.from ?? FromPage.Home,
+        volumeFileId: volumePreviewFileId,
+        previewWhileProcessing: true,
+      },
+    });
   };
 
   if (error) {
@@ -62,12 +85,15 @@ function PipelineScreens() {
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
       <StudyLoadingScreen
-        title="Processing study"
+        title="Processing scan"
         steps={steps}
         completedSteps={completedSteps}
         currentStepIndex={currentStepIndex}
         progressFraction={progress ?? 0}
         statusLine={statusText}
+        previewAvailable={volumePreviewFileId != null}
+        pipelineFinished={pipelineFinished}
+        onPreviewRawScan={handlePreviewRawScan}
       />
     </div>
   );
