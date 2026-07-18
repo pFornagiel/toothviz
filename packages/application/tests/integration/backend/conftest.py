@@ -95,7 +95,6 @@ async def integration_app(tmp_path):
     )
 
     study_service = StudyService(storage_service, job_pipeline_service)
-    job_pipeline_service.attach_study_service(study_service)
     upload_service = UploadService(storage_service, job_pipeline_service)
 
     from fastapi.responses import JSONResponse

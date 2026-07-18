@@ -1,12 +1,12 @@
-"""Pipeline runner deletes the study on failure when ``study_service`` is wired."""
+"""Pipeline runner keeps the study row on failure (job marked failed, study retained)."""
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from backend.db.models import Study, FileRecord, PipelineJob
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
+from backend.db.repos.study_repo import StudyRepo
 from backend.services.storage_service import StorageService
-from backend.services.study_service import StudyService
 from backend.workers.pipeline_runner import run_pipeline
 from backend.workers.steps.base import StepContext, WORKER_POOL_DICOM, WORKER_POOL_SEGMENTATION
 from backend.workers.ws_broadcaster import WSBroadcaster
@@ -35,12 +35,11 @@ def _setup_db(db_session):
 
 
 @pytest.mark.asyncio
-async def test_failure_calls_study_delete_when_study_service_provided(
+async def test_failure_keeps_study_and_marks_job_failed(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     _setup_db(db_session)
     storage_service = StorageService(storage_engine, session_factory)
-    study_service = MagicMock(spec=StudyService)
 
     input_file = tmp_path / "input.nii"
     input_file.write_bytes(b"data")
@@ -57,31 +56,23 @@ async def test_failure_calls_study_delete_when_study_service_provided(
         },
     )
 
-    await run_pipeline("j1", [BoomStep()], ctx, storage_service, study_service=study_service)
+    await run_pipeline("j1", [BoomStep()], ctx, storage_service)
 
-    study_service.delete.assert_called_once_with("s1")
+    with session_factory() as db:
+        job = PipelineJobRepo(db).get("j1")
+        assert job.status == "failed"
+        assert job.error is not None
+        assert StudyRepo(db).get("s1") is not None
 
 
 @pytest.mark.asyncio
-async def test_failure_broadcasts_before_delete(
+async def test_failure_broadcasts_pipeline_failed(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     _setup_db(db_session)
     storage_service = StorageService(storage_engine, session_factory)
-    study_service = MagicMock(spec=StudyService)
 
-    call_order: list[str] = []
     broadcaster = AsyncMock(spec=WSBroadcaster)
-
-    async def _track_broadcast(job_id, payload):
-        call_order.append(payload.get("event", ""))
-
-    broadcaster.broadcast.side_effect = _track_broadcast
-
-    def _track_delete(_sid: str):
-        call_order.append("delete")
-
-    study_service.delete.side_effect = _track_delete
 
     input_file = tmp_path / "input.nii"
     input_file.write_bytes(b"data")
@@ -98,7 +89,12 @@ async def test_failure_broadcasts_before_delete(
         },
     )
 
-    await run_pipeline("j1", [BoomStep()], ctx, storage_service, study_service=study_service)
+    await run_pipeline("j1", [BoomStep()], ctx, storage_service)
 
-    assert "pipeline_failed" in call_order
-    assert call_order.index("pipeline_failed") < call_order.index("delete")
+    failed_calls = [
+        call
+        for call in broadcaster.broadcast.await_args_list
+        if call.args[1].get("event") == "pipeline_failed"
+    ]
+    assert len(failed_calls) == 1
+    assert failed_calls[0].args[1]["status"] == "failed"

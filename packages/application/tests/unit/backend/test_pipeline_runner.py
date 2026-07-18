@@ -95,6 +95,17 @@ async def test_run_pipeline_success(
         j = PipelineJobRepo(db).get("j1")
         assert j.status == "completed"
 
+    completed_calls = [
+        call
+        for call in broadcaster.broadcast.await_args_list
+        if call.args[1].get("event") == "pipeline_completed"
+    ]
+    assert len(completed_calls) == 1
+    payload = completed_calls[0].args[1]
+    assert payload["status"] == "completed"
+    assert payload["overlay_file_id"] is not None
+    assert payload.get("volume_file_id") is None
+
 
 @pytest.mark.asyncio
 async def test_run_pipeline_failure(
@@ -124,7 +135,7 @@ async def test_run_pipeline_failure(
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_failure_is_atomic_no_store_derived(
+async def test_run_pipeline_stores_partial_artifacts_on_later_failure(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     _setup_db(db_session)
@@ -152,7 +163,49 @@ async def test_run_pipeline_failure_is_atomic_no_store_derived(
 
     with patch.object(storage_service, "store_derived") as mock_store:
         await run_pipeline("j1", steps, ctx, storage_service)
-        mock_store.assert_not_called()
+        mock_store.assert_called_once()
+
+    with session_factory() as db:
+        j = PipelineJobRepo(db).get("j1")
+        assert j.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_step_completed_broadcasts_volume_file_id(
+    db_session, session_factory, storage_engine, tmp_path,
+):
+    _setup_db(db_session)
+    storage_service = StorageService(storage_engine, session_factory)
+
+    volume_artifact = tmp_path / "volume.nii"
+    volume_artifact.write_bytes(b"vol")
+
+    steps = [
+        MockStep("dicom_to_nifti", artifacts=[
+            OutputArtifact(path=volume_artifact, kind="nifti_derived", purpose="viewer_volume"),
+        ]),
+        MockStep("segment_nifti"),
+    ]
+
+    input_file = tmp_path / "input.nii"
+    input_file.write_bytes(b"data")
+    work_dir = tmp_path / "work"
+
+    broadcaster = AsyncMock(spec=WSBroadcaster)
+    dicom_pool = MagicMock()
+    seg_pool = MagicMock()
+
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
+
+    await run_pipeline("j1", steps, ctx, storage_service)
+
+    completed_calls = [
+        call
+        for call in broadcaster.broadcast.await_args_list
+        if call.args[1].get("event") == "step_completed"
+    ]
+    assert completed_calls[0].args[1]["volume_file_id"] is not None
+    assert "volume_file_id" not in completed_calls[1].args[1]
 
 
 @pytest.mark.asyncio
