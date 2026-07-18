@@ -42,9 +42,16 @@ export interface PipelineMessage {
   status?: PipelineStatus;
   step?: string;
   progress?: number;
+  step_progress?: number;
   error?: string;
-  file_id?: string;
   failed_step?: string;
   total_steps?: number;
   step_index?: number;
+  /** 0-based index of the latest completed intra-step chunk (e.g. segmentation patch). */
+  chunk_index?: number;
+  total_chunks?: number;
+  /** Derived volume file id (DICOM conversion or passthrough). */
+  volume_file_id?: string | null;
+  /** Derived overlay file id (segmentation mask). */
+  overlay_file_id?: string | null;
 }

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------------------------------------------------------------------------
@@ -107,3 +107,104 @@ class PipelineJobResponse(BaseModel):
     error: str | None
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# WebSocket pipeline progress (server → client)
+# ---------------------------------------------------------------------------
+
+class PipelineWsStepStartedMessage(BaseModel):
+    """Pipeline still running; a step has begun."""
+
+    event: Literal["step_started"] = "step_started"
+    job_id: str
+    status: Literal["running"]
+    step: str
+    step_index: int
+    total_steps: int
+    progress: float
+
+
+class PipelineWsStepProgressMessage(BaseModel):
+    """Pipeline still running; intra-step progress update."""
+
+    event: Literal["step_progress"] = "step_progress"
+    job_id: str
+    status: Literal["running"]
+    step: str
+    step_index: int
+    total_steps: int
+    progress: float
+    step_progress: float | None = None
+    chunk_index: int | None = None
+    total_chunks: int | None = None
+
+
+class PipelineWsStepCompletedMessage(BaseModel):
+    """One step finished; the pipeline may still have more steps."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["step_completed"] = "step_completed"
+    job_id: str
+    step: str
+    step_index: int
+    total_steps: int
+    progress: float
+    step_progress: float = 1.0
+    volume_file_id: str | None = None
+
+
+PipelineWsStepMessage = (
+    PipelineWsStepStartedMessage
+    | PipelineWsStepProgressMessage
+    | PipelineWsStepCompletedMessage
+)
+
+
+class PipelineWsCompletedMessage(BaseModel):
+    event: Literal["pipeline_completed"] = "pipeline_completed"
+    job_id: str
+    status: Literal["completed"] = "completed"
+    progress: float = 1.0
+    volume_file_id: str | None = None
+    overlay_file_id: str | None = None
+
+
+class PipelineWsFailedMessage(BaseModel):
+    event: Literal["pipeline_failed"] = "pipeline_failed"
+    job_id: str
+    status: Literal["failed"] = "failed"
+    error: str
+    failed_step: str | None = None
+
+
+class PipelineWsCancelledMessage(BaseModel):
+    event: Literal["pipeline_cancelled"] = "pipeline_cancelled"
+    job_id: str
+    status: Literal["cancelled"] = "cancelled"
+
+
+_WS_STEP_STARTED = "step_started"
+_WS_STEP_PROGRESS = "step_progress"
+_WS_STEP_COMPLETED = "step_completed"
+
+
+def validate_pipeline_ws_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize a pipeline WebSocket frame before broadcast."""
+    event = payload.get("event")
+    if not event:
+        return payload
+    if event == _WS_STEP_STARTED:
+        return PipelineWsStepStartedMessage.model_validate(payload).model_dump(mode="json")
+    if event == _WS_STEP_PROGRESS:
+        return PipelineWsStepProgressMessage.model_validate(payload).model_dump(mode="json")
+    if event == _WS_STEP_COMPLETED:
+        return PipelineWsStepCompletedMessage.model_validate(payload).model_dump(mode="json")
+    if event == "pipeline_completed":
+        return PipelineWsCompletedMessage.model_validate(payload).model_dump(mode="json")
+    if event == "pipeline_failed":
+        return PipelineWsFailedMessage.model_validate(payload).model_dump(mode="json")
+    if event == "pipeline_cancelled":
+        return PipelineWsCancelledMessage.model_validate(payload).model_dump(mode="json")
+    return payload
