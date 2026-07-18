@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+import pytest_asyncio
 
 from backend.db.models import FileRecord, PipelineJob, Study
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
@@ -39,8 +40,8 @@ def _setup(db_session, status: str = "failed"):
     db_session.commit()
 
 
-@pytest.fixture
-def pipeline_service(session_factory, storage_engine, tmp_path):
+@pytest_asyncio.fixture()
+async def pipeline_service(session_factory, storage_engine, tmp_path):
     engine = MagicMock()
     engine.get_study_file_path.return_value = tmp_path / "input.nii"
     engine.get_job_workspace_dir.return_value = tmp_path / "work"
@@ -50,18 +51,17 @@ def pipeline_service(session_factory, storage_engine, tmp_path):
     storage.engine = engine
     storage.session_factory = session_factory
 
-    svc = JobPipelineService(
+    return JobPipelineService(
         worker_pools={"dicom": MagicMock(), "segmentation": MagicMock()},
         session_factory=session_factory,
         storage_service=storage,
         broadcaster=MagicMock(),
         step_registry={"stub": lambda cfg: StubStep()},
     )
-    svc._loop = MagicMock()
-    return svc
 
 
-def test_retry_failed_job(db_session, session_factory, pipeline_service):
+@pytest.mark.asyncio
+async def test_retry_failed_job(db_session, session_factory, pipeline_service):
     _setup(db_session, status="failed")
 
     with patch(
@@ -79,14 +79,16 @@ def test_retry_failed_job(db_session, session_factory, pipeline_service):
         future.add_done_callback.assert_called_once()
 
 
-def test_retry_rejects_running_job(db_session, session_factory, pipeline_service):
+@pytest.mark.asyncio
+async def test_retry_rejects_running_job(db_session, session_factory, pipeline_service):
     _setup(db_session, status="running")
     with session_factory() as db:
         with pytest.raises(ConflictError):
             pipeline_service.retry("s1", db)
 
 
-def test_retry_rejects_completed_job(db_session, session_factory, pipeline_service):
+@pytest.mark.asyncio
+async def test_retry_rejects_completed_job(db_session, session_factory, pipeline_service):
     _setup(db_session, status="completed")
     with session_factory() as db:
         with pytest.raises(ValidationError):
