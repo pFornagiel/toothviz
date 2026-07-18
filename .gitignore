@@ -80,3 +80,5 @@ packages/application/desktop/release/
 plans/
 
 *Anonymized*
+# Local git worktrees
+.worktrees/
