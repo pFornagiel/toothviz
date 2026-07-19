@@ -163,10 +163,16 @@ class JobPipelineService:
             raise ValidationError("study has no uploaded source file to retry")
 
         file_record = FileRepo(db).get(job.source_file_id)
-        # Clear prior derived viewer bindings so a fresh run can replace them.
+        # Clear prior *derived* viewer bindings so a fresh run can replace them.
+        # Never clear the source upload itself — nifti_raw studies use that
+        # file as viewer_volume (preview + final volume alongside the mask).
         file_repo = FileRepo(db)
-        file_repo.clear_viewer_purpose(study_id, "viewer_volume")
-        file_repo.clear_viewer_purpose(study_id, "viewer_overlay")
+        file_repo.clear_viewer_purpose(
+            study_id, "viewer_volume", exclude_file_id=job.source_file_id
+        )
+        file_repo.clear_viewer_purpose(
+            study_id, "viewer_overlay", exclude_file_id=job.source_file_id
+        )
         db.commit()
 
         steps = self._steps_from_names(list(job.steps or []), file_record)

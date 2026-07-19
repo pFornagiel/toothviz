@@ -413,8 +413,31 @@ export class PipelineEngine {
     this.clearTerminalPoll();
     this.disconnect?.();
 
-    if (msg.volume_file_id != null || msg.overlay_file_id != null) {
-      this.navigateToViewer(msg);
+    let volumeFileId = msg.volume_file_id ?? undefined;
+    let overlayFileId = msg.overlay_file_id ?? undefined;
+
+    // NIfTI source volumes are not always in the completion frame; resolve from
+    // study files so the viewer always gets image + mask when both exist.
+    if (volumeFileId == null || overlayFileId == null) {
+      try {
+        const files = await this.api.listFiles(this.studyId, "viewer_volume,viewer_overlay");
+        if (volumeFileId == null) {
+          volumeFileId = files.find((f) => f.viewer_purpose === "viewer_volume")?.id;
+        }
+        if (overlayFileId == null) {
+          overlayFileId = files.find((f) => f.viewer_purpose === "viewer_overlay")?.id;
+        }
+      } catch {
+        /* fall through with whatever ids we have */
+      }
+    }
+
+    if (volumeFileId != null || overlayFileId != null) {
+      this.navigateToViewer({
+        ...msg,
+        volume_file_id: volumeFileId ?? null,
+        overlay_file_id: overlayFileId ?? null,
+      });
       return;
     }
 

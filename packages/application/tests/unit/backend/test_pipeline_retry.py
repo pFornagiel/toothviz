@@ -61,6 +61,38 @@ async def pipeline_service(session_factory, storage_engine, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_retry_preserves_source_viewer_volume(db_session, session_factory, pipeline_service):
+    """nifti_raw source keeps viewer_volume so preview + final volume survive retry."""
+    _setup(db_session, status="failed")
+    # Stale derived overlay from the failed run (should be cleared).
+    db_session.add(
+        FileRecord(
+            id="overlay-old",
+            study_id="s1",
+            kind="segmentation_mask",
+            display_name="mask.nii",
+            blob_hash="b" * 64,
+            size=50,
+            viewer_purpose="viewer_overlay",
+        )
+    )
+    db_session.commit()
+
+    with patch(
+        "backend.services.job_pipeline_service.asyncio.run_coroutine_threadsafe"
+    ) as schedule:
+        schedule.return_value = MagicMock()
+        with session_factory() as db:
+            pipeline_service.retry("s1", db)
+            source = db.get(FileRecord, "f1")
+            assert source is not None
+            assert source.viewer_purpose == "viewer_volume"
+            old_overlay = db.get(FileRecord, "overlay-old")
+            assert old_overlay is not None
+            assert old_overlay.viewer_purpose is None
+
+
+@pytest.mark.asyncio
 async def test_retry_failed_job(db_session, session_factory, pipeline_service):
     _setup(db_session, status="failed")
 

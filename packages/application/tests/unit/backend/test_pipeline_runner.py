@@ -108,6 +108,44 @@ async def test_run_pipeline_success(
 
 
 @pytest.mark.asyncio
+async def test_pipeline_completed_includes_existing_source_volume(
+    db_session, session_factory, storage_engine, tmp_path,
+):
+    """When volume was not re-derived, still report the study's viewer_volume id."""
+    _setup_db(db_session)
+    with session_factory() as db:
+        src = db.get(FileRecord, "f1")
+        assert src is not None
+        src.viewer_purpose = "viewer_volume"
+        db.commit()
+
+    storage_service = StorageService(storage_engine, session_factory)
+    artifact_file = tmp_path / "mask.nii"
+    artifact_file.write_bytes(b"mask_content")
+    steps = [
+        MockStep("step1", artifacts=[
+            OutputArtifact(path=artifact_file, kind="segmentation_mask", purpose="viewer_overlay"),
+        ]),
+    ]
+    input_file = tmp_path / "input.nii"
+    input_file.write_bytes(b"input_data")
+    work_dir = tmp_path / "work"
+    broadcaster = AsyncMock(spec=WSBroadcaster)
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, MagicMock(), MagicMock())
+
+    await run_pipeline("j1", steps, ctx, storage_service)
+
+    completed_calls = [
+        call
+        for call in broadcaster.broadcast.await_args_list
+        if call.args[1].get("event") == "pipeline_completed"
+    ]
+    payload = completed_calls[0].args[1]
+    assert payload["volume_file_id"] == "f1"
+    assert payload["overlay_file_id"] is not None
+
+
+@pytest.mark.asyncio
 async def test_run_pipeline_failure(
     db_session, session_factory, storage_engine, tmp_path,
 ):

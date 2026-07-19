@@ -168,12 +168,48 @@ describe("PipelineEngine - upload flow", () => {
     expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.Completed);
 
     await flush();
+    // listFiles is empty in the default mock, so volume stays unresolved.
     expect(onNavigateToViewer).toHaveBeenCalledWith("s1", {
       from: FromPage.Home,
       overlayFileId: "mask-1",
       volumeFileId: undefined,
     });
     // Terminal poll may call getStudy; file ids still come from the WS message.
+  });
+
+  it("resolves missing volume from listFiles on pipeline_completed", async () => {
+    const { engine, api, actions, ws, onNavigateToViewer } = setup({
+      listFiles: vi.fn(async () => [
+        {
+          id: "vol-1",
+          study_id: "s1",
+          kind: "nifti_raw",
+          viewer_purpose: "viewer_volume",
+          display_name: "vol.nii",
+          blob_hash: "a",
+          size: 1,
+          created_at: "",
+          status: "ready",
+        },
+      ]),
+    });
+    engine.start({
+      studyId: "s1",
+      study: makeStudy(),
+      routeState: { uploadPayload, from: FromPage.Home },
+    });
+    await flush();
+
+    ws.onMessage({ event: "pipeline_completed", overlay_file_id: "mask-1" });
+    await flush();
+
+    expect(api.listFiles).toHaveBeenCalledWith("s1", "viewer_volume,viewer_overlay");
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", {
+      from: FromPage.Home,
+      overlayFileId: "mask-1",
+      volumeFileId: "vol-1",
+    });
+    expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.Completed);
   });
 
   it("uploads volume then mask, sharing the trailing finalize step", async () => {
