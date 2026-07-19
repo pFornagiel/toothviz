@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react";
 import { Button } from "../../components/ui/button";
 
 export type ProcessingNotice =
@@ -33,8 +34,8 @@ const SUMMARY: Record<Exclude<ProcessingNotice, "none">, string> = {
   "processing-failed": "Processing failed — scan preview only",
 };
 
-/** Compact pill text when floating over the viewer. */
-const OVERLAY_LABEL: Record<Exclude<ProcessingNotice, "none">, string> = {
+/** Compact status line beside the progress nav cue (overlay placement). */
+const OVERLAY_STATUS: Record<Exclude<ProcessingNotice, "none">, string> = {
   "preview-waiting": "Scan preview",
   "loading-artifacts": "Loading results",
   "artifacts-ready": "All loaded",
@@ -111,10 +112,10 @@ function ExpandedContent({
       );
     case "processing-failed":
       return (
-          <p className="text-muted-foreground">
-            Scan preview remains available. Use Retry on the progress error screen, or reopen from
-            Browse Studies.
-          </p>
+        <p className="text-muted-foreground">
+          Scan preview remains available. Use Retry on the progress error screen, or reopen from
+          Browse Studies.
+        </p>
       );
   }
 }
@@ -130,13 +131,14 @@ export function ProcessingNoticeBar({
 }: ProcessingNoticeBarProps) {
   const [open, setOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const triggerLabel =
-    label ?? (placement === "overlay" ? OVERLAY_LABEL[notice] : SUMMARY[notice]);
+  const statusLabel =
+    label ?? (placement === "overlay" ? OVERLAY_STATUS[notice] : SUMMARY[notice]);
   const expandUp = expandDirection === "up";
   const surface = `${BAR_STYLE[notice]} ${BAR_SURFACE[placement]}`;
   const popoverAlign = placement === "overlay" ? "left-0" : "right-0";
   const popoverOriginDown = placement === "overlay" ? "origin-top-left" : "origin-top-right";
   const popoverOriginUp = placement === "overlay" ? "origin-bottom-left" : "origin-bottom-right";
+  const isOverlayNav = placement === "overlay" && showReturnLink;
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current != null) {
@@ -163,15 +165,35 @@ export function ProcessingNoticeBar({
       className={`relative max-w-full shrink-0 ${placement === "overlay" ? "max-w-xl" : ""}`}
     >
       {variant === "pill" ? (
-        <div
-          className={`inline-flex max-w-full cursor-default items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium ${surface}`}
-          title={SUMMARY[notice]}
-          onMouseEnter={handleOpen}
-          onMouseLeave={handleClose}
-        >
-          <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_STYLE[notice]}`} aria-hidden />
-          <span>{triggerLabel}</span>
-        </div>
+        isOverlayNav ? (
+          <button
+            type="button"
+            className={`inline-flex max-w-full cursor-pointer items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/80 ${surface}`}
+            title={`${SUMMARY[notice]}. Click to return to the progress screen.`}
+            aria-label={`Return to progress screen. ${SUMMARY[notice]}`}
+            onClick={onReturnToProgress}
+            onMouseEnter={handleOpen}
+            onMouseLeave={handleClose}
+          >
+            <ChevronLeft className="size-3.5 shrink-0 opacity-80" aria-hidden />
+            <span className="font-semibold">Progress</span>
+            <span className="text-muted-foreground" aria-hidden>
+              ·
+            </span>
+            <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_STYLE[notice]}`} aria-hidden />
+            <span className="truncate text-muted-foreground">{statusLabel}</span>
+          </button>
+        ) : (
+          <div
+            className={`inline-flex max-w-full cursor-default items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium ${surface}`}
+            title={SUMMARY[notice]}
+            onMouseEnter={handleOpen}
+            onMouseLeave={handleClose}
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_STYLE[notice]}`} aria-hidden />
+            <span>{statusLabel}</span>
+          </div>
+        )
       ) : (
         <span
           className="cursor-default truncate text-xs font-medium text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 underline-offset-2"
@@ -179,7 +201,7 @@ export function ProcessingNoticeBar({
           onMouseEnter={handleOpen}
           onMouseLeave={handleClose}
         >
-          {triggerLabel}
+          {statusLabel}
         </span>
       )}
 
@@ -203,7 +225,7 @@ export function ProcessingNoticeBar({
           <p className="font-medium text-foreground">{SUMMARY[notice]}</p>
           <ExpandedContent
             notice={notice}
-            showReturnLink={showReturnLink}
+            showReturnLink={showReturnLink && !isOverlayNav}
             onReturnToProgress={onReturnToProgress}
           />
         </div>
