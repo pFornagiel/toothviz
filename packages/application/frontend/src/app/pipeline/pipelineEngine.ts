@@ -19,6 +19,9 @@ import { applyWsMessage } from "./wsMessage";
 import { watchStudyUntilTerminal, STUDY_TERMINAL_POLL_MS } from "./studyWatch";
 import { resolveViewerFileIds } from "./viewerFiles";
 
+const WS_RECONNECT_MAX_ATTEMPTS = 5;
+const WS_RECONNECT_BASE_MS = 1_000;
+
 /** The slice of the API the engine drives - injected so it can be mocked. */
 export interface PipelineApi {
   getStudy: (studyId: string) => Promise<StudyResponse>;
@@ -59,6 +62,11 @@ export class PipelineEngine {
   private finished = false;
   private disconnect: (() => void) | null = null;
   private stopTerminalPoll: (() => void) | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private intentionalClose = false;
+  private activeJobId: string | null = null;
+  private stepOffset = 0;
   private studyId = "";
   private routeState: LocationState = {};
 
@@ -115,8 +123,12 @@ export class PipelineEngine {
   /** React effect cleanup: stop all work and tear down the socket. */
   dispose(): void {
     this.cancelled = true;
+    this.clearReconnectTimer();
     this.clearTerminalPoll();
+    this.intentionalClose = true;
     this.disconnect?.();
+    this.disconnect = null;
+    this.intentionalClose = false;
   }
 
   private async runUpload(payload: UploadPayload): Promise<void> {
@@ -255,12 +267,22 @@ export class PipelineEngine {
   }
 
   private connect(jobId: string, stepOffset: number): void {
+    this.activeJobId = jobId;
+    this.stepOffset = stepOffset;
+    this.clearReconnectTimer();
+
+    this.intentionalClose = true;
     this.disconnect?.();
+    this.disconnect = null;
+    this.intentionalClose = false;
+
     this.startTerminalPoll();
 
     const disconnect = this.api.establishWebsocketConnection(
       jobId,
-      (msg) =>
+      (msg) => {
+        // A live frame means the socket is healthy again.
+        this.reconnectAttempts = 0;
         applyWsMessage(msg, {
           stepOffset,
           dispatch: this.dispatch,
@@ -268,10 +290,14 @@ export class PipelineEngine {
           markPipelineFinished: () => {
             this.finished = true;
           },
-          disconnect: () => this.disconnect?.(),
+          disconnect: () => {
+            this.intentionalClose = true;
+            this.disconnect?.();
+            this.disconnect = null;
+            this.intentionalClose = false;
+          },
           onPipelineCompleted: (m) => void this.finishOk(m),
           onPipelineFailed: (m) => {
-            this.disconnect?.();
             this.goError(
               "Processing failed",
               m.error ?? "The pipeline reported a failure.",
@@ -279,21 +305,51 @@ export class PipelineEngine {
             );
           },
           onPipelineCancelled: () => {
-            this.disconnect?.();
             this.goError("Processing cancelled", "The pipeline was cancelled.", CANCELLED_HINTS);
           },
-        }),
+        });
+      },
       () => this.onClose(),
     );
     this.disconnect = disconnect;
   }
 
   private onClose(): void {
-    this.disconnect = null;
-    if (this.cancelled || this.finished) {
+    if (this.intentionalClose || this.cancelled || this.finished) {
       return;
     }
-    this.dispatch({ type: PipelineActionType.ConnectionClosed });
+    this.disconnect = null;
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect(): void {
+    if (this.cancelled || this.finished || !this.activeJobId) {
+      return;
+    }
+    if (this.reconnectAttempts >= WS_RECONNECT_MAX_ATTEMPTS) {
+      this.dispatch({ type: PipelineActionType.ConnectionClosed, reconnecting: false });
+      return;
+    }
+
+    this.reconnectAttempts += 1;
+    this.dispatch({ type: PipelineActionType.ConnectionClosed, reconnecting: true });
+
+    const delay = WS_RECONNECT_BASE_MS * 2 ** (this.reconnectAttempts - 1);
+    this.clearReconnectTimer();
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.cancelled || this.finished || !this.activeJobId) {
+        return;
+      }
+      this.connect(this.activeJobId, this.stepOffset);
+    }, delay);
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer != null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
   }
 
   private startTerminalPoll(): void {
@@ -318,8 +374,12 @@ export class PipelineEngine {
   private handleTerminalStudyStatus(fresh: StudyResponse): boolean {
     if (fresh.status === "ready") {
       this.finished = true;
+      this.clearReconnectTimer();
       this.clearTerminalPoll();
+      this.intentionalClose = true;
       this.disconnect?.();
+      this.disconnect = null;
+      this.intentionalClose = false;
       this.dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
       this.navigateToViewer();
       return true;
@@ -327,8 +387,6 @@ export class PipelineEngine {
 
     if (fresh.status === "failed" || fresh.status === "cancelled") {
       this.finished = true;
-      this.clearTerminalPoll();
-      this.disconnect?.();
       const detail =
         fresh.error ??
         (fresh.status === "cancelled"
@@ -364,8 +422,12 @@ export class PipelineEngine {
   }
 
   private async finishOk(msg: PipelineMessage): Promise<void> {
+    this.clearReconnectTimer();
     this.clearTerminalPoll();
+    this.intentionalClose = true;
     this.disconnect?.();
+    this.disconnect = null;
+    this.intentionalClose = false;
 
     let volumeFileId = msg.volume_file_id ?? undefined;
     let overlayFileId = msg.overlay_file_id ?? undefined;
@@ -444,8 +506,12 @@ export class PipelineEngine {
   }
 
   private goError(title: string, message: string, hints: string[]): void {
+    this.clearReconnectTimer();
     this.clearTerminalPoll();
+    this.intentionalClose = true;
     this.disconnect?.();
+    this.disconnect = null;
+    this.intentionalClose = false;
     this.dispatch({
       type: PipelineActionType.SetError,
       error: { title, message, hints },

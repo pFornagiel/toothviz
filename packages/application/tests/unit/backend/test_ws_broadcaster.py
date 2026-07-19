@@ -110,6 +110,37 @@ async def test_terminal_broadcast_evicts_cached_snapshot():
 
 
 @pytest.mark.asyncio
+async def test_register_hydrates_terminal_when_no_snapshot():
+    def hydrate(job_id: str):
+        return {
+            "event": "pipeline_completed",
+            "job_id": job_id,
+            "status": "completed",
+            "progress": 1.0,
+            "volume_file_id": "vol-1",
+            "overlay_file_id": "mask-1",
+        }
+
+    bc = WSBroadcaster(hydrate_job=hydrate)
+    ws = AsyncMock()
+    await bc.register("j1", ws)
+
+    ws.send_text.assert_called_once()
+    replayed = json.loads(ws.send_text.call_args[0][0])
+    assert replayed["event"] == "pipeline_completed"
+    assert replayed["volume_file_id"] == "vol-1"
+
+
+@pytest.mark.asyncio
+async def test_unknown_event_is_not_broadcast():
+    bc = WSBroadcaster()
+    ws = AsyncMock()
+    await bc.register("j1", ws)
+    await bc.broadcast("j1", {"event": "mystery", "job_id": "j1"})
+    assert ws.send_text.call_count == 0
+
+
+@pytest.mark.asyncio
 async def test_invalid_payload_is_not_broadcast():
     bc = WSBroadcaster()
     ws = AsyncMock()

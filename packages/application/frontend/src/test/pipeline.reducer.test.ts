@@ -182,4 +182,12 @@ describe("pipelineReducer - error & connection transitions", () => {
     expect(next.steps).toEqual(noMaskSteps);
   });
 
+  it("CONNECTION_CLOSED with reconnecting uses the reconnecting status line", () => {
+    const next = pipelineReducer(stateWithSteps(noMaskSteps), {
+      type: PipelineActionType.ConnectionClosed,
+      reconnecting: true,
+    });
+    expect(next.statusText).toBe("Connection lost — reconnecting to live progress…");
+  });
+
 });

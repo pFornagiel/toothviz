@@ -17,6 +17,7 @@ from backend.db.session import SessionLocal, engine
 from backend.exceptions import AppError
 from backend.routers import files, health, studies, uploads, ws
 from backend.services.job_pipeline_service import JobPipelineService
+from backend.services.pipeline_ws_hydrate import build_pipeline_ws_hydrate
 from backend.services.storage_service import StorageService
 from backend.services.study_service import StudyService
 from backend.services.upload_service import UploadService
@@ -45,7 +46,7 @@ async def lifespan(app: FastAPI):
     # 2. Build storage objects
     storage_engine = LocalStorageEngine(config.DATA_ROOT)
     storage_service = StorageService(storage_engine, SessionLocal)
-    broadcaster = WSBroadcaster()
+    broadcaster = WSBroadcaster(hydrate_job=build_pipeline_ws_hydrate(SessionLocal))
 
     # 3. Wipe on Startup: abort lingering active UploadSessions
     with SessionLocal() as db:

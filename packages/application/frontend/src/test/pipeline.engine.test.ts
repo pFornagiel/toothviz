@@ -347,7 +347,8 @@ describe("PipelineEngine - resume processing", () => {
     expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Home });
   });
 
-  it("dispatches ConnectionClosed on socket close without reopening", async () => {
+  it("schedules a websocket reconnect after unexpected close", async () => {
+    vi.useFakeTimers();
     const { engine, api, actions, ws } = setup(resumeApi());
     engine.start({
       studyId: "s1",
@@ -360,8 +361,16 @@ describe("PipelineEngine - resume processing", () => {
     ws.onClose();
     await flush();
 
-    expect(actions.some((a) => a.type === PipelineActionType.ConnectionClosed)).toBe(true);
-    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
+    expect(
+      actions.some(
+        (a) => a.type === PipelineActionType.ConnectionClosed && a.reconnecting === true,
+      ),
+    ).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
   });
 
   it("dispose() cancels work and tears down the socket", async () => {

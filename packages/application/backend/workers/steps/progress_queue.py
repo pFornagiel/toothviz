@@ -128,4 +128,17 @@ async def run_with_progress_pump(
             await pump_task
         except Exception:
             pass
+        # Emit any progress left in the queue after the worker returns.
+        try:
+            update = _drain_queue(resources.queue, parse_item)
+            if update is not None:
+                sp, chunk_index, total_chunks = update
+                await ctx.broadcast_progress(
+                    step_name=step_name,
+                    step_progress=sp,
+                    chunk_index=chunk_index,
+                    total_chunks=total_chunks,
+                )
+        except Exception:
+            logger.debug("Final progress drain failed", exc_info=True)
         _close_progress_queue(resources)

@@ -82,3 +82,8 @@ def test_step_completed_rejects_pipeline_running_status():
     }
     with pytest.raises(ValidationError):
         validate_pipeline_ws_payload(raw)
+
+
+def test_unknown_event_is_rejected():
+    with pytest.raises(ValueError, match="unknown pipeline WebSocket event"):
+        validate_pipeline_ws_payload({"event": "mystery", "job_id": "j1"})

@@ -5,6 +5,9 @@ import { clamp01 } from "./progress";
 const CONNECTION_LOST_TEXT =
   "Connection lost — processing may still be running on this computer. Reopen the study from Browse Studies to continue.";
 
+const CONNECTION_RECONNECTING_TEXT =
+  "Connection lost — reconnecting to live progress…";
+
 export enum PipelineActionType {
   Begin = "BEGIN",
   SetSteps = "SET_STEPS",
@@ -35,7 +38,7 @@ export type PipelineAction =
   | { type: PipelineActionType.CompleteStep; stepIndex: number; statusText?: string }
   | { type: PipelineActionType.Finish; mode: FinishMode }
   | { type: PipelineActionType.SetError; error: PipelineError }
-  | { type: PipelineActionType.ConnectionClosed }
+  | { type: PipelineActionType.ConnectionClosed; reconnecting?: boolean }
   | { type: PipelineActionType.SetVolumePreview; fileId: string };
 
 export function pipelineReducer(state: PipelineState, action: PipelineAction): PipelineState {
@@ -112,6 +115,12 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
       return { ...state, error: action.error };
 
     case PipelineActionType.ConnectionClosed:
-      return { ...state, statusText: CONNECTION_LOST_TEXT };
+      return {
+        ...state,
+        statusText: action.reconnecting ? CONNECTION_RECONNECTING_TEXT : CONNECTION_LOST_TEXT,
+      };
+
+    default:
+      return state;
   }
 }
