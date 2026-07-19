@@ -72,7 +72,6 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
     getStudy: vi.fn(async () => makeStudy({ status: "processing", job_id: "job1" })),
     deleteStudy: vi.fn(async () => {}),
     listFiles: vi.fn(async () => []),
-    retryPipeline: vi.fn(async () => makeStudy({ status: "processing", job_id: "job1", steps: ["segment_nifti"] })),
     uploadFile: vi.fn(async (_studyId, _file, _kind, _pipelines, onProgress) => {
       onProgress?.({ phase: "begin" });
       onProgress?.({ phase: "uploading", chunkIndex: 0, totalChunks: 1 });
@@ -396,19 +395,12 @@ describe("PipelineEngine - resume processing", () => {
   });
 });
 
-describe("PipelineEngine - retryFailedPipeline", () => {
-  it("resets UI, restores volume preview, and reconnects the websocket", async () => {
-    const { engine, api, actions, ws } = setup({
-      retryPipeline: vi.fn(async () =>
-        makeStudy({
-          status: "processing",
-          job_id: "job1",
-          steps: [PipelineStepName.SegmentNifti],
-        }),
-      ),
+describe("PipelineEngine - resume restores preview volume", () => {
+  it("sets volume preview from listFiles when resuming a processing study", async () => {
+    const { engine, actions } = setup({
       listFiles: vi.fn(async () => [
         {
-          id: "vol-retry",
+          id: "vol-resume",
           study_id: "s1",
           kind: "nifti_raw",
           display_name: "volume.nii",
@@ -419,68 +411,26 @@ describe("PipelineEngine - retryFailedPipeline", () => {
           status: "ready",
         },
       ]),
+      getStudy: vi.fn(async () =>
+        makeStudy({
+          status: "processing",
+          job_id: "job1",
+          steps: [PipelineStepName.SegmentNifti],
+        }),
+      ),
     });
 
     engine.start({
       studyId: "s1",
-      study: makeStudy({ status: "failed", error: "boom", source_file_id: "src1" }),
+      study: makeStudy({
+        status: "processing",
+        job_id: "job1",
+        steps: [PipelineStepName.SegmentNifti],
+      }),
       routeState: {},
     });
-    expect(findAction(actions, PipelineActionType.SetError)?.error.title).toBe(
-      "Study is not available",
-    );
-
-    actions.length = 0;
-    await engine.retryFailedPipeline();
     await flush();
 
-    expect(api.retryPipeline).toHaveBeenCalledWith("s1");
-    expect(findAction(actions, PipelineActionType.Begin)).toBeTruthy();
-    expect(findAction(actions, PipelineActionType.SetSteps)?.steps).toEqual([
-      PipelineStepName.SegmentNifti,
-    ]);
-    expect(findAction(actions, PipelineActionType.SetVolumePreview)?.fileId).toBe("vol-retry");
-    expect(
-      actions.some(
-        (a) => a.type === PipelineActionType.EnterPipeline && a.stepIndex === 0,
-      ),
-    ).toBe(true);
-    expect(api.establishWebsocketConnection).toHaveBeenCalledWith(
-      "job1",
-      expect.any(Function),
-      expect.any(Function),
-    );
-
-    // Mid-pipeline volume from WS still updates preview (same as a normal run).
-    ws.onMessage({
-      event: "step_completed",
-      step: "segment",
-      progress: 1,
-      total_steps: 1,
-      step_index: 0,
-      volume_file_id: "vol-ws",
-    });
-    expect(
-      actions.some(
-        (a) => a.type === PipelineActionType.SetVolumePreview && a.fileId === "vol-ws",
-      ),
-    ).toBe(true);
-  });
-
-  it("surfaces an error when retry returns no job id", async () => {
-    const { engine, actions } = setup({
-      retryPipeline: vi.fn(async () => makeStudy({ status: "processing", job_id: null })),
-    });
-    engine.start({
-      studyId: "s1",
-      study: makeStudy({ status: "failed", error: "boom", source_file_id: "src1" }),
-      routeState: {},
-    });
-    actions.length = 0;
-
-    await engine.retryFailedPipeline();
-    await flush();
-
-    expect(findAction(actions, PipelineActionType.SetError)?.error.title).toBe("Retry failed");
+    expect(findAction(actions, PipelineActionType.SetVolumePreview)?.fileId).toBe("vol-resume");
   });
 });

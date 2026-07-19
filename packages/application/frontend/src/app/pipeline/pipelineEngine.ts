@@ -17,13 +17,13 @@ import { CANCELLED_HINTS, errorHints } from "./errorHints";
 import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
 import { watchStudyUntilTerminal, STUDY_TERMINAL_POLL_MS } from "./studyWatch";
+import { resolveViewerFileIds } from "./viewerFiles";
 
 /** The slice of the API the engine drives - injected so it can be mocked. */
 export interface PipelineApi {
   getStudy: (studyId: string) => Promise<StudyResponse>;
   deleteStudy: (studyId: string) => Promise<void>;
   listFiles: (studyId: string, viewerPurpose?: string) => Promise<FileRecordResponse[]>;
-  retryPipeline: (studyId: string) => Promise<StudyResponse>;
   uploadFile: (
     studyId: string,
     file: File,
@@ -117,52 +117,6 @@ export class PipelineEngine {
     this.cancelled = true;
     this.clearTerminalPoll();
     this.disconnect?.();
-  }
-
-  /**
-   * Re-run a failed/cancelled pipeline when the source upload is still on the study.
-   * Resets UI state, clears any stale preview id, then resumes like a normal
-   * processing visit (restore mid-pipeline volume if already committed, connect WS).
-   */
-  async retryFailedPipeline(): Promise<void> {
-    if (this.cancelled) {
-      return;
-    }
-    this.clearTerminalPoll();
-    this.disconnect?.();
-    this.finished = false;
-    this.dispatch({
-      type: PipelineActionType.Begin,
-      steps: [],
-    });
-    this.dispatch({
-      type: PipelineActionType.EnterPipeline,
-      stepIndex: null,
-    });
-
-    try {
-      const fresh = await this.api.retryPipeline(this.studyId);
-      if (this.cancelled) {
-        return;
-      }
-      if (!fresh.job_id) {
-        this.goError(
-          "Retry failed",
-          "The server did not return a pipeline job to reconnect to.",
-          errorHints(null),
-        );
-        return;
-      }
-      // Same attach path as resumeProcessing so late-connecting clients still
-      // pick up a volume committed before the socket was open.
-      await this.attachToRunningJob(fresh);
-    } catch (e: unknown) {
-      if (this.cancelled) {
-        return;
-      }
-      const msg = e instanceof Error ? e.message : String(e);
-      this.goError("Retry failed", msg, errorHints(null));
-    }
   }
 
   private async runUpload(payload: UploadPayload): Promise<void> {
@@ -420,13 +374,12 @@ export class PipelineEngine {
     // study files so the viewer always gets image + mask when both exist.
     if (volumeFileId == null || overlayFileId == null) {
       try {
-        const files = await this.api.listFiles(this.studyId, "viewer_volume,viewer_overlay");
-        if (volumeFileId == null) {
-          volumeFileId = files.find((f) => f.viewer_purpose === "viewer_volume")?.id;
-        }
-        if (overlayFileId == null) {
-          overlayFileId = files.find((f) => f.viewer_purpose === "viewer_overlay")?.id;
-        }
+        const resolved = await resolveViewerFileIds(this.api.listFiles, this.studyId, {
+          volumeFileId,
+          overlayFileId,
+        });
+        volumeFileId = resolved.volumeFileId ?? volumeFileId;
+        overlayFileId = resolved.overlayFileId ?? overlayFileId;
       } catch {
         /* fall through with whatever ids we have */
       }
@@ -478,12 +431,11 @@ export class PipelineEngine {
 
   private async restorePreviewVolume(): Promise<void> {
     try {
-      const files = await this.api.listFiles(this.studyId, "viewer_volume");
-      const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
-      if (volume?.id) {
+      const { volumeFileId } = await resolveViewerFileIds(this.api.listFiles, this.studyId);
+      if (volumeFileId) {
         this.dispatch({
           type: PipelineActionType.SetVolumePreview,
-          fileId: volume.id,
+          fileId: volumeFileId,
         });
       }
     } catch {

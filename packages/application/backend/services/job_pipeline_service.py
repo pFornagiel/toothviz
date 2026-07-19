@@ -86,12 +86,10 @@ class JobPipelineService:
         which is itself invoked via FastAPI's sync-route thread-pool. Async
         work is handed off via ``run_coroutine_threadsafe`` (see class docstring).
         """
-        # Phase 1: auto-steps derived from file type.
         auto_steps: list[PipelineStep] = []
         if file_record.kind == "dicom_zip":
             auto_steps.append(DicomToNiftiStep())
 
-        # Phase 2: user-requested steps from the pipelines payload.
         user_steps: list[PipelineStep] = []
         for item in pipelines:
             factory = self._step_registry[item["name"]]
@@ -112,40 +110,7 @@ class JobPipelineService:
             file_record.study_id,
             [s.name for s in steps],
         )
-
-        display = file_record.display_name or "file"
-        current_path = self._storage_service.engine.get_study_file_path(
-            file_record.study_id,
-            file_record.id,
-            display,
-        )
-
-        ctx = StepContext(
-            job_id=job.id,
-            study_id=file_record.study_id,
-            current_input_path=current_path,
-            work_dir=self._storage_service.engine.get_job_workspace_dir(job.id),
-            broadcaster=self._broadcaster,
-            worker_pools=self._worker_pools,
-        )
-
-        future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
-            run_pipeline(
-                job.id,
-                steps,
-                ctx,
-                self._storage_service,
-            ),
-            self._loop,
-        )
-
-        self._running[job.id] = future
-
-        # Remove bookkeeping entry once the pipeline ends (success/failure/cancel).
-        future.add_done_callback(lambda _f: self._running.pop(job.id, None))
-
-        logger.debug("Dispatched pipeline job %s with %d step(s)", job.id, len(steps))
-        return job.id
+        return self._schedule(job.id, steps, file_record)
 
     def retry(self, study_id: str, db: Session) -> str:
         """Re-run the pipeline for a failed/cancelled study that still has a source upload."""
@@ -183,7 +148,15 @@ class JobPipelineService:
             study_id,
             [s.name for s in steps],
         )
+        return self._schedule(prepared.id, steps, file_record)
 
+    def _schedule(
+        self,
+        job_id: str,
+        steps: list[PipelineStep],
+        file_record: FileRecord,
+    ) -> str:
+        """Build StepContext and hand ``run_pipeline`` to the event loop."""
         display = file_record.display_name or "file"
         current_path = self._storage_service.engine.get_study_file_path(
             file_record.study_id,
@@ -192,17 +165,17 @@ class JobPipelineService:
         )
 
         ctx = StepContext(
-            job_id=prepared.id,
+            job_id=job_id,
             study_id=file_record.study_id,
             current_input_path=current_path,
-            work_dir=self._storage_service.engine.get_job_workspace_dir(prepared.id),
+            work_dir=self._storage_service.engine.get_job_workspace_dir(job_id),
             broadcaster=self._broadcaster,
             worker_pools=self._worker_pools,
         )
 
         future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
             run_pipeline(
-                prepared.id,
+                job_id,
                 steps,
                 ctx,
                 self._storage_service,
@@ -210,11 +183,11 @@ class JobPipelineService:
             self._loop,
         )
 
-        self._running[prepared.id] = future
-        future.add_done_callback(lambda _f: self._running.pop(prepared.id, None))
+        self._running[job_id] = future
+        future.add_done_callback(lambda _f: self._running.pop(job_id, None))
 
-        logger.debug("Retried pipeline job %s with %d step(s)", prepared.id, len(steps))
-        return prepared.id
+        logger.debug("Scheduled pipeline job %s with %d step(s)", job_id, len(steps))
+        return job_id
 
     def _steps_from_names(
         self,

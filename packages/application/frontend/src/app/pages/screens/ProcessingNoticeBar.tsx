@@ -65,7 +65,11 @@ function ExpandedContent({
   notice,
   showReturnLink,
   onReturnToProgress,
-}: ProcessingNoticeBarProps) {
+}: {
+  notice: Exclude<ProcessingNotice, "none">;
+  showReturnLink: boolean;
+  onReturnToProgress: () => void;
+}) {
   switch (notice) {
     case "preview-waiting":
       return (

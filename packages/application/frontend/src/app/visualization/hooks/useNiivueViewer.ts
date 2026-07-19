@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import NiiVueGPU from "@niivue/niivue/webgl2";
 import { SLICE_TYPE, MULTIPLANAR_TYPE } from "@niivue/niivue";
 import { listFiles, fileContentUrl } from "@/api/studies";
+import { resolveViewerFileIds } from "../../pipeline/viewerFiles";
 import { ViewPhase, type VisualizationLocationState } from "../types";
 import {
   DEFAULT_BACK_COLOR_DARK,
@@ -77,24 +78,16 @@ export default function useNiivueViewer({
       const { volumeFileId, overlayFileId, previewWhileProcessing } = routeState;
       const skipOverlay = previewWhileProcessing === true;
 
-      let volumeId = volumeFileId ?? undefined;
-      let overlayId = overlayFileId ?? undefined;
-      let volumeName = DEFAULT_VOLUME_NAME;
-      let overlayName = DEFAULT_OVERLAY_NAME;
+      const resolved = await resolveViewerFileIds(listFiles, studyId, {
+        volumeFileId,
+        overlayFileId,
+        includeOverlay: !skipOverlay,
+      });
 
-      if (volumeId == null || (!skipOverlay && overlayId == null)) {
-        const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
-        const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
-        const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
-        if (volumeId == null && volume) {
-          volumeId = volume.id;
-          volumeName = volume.display_name ?? volumeName;
-        }
-        if (!skipOverlay && overlayId == null && overlay) {
-          overlayId = overlay.id;
-          overlayName = overlay.display_name ?? overlayName;
-        }
-      }
+      const volumeId = resolved.volumeFileId;
+      const overlayId = resolved.overlayFileId;
+      const volumeName = resolved.volumeDisplayName ?? DEFAULT_VOLUME_NAME;
+      const overlayName = resolved.overlayDisplayName ?? DEFAULT_OVERLAY_NAME;
 
       const volumes: { url: string; name: string; opacity?: number; colormap?: string }[] = [];
 
@@ -105,7 +98,7 @@ export default function useNiivueViewer({
           colormap: VOLUME_COLORMAP,
         });
       }
-      if (!skipOverlay && overlayId) {
+      if (overlayId) {
         volumes.push({
           url: fileContentUrl(studyId, overlayId),
           name: overlayName,

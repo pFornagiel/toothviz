@@ -52,7 +52,6 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       deleteStudy,
       uploadFile,
       listFiles,
-      retryPipeline: retryStudyPipeline,
       establishWebsocketConnection,
     };
     const engine = new PipelineEngine({
@@ -94,10 +93,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     dispatch({ type: PipelineActionType.Begin, steps: [] });
     dispatch({ type: PipelineActionType.EnterPipeline, stepIndex: null });
 
-    // Same hand-off as Browse retry: re-queue on the server, then land on
-    // /pipeline/:id with a fresh loader study (status processing + job_id).
-    // In-place WS reconnect left the loader stuck on "failed", so returning
-    // from scan preview remounted the engine into the error path.
+    // Re-queue on the server, then land on /pipeline/:id with a fresh loader
+    // study (status processing + job_id). Remounting keeps resume + preview
+    // aligned with Browse retry.
     void retryStudyPipeline(studyId)
       .then(() => {
         navigate(`/pipeline/${studyId}`, {
