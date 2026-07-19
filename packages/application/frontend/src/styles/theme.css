@@ -239,3 +239,16 @@
     line-height: 1.5;
   }
 }
+
+@keyframes pipeline-progress-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.pipeline-progress-shimmer {
+  animation: pipeline-progress-shimmer 1.6s ease-in-out infinite;
+}
