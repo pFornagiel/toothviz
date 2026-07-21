@@ -30,6 +30,7 @@ backend.setUnexpectedExitHandler(({ code, signal }) => {
 async function createWindow(): Promise<void> {
   const preloadPath = path.join(__dirname, "../preload/index.mjs");
   const backendUrl = backend.baseUrl();
+  const backendPort = getBackendPort();
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -42,8 +43,8 @@ async function createWindow(): Promise<void> {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      // Sandboxed preload cannot reliably use ipc sendSync; pass the URL here.
-      additionalArguments: [`--tooth-backend-url=${backendUrl}`],
+      // Pass port only — full URLs in argv break on Windows (colons).
+      additionalArguments: [`--tooth-backend-port=${backendPort}`],
     },
   });
 
@@ -57,7 +58,11 @@ async function createWindow(): Promise<void> {
   const devRendererUrl = process.env.ELECTRON_RENDERER_URL;
 
   if (isDev && devRendererUrl) {
-    await mainWindow.loadURL(devRendererUrl);
+    // Query param is a reliable fallback when preload argv is empty/stripped.
+    const sep = devRendererUrl.includes("?") ? "&" : "?";
+    await mainWindow.loadURL(
+      `${devRendererUrl}${sep}toothBackendPort=${backendPort}`,
+    );
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     await mainWindow.loadURL(`${backendUrl}/`);
