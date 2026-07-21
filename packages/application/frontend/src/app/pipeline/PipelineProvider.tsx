@@ -57,9 +57,14 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     const engine = new PipelineEngine({
       dispatch,
       api,
-      onNavigateToViewer: (id, { from, volumeFileId, overlayFileId, previewWhileProcessing }) =>
+      onNavigateToViewer: (id, { from, volumeFileId, previewWhileProcessing }) =>
         navigate(`/visualize/${id}`, {
-          state: { from, volumeFileId, overlayFileId, previewWhileProcessing },
+          state: {
+            from,
+            ...(previewWhileProcessing
+              ? { volumeFileId, previewWhileProcessing: true }
+              : {}),
+          },
           replace: true,
         }),
     });

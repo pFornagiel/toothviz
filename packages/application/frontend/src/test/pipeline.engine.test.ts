@@ -134,7 +134,9 @@ describe("PipelineEngine - start routing", () => {
 
 describe("PipelineEngine - upload flow", () => {
   it("uploads, globalises pipeline steps, and navigates on completion", async () => {
-    const { engine, api, actions, onNavigateToViewer, ws } = setup();
+    const { engine, api, actions, onNavigateToViewer, ws } = setup({
+      getStudy: vi.fn(async () => makeStudy({ status: "ready", job_id: "job1" })),
+    });
     engine.start({
       studyId: "s1",
       study: makeStudy(),
@@ -163,52 +165,17 @@ describe("PipelineEngine - upload flow", () => {
       actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2),
     ).toBe(true);
 
-    ws.onMessage({ event: "pipeline_completed", overlay_file_id: "mask-1" });
-    expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.Completed);
-
-    await flush();
-    // listFiles is empty in the default mock, so volume stays unresolved.
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", {
-      from: FromPage.Home,
-      overlayFileId: "mask-1",
-      volumeFileId: undefined,
-    });
-    // Terminal poll may call getStudy; file ids still come from the WS message.
-  });
-
-  it("resolves missing volume from listFiles on pipeline_completed", async () => {
-    const { engine, api, actions, ws, onNavigateToViewer } = setup({
-      listFiles: vi.fn(async () => [
-        {
-          id: "vol-1",
-          study_id: "s1",
-          kind: "nifti_raw",
-          viewer_purpose: "viewer_volume",
-          display_name: "vol.nii",
-          blob_hash: "a",
-          size: 1,
-          created_at: "",
-          status: "ready",
-        },
-      ]),
-    });
-    engine.start({
-      studyId: "s1",
-      study: makeStudy(),
-      routeState: { uploadPayload, from: FromPage.Home },
-    });
-    await flush();
-
-    ws.onMessage({ event: "pipeline_completed", overlay_file_id: "mask-1" });
-    await flush();
-
-    expect(api.listFiles).toHaveBeenCalledWith("s1", "viewer_volume,viewer_overlay");
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", {
-      from: FromPage.Home,
-      overlayFileId: "mask-1",
-      volumeFileId: "vol-1",
+    ws.onMessage({
+      event: "pipeline_completed",
     });
     expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.Completed);
+
+    await flush();
+    // Final display matches main: navigate with from only; viewer loads via REST.
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", {
+      from: FromPage.Home,
+    });
+    expect(api.getStudy).toHaveBeenCalled();
   });
 
   it("uploads volume then mask, sharing the trailing finalize step", async () => {
@@ -396,7 +363,9 @@ describe("PipelineEngine - resume processing", () => {
     });
     await flush();
 
-    ws.onMessage({ event: "pipeline_completed", overlay_file_id: "mask-1" });
+    ws.onMessage({
+      event: "pipeline_completed",
+    });
     await flush();
 
     expect(clearIntervalSpy).toHaveBeenCalled();

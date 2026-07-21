@@ -75,12 +75,13 @@ export default function useNiivueViewer({
         return;
       }
       setStatusText("Loading files...");
-      const { volumeFileId, overlayFileId, previewWhileProcessing } = routeState;
+      const { volumeFileId, previewWhileProcessing } = routeState;
       const skipOverlay = previewWhileProcessing === true;
 
+      // Final display always resolves by viewer_purpose via REST. Route file ids
+      // are only hints for mid-pipeline preview (volume only).
       const resolved = await resolveViewerFileIds(listFiles, studyId, {
-        volumeFileId,
-        overlayFileId,
+        volumeFileId: skipOverlay ? volumeFileId : undefined,
         includeOverlay: !skipOverlay,
       });
 
@@ -123,7 +124,6 @@ export default function useNiivueViewer({
     [
       studyId,
       routeState.volumeFileId,
-      routeState.overlayFileId,
       routeState.previewWhileProcessing,
       onVolumesLoaded,
     ],

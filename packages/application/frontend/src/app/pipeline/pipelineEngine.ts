@@ -1,15 +1,15 @@
 import type { Dispatch } from "react";
 import { ApiError } from "@/api/client";
-import {
-  type FinalizeResponse,
-  type LoadingStepId,
-  type PipelineMessage,
-  type PipelineRequestItem,
-  type StudyResponse,
-  UploadKind,
+import type {
+  FileRecordResponse,
+  FinalizeResponse,
+  LoadingStepId,
+  PipelineMessage,
+  PipelineRequestItem,
+  StudyResponse,
 } from "@/api/types";
+import { UploadKind } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
-import type { FileRecordResponse } from "@/api/types";
 import { FromPage, type LocationState, type UploadPayload, type ViewerNavigationOptions } from "./types";
 import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
 import { createLoadingSteps as getLoadingSteps } from "./steps";
@@ -296,7 +296,7 @@ export class PipelineEngine {
             this.disconnect = null;
             this.intentionalClose = false;
           },
-          onPipelineCompleted: (m) => void this.finishOk(m),
+          onPipelineCompleted: () => void this.finishOk(),
           onPipelineFailed: (m) => {
             this.goError(
               "Processing failed",
@@ -421,7 +421,7 @@ export class PipelineEngine {
     };
   }
 
-  private async finishOk(msg: PipelineMessage): Promise<void> {
+  private async finishOk(): Promise<void> {
     this.clearReconnectTimer();
     this.clearTerminalPoll();
     this.intentionalClose = true;
@@ -429,33 +429,8 @@ export class PipelineEngine {
     this.disconnect = null;
     this.intentionalClose = false;
 
-    let volumeFileId = msg.volume_file_id ?? undefined;
-    let overlayFileId = msg.overlay_file_id ?? undefined;
-
-    // NIfTI source volumes are not always in the completion frame; resolve from
-    // study files so the viewer always gets image + mask when both exist.
-    if (volumeFileId == null || overlayFileId == null) {
-      try {
-        const resolved = await resolveViewerFileIds(this.api.listFiles, this.studyId, {
-          volumeFileId,
-          overlayFileId,
-        });
-        volumeFileId = resolved.volumeFileId ?? volumeFileId;
-        overlayFileId = resolved.overlayFileId ?? overlayFileId;
-      } catch {
-        /* fall through with whatever ids we have */
-      }
-    }
-
-    if (volumeFileId != null || overlayFileId != null) {
-      this.navigateToViewer({
-        ...msg,
-        volume_file_id: volumeFileId ?? null,
-        overlay_file_id: overlayFileId ?? null,
-      });
-      return;
-    }
-
+    // Same as main: confirm study readiness, then open the viewer. File ids are
+    // resolved by the visualization page via listFiles + viewer_purpose.
     try {
       const fresh = await this.api.getStudy(this.studyId);
       if (this.cancelled) {
@@ -483,11 +458,9 @@ export class PipelineEngine {
     }
   }
 
-  private navigateToViewer(msg?: PipelineMessage): void {
+  private navigateToViewer(): void {
     this.onNavigateToViewer(this.studyId, {
       from: this.routeState.from ?? FromPage.Home,
-      volumeFileId: msg?.volume_file_id,
-      overlayFileId: msg?.overlay_file_id,
     });
   }
 

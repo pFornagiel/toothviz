@@ -6,7 +6,6 @@ import re
 import shutil
 from dataclasses import replace
 
-from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.services.storage_service import StorageService
 from backend.workers.steps.base import OutputArtifact, PipelineStep, StepContext
@@ -45,7 +44,6 @@ async def run_pipeline(
 
     try:
         collected: dict[str, OutputArtifact] = {}
-        derived_file_ids: dict[str, str] = {}
 
         for i, step in enumerate(steps):
             step_ctx = replace(ctx, step_index=i, total_steps=total)
@@ -93,7 +91,6 @@ async def run_pipeline(
                     kind=artifact.kind,
                     viewer_purpose=artifact.purpose,
                 )
-                derived_file_ids[artifact.purpose] = record.id
                 step_committed[artifact.purpose] = record.id
 
             if total:
@@ -105,30 +102,13 @@ async def run_pipeline(
                     "total_steps": total,
                     "step_index": i,
                     "step_progress": 1.0,
+                    # Optional: purposes committed this step (e.g. for mid-run preview).
+                    "artifacts": dict(step_committed),
                 }
-                volume_id = step_committed.get("viewer_volume")
-                if volume_id is not None:
-                    completed_payload["volume_file_id"] = volume_id
                 await step_ctx.broadcaster.broadcast(job_id, completed_payload)
 
         with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")
-
-        volume_file_id = derived_file_ids.get("viewer_volume")
-        overlay_file_id = derived_file_ids.get("viewer_overlay")
-        # NIfTI uploads already bind the source file as viewer_volume; that id
-        # is not in derived_file_ids unless a step re-stored the volume.
-        if volume_file_id is None or overlay_file_id is None:
-            with storage_service.session_factory() as db:
-                files = FileRepo(db).list_by_study(
-                    ctx.study_id,
-                    viewer_purpose_filter=["viewer_volume", "viewer_overlay"],
-                )
-            for f in files:
-                if volume_file_id is None and f.viewer_purpose == "viewer_volume":
-                    volume_file_id = f.id
-                if overlay_file_id is None and f.viewer_purpose == "viewer_overlay":
-                    overlay_file_id = f.id
 
         await ctx.broadcaster.broadcast(
             job_id,
@@ -137,8 +117,6 @@ async def run_pipeline(
                 "job_id": job_id,
                 "status": "completed",
                 "progress": 1.0,
-                "volume_file_id": volume_file_id,
-                "overlay_file_id": overlay_file_id,
             },
         )
 

@@ -27,6 +27,20 @@ export enum PipelineStatus {
 
 export type LoadingStepId = PipelineStepName | ClientStepName | BackendStepName;
 
+/**
+ * FileRecord.viewer_purpose values used by the viewer and WS artifact maps.
+ * New purposes can be added without changing the WebSocket envelope.
+ */
+export const ViewerPurpose = {
+  Volume: "viewer_volume",
+  Overlay: "viewer_overlay",
+} as const;
+
+export type ViewerPurposeId = (typeof ViewerPurpose)[keyof typeof ViewerPurpose];
+
+/** Purpose → FileRecord id for derived (or already-bound) study files. */
+export type PipelineArtifacts = Partial<Record<string, string>>;
+
 // --- Request Items ---
 
 export interface PipelineRequestItem {
@@ -76,15 +90,17 @@ export interface PipelineWsStepCompleted extends PipelineWsBase {
   total_steps: number;
   progress: number;
   step_progress?: number;
-  volume_file_id?: string | null;
+  /**
+   * Files committed by this step, keyed by viewer purpose.
+   * Used for mid-pipeline preview only — final display loads via REST.
+   */
+  artifacts?: PipelineArtifacts;
 }
 
 export interface PipelineWsCompleted extends PipelineWsBase {
   event: "pipeline_completed";
   status?: PipelineStatus.Completed | "completed";
   progress?: number;
-  volume_file_id?: string | null;
-  overlay_file_id?: string | null;
 }
 
 export interface PipelineWsFailed extends PipelineWsBase {
@@ -120,6 +136,13 @@ export type PipelineMessage =
       step_index?: number;
       chunk_index?: number;
       total_chunks?: number;
-      volume_file_id?: string | null;
-      overlay_file_id?: string | null;
+      artifacts?: PipelineArtifacts;
     };
+
+export function artifactFileId(
+  artifacts: PipelineArtifacts | undefined,
+  purpose: string,
+): string | undefined {
+  const id = artifacts?.[purpose];
+  return id || undefined;
+}

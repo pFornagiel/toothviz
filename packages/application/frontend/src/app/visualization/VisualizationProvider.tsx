@@ -78,7 +78,6 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
 
   const { processingNotice } = useProcessingPreview({
     studyId,
-    routeState,
     nvRef,
     enabled: previewEnabled,
     onOverlayLoaded: volumeDisplay.syncFromVolumes,

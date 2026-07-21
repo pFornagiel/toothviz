@@ -45,10 +45,9 @@ async def test_ws_pipeline_receives_broadcast(integration_app, client):
                 "job_id": job_id,
                 "status": "completed",
                 "progress": 1.0,
-                "overlay_file_id": "mask-abc",
             },
         )
         raw = ws.receive_text()
         payload = json.loads(raw)
         assert payload["event"] == "pipeline_completed"
-        assert payload["overlay_file_id"] == "mask-abc"
+        assert "artifacts" not in payload

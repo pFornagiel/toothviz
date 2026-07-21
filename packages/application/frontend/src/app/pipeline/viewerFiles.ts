@@ -1,4 +1,5 @@
 import type { FileRecordResponse } from "@/api/types";
+import { ViewerPurpose } from "@/api/types";
 
 export interface ViewerFileIds {
   volumeFileId?: string;
@@ -13,7 +14,7 @@ type ListFilesFn = (
 ) => Promise<FileRecordResponse[]>;
 
 /**
- * Resolve viewer_volume / viewer_overlay file ids (and display names) for a study.
+ * Resolve viewer purposes used by the NiiVue page (volume + optional overlay).
  * Prefer callers' known ids; fill gaps from listFiles.
  */
 export async function resolveViewerFileIds(
@@ -39,20 +40,20 @@ export async function resolveViewerFileIds(
   }
 
   const purposes = [
-    needVolume ? "viewer_volume" : null,
-    needOverlay ? "viewer_overlay" : null,
+    needVolume ? ViewerPurpose.Volume : null,
+    needOverlay ? ViewerPurpose.Overlay : null,
   ]
     .filter(Boolean)
     .join(",");
 
   const files = await listFiles(studyId, purposes);
   if (needVolume) {
-    const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
+    const volume = files.find((f) => f.viewer_purpose === ViewerPurpose.Volume);
     volumeFileId = volume?.id;
     volumeDisplayName = volume?.display_name ?? undefined;
   }
   if (needOverlay) {
-    const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
+    const overlay = files.find((f) => f.viewer_purpose === ViewerPurpose.Overlay);
     overlayFileId = overlay?.id;
     overlayDisplayName = overlay?.display_name ?? undefined;
   }

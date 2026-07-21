@@ -1,5 +1,6 @@
 import type { Dispatch } from "react";
 import type { PipelineMessage } from "@/api/types";
+import { ViewerPurpose, artifactFileId } from "@/api/types";
 import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
 import { pipelineStepProgress } from "./progress";
 
@@ -58,11 +59,14 @@ export function applyWsMessage(
     return;
   }
 
-  if (msg.event === "step_completed" && msg.volume_file_id) {
-    dispatch({
-      type: PipelineActionType.SetVolumePreview,
-      fileId: msg.volume_file_id,
-    });
+  if (msg.event === "step_completed") {
+    const previewId = artifactFileId(msg.artifacts, ViewerPurpose.Volume);
+    if (previewId) {
+      dispatch({
+        type: PipelineActionType.SetVolumePreview,
+        fileId: previewId,
+      });
+    }
   }
 
   const step = pipelineStepProgress(msg);

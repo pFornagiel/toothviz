@@ -11,16 +11,23 @@ from backend.schemas import (
 )
 
 
-def test_pipeline_completed_schema_accepts_derived_file_ids():
-    msg = PipelineWsCompletedMessage(
-        job_id="j1",
-        volume_file_id="vol-1",
-        overlay_file_id="mask-1",
-    )
+def test_pipeline_completed_schema_has_no_artifacts():
+    msg = PipelineWsCompletedMessage(job_id="j1")
     dumped = msg.model_dump()
     assert dumped["event"] == "pipeline_completed"
-    assert dumped["volume_file_id"] == "vol-1"
-    assert dumped["overlay_file_id"] == "mask-1"
+    assert "artifacts" not in dumped
+
+
+def test_pipeline_completed_rejects_artifacts():
+    with pytest.raises(ValidationError):
+        PipelineWsCompletedMessage.model_validate(
+            {
+                "event": "pipeline_completed",
+                "job_id": "j1",
+                "status": "completed",
+                "artifacts": {"viewer_volume": "vol-1"},
+            }
+        )
 
 
 def test_validate_pipeline_ws_payload_normalizes_step_progress():
@@ -39,7 +46,7 @@ def test_validate_pipeline_ws_payload_normalizes_step_progress():
     assert validated["job_id"] == "j1"
 
 
-def test_step_completed_accepts_volume_file_id():
+def test_step_completed_accepts_artifacts():
     raw = {
         "event": "step_completed",
         "job_id": "j1",
@@ -48,10 +55,10 @@ def test_step_completed_accepts_volume_file_id():
         "total_steps": 2,
         "progress": 0.5,
         "step_progress": 1.0,
-        "volume_file_id": "vol-1",
+        "artifacts": {"viewer_volume": "vol-1"},
     }
     validated = validate_pipeline_ws_payload(raw)
-    assert validated["volume_file_id"] == "vol-1"
+    assert validated["artifacts"]["viewer_volume"] == "vol-1"
     PipelineWsStepCompletedMessage.model_validate(validated)
 
 

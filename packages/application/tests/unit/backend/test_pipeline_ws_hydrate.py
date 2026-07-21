@@ -43,14 +43,14 @@ def _setup(db_session, status: str, steps=None, error=None):
     db_session.commit()
 
 
-def test_hydrate_completed_includes_file_ids(db_session, session_factory):
+def test_hydrate_completed_has_no_artifacts(db_session, session_factory):
     _setup(db_session, "completed")
     hydrate = build_pipeline_ws_hydrate(session_factory)
     payload = hydrate("j1")
     assert payload is not None
     assert payload["event"] == "pipeline_completed"
-    assert payload["volume_file_id"] == "vol"
-    assert payload["overlay_file_id"] == "mask"
+    assert payload["job_id"] == "j1"
+    assert "artifacts" not in payload
 
 
 def test_hydrate_failed(db_session, session_factory):

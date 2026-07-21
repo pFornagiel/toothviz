@@ -78,7 +78,7 @@ describe("applyWsMessage - non-terminal events", () => {
     });
   });
 
-  it("stores preview volume id when step_completed includes volume_file_id", () => {
+  it("stores preview volume id when step_completed includes viewer_volume artifact", () => {
     const opts = makeOptions({ stepOffset: 0 });
     applyWsMessage(
       {
@@ -87,7 +87,7 @@ describe("applyWsMessage - non-terminal events", () => {
         progress: 0.5,
         total_steps: 2,
         step_index: 0,
-        volume_file_id: "vol-1",
+        artifacts: { viewer_volume: "vol-1" },
       },
       opts,
     );
@@ -110,7 +110,6 @@ describe("applyWsMessage - terminal events", () => {
     const opts = makeOptions();
     const msg: PipelineMessage = {
       event: "pipeline_completed",
-      overlay_file_id: "mask-1",
     };
     applyWsMessage(msg, opts);
 

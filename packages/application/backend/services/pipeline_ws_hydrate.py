@@ -4,7 +4,6 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
-from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.exceptions import NotFoundError
 from backend.schemas import (
@@ -28,21 +27,7 @@ def build_pipeline_ws_hydrate(
                 return None
 
             if job.status == "completed":
-                volume_id: str | None = None
-                overlay_id: str | None = None
-                for f in FileRepo(db).list_by_study(
-                    job.study_id,
-                    viewer_purpose_filter=["viewer_volume", "viewer_overlay"],
-                ):
-                    if f.viewer_purpose == "viewer_volume" and volume_id is None:
-                        volume_id = f.id
-                    elif f.viewer_purpose == "viewer_overlay" and overlay_id is None:
-                        overlay_id = f.id
-                return PipelineWsCompletedMessage(
-                    job_id=job.id,
-                    volume_file_id=volume_id,
-                    overlay_file_id=overlay_id,
-                ).model_dump(mode="json")
+                return PipelineWsCompletedMessage(job_id=job.id).model_dump(mode="json")
 
             if job.status == "failed":
                 return PipelineWsFailedMessage(

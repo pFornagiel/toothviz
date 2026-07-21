@@ -11,7 +11,6 @@ import {
   DEFAULT_OVERLAY_OPACITY,
   OVERLAY_COLORMAP,
 } from "../constants";
-import type { VisualizationLocationState } from "../types";
 
 const SUCCESS_BANNER_DISMISS_MS = 5_000;
 
@@ -21,13 +20,11 @@ const SUCCESS_BANNER_DISMISS_MS = 5_000;
  */
 export default function useProcessingPreview({
   studyId,
-  routeState,
   nvRef,
   enabled,
   onOverlayLoaded,
 }: {
   studyId?: string;
-  routeState: VisualizationLocationState;
   nvRef: RefObject<NiiVueGPU | null>;
   enabled: boolean;
   onOverlayLoaded?: (nv: NiiVueGPU) => void;
@@ -50,9 +47,7 @@ export default function useProcessingPreview({
     setProcessingNotice("loading-artifacts");
 
     try {
-      const resolved = await resolveViewerFileIds(listFiles, studyId, {
-        overlayFileId: routeState.overlayFileId,
-      });
+      const resolved = await resolveViewerFileIds(listFiles, studyId);
       const overlayId = resolved.overlayFileId;
       if (!overlayId) {
         setProcessingNotice("preview-waiting");
@@ -72,7 +67,7 @@ export default function useProcessingPreview({
     } catch {
       setProcessingNotice("processing-failed");
     }
-  }, [studyId, routeState.overlayFileId, nvRef, onOverlayLoaded]);
+  }, [studyId, nvRef, onOverlayLoaded]);
 
   useEffect(() => {
     if (!enabled) {

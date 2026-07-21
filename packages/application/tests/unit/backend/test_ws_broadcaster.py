@@ -117,8 +117,6 @@ async def test_register_hydrates_terminal_when_no_snapshot():
             "job_id": job_id,
             "status": "completed",
             "progress": 1.0,
-            "volume_file_id": "vol-1",
-            "overlay_file_id": "mask-1",
         }
 
     bc = WSBroadcaster(hydrate_job=hydrate)
@@ -128,7 +126,7 @@ async def test_register_hydrates_terminal_when_no_snapshot():
     ws.send_text.assert_called_once()
     replayed = json.loads(ws.send_text.call_args[0][0])
     assert replayed["event"] == "pipeline_completed"
-    assert replayed["volume_file_id"] == "vol-1"
+    assert "artifacts" not in replayed
 
 
 @pytest.mark.asyncio

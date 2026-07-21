@@ -141,7 +141,12 @@ class PipelineWsStepProgressMessage(BaseModel):
 
 
 class PipelineWsStepCompletedMessage(BaseModel):
-    """One step finished; the pipeline may still have more steps."""
+    """One step finished; the pipeline may still have more steps.
+
+    ``artifacts`` maps FileRecord viewer purposes (e.g. viewer_volume) to the
+    file ids committed by this step. Open-ended so new steps/purposes need no
+    schema change.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -152,7 +157,7 @@ class PipelineWsStepCompletedMessage(BaseModel):
     total_steps: int
     progress: float
     step_progress: float = 1.0
-    volume_file_id: str | None = None
+    artifacts: dict[str, str] = Field(default_factory=dict)
 
 
 PipelineWsStepMessage = (
@@ -163,12 +168,18 @@ PipelineWsStepMessage = (
 
 
 class PipelineWsCompletedMessage(BaseModel):
+    """Pipeline finished successfully.
+
+    File ids are not included — the client loads viewer files via REST using
+    FileRecord.viewer_purpose (same contract as a Browse → Open study).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     event: Literal["pipeline_completed"] = "pipeline_completed"
     job_id: str
     status: Literal["completed"] = "completed"
     progress: float = 1.0
-    volume_file_id: str | None = None
-    overlay_file_id: str | None = None
 
 
 class PipelineWsFailedMessage(BaseModel):
