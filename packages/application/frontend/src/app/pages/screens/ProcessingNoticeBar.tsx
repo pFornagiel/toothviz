@@ -111,7 +111,7 @@ function ExpandedContent({
     case "artifacts-ready":
       return (
         <p className="text-muted-foreground">
-          Volume and segmentation overlay are ready. This message will dismiss shortly.
+          Processing finished and results are ready. This message will dismiss shortly.
         </p>
       );
     case "processing-failed":

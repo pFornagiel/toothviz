@@ -50,7 +50,9 @@ export default function useProcessingPreview({
       const resolved = await resolveViewerFileIds(listFiles, studyId);
       const overlayId = resolved.overlayFileId;
       if (!overlayId) {
-        setProcessingNotice("preview-waiting");
+        // Pipeline finished without a segmentation overlay (e.g. stub/passthrough).
+        overlayLoadedRef.current = true;
+        setProcessingNotice("artifacts-ready");
         return;
       }
 
