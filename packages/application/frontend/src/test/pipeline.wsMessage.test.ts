@@ -98,6 +98,26 @@ describe("applyWsMessage - non-terminal events", () => {
     });
   });
 
+  it("stores preview volume id when catch-up step_progress includes artifacts", () => {
+    const opts = makeOptions({ stepOffset: 0 });
+    applyWsMessage(
+      {
+        event: "step_progress",
+        step: "segment_nifti",
+        progress: 0.75,
+        total_steps: 2,
+        step_index: 1,
+        artifacts: { viewer_volume: "vol-catchup" },
+      },
+      opts,
+    );
+
+    expect(opts.dispatch).toHaveBeenCalledWith({
+      type: PipelineActionType.SetVolumePreview,
+      fileId: "vol-catchup",
+    });
+  });
+
   it("ignores a non-terminal message with no step index", () => {
     const opts = makeOptions();
     applyWsMessage({ event: "step_started", step: "x" }, opts);

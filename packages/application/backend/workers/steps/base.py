@@ -6,6 +6,7 @@ from typing import Any, Callable, Protocol
 
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
+from backend.schemas import PipelineWsStepProgressMessage
 
 
 # Registered keys for `StepContext.worker_pools` - must exist at app bootstrap.
@@ -51,21 +52,20 @@ class StepContext:
         overall = (self.step_index + sp) / self.total_steps
         overall = max(0.0, min(1.0, overall))
 
-        payload: dict[str, object] = {
-            "event": "step_progress",
-            "job_id": self.job_id,
-            "status": "running",
-            "step": step_name,
-            "step_index": self.step_index,
-            "total_steps": self.total_steps,
-            "progress": overall,
-            "step_progress": sp,
-        }
-        if chunk_index is not None and total_chunks is not None:
-            payload["chunk_index"] = chunk_index
-            payload["total_chunks"] = total_chunks
-
-        await self.broadcaster.broadcast(self.job_id, payload)
+        await self.broadcaster.broadcast(
+            self.job_id,
+            PipelineWsStepProgressMessage(
+                job_id=self.job_id,
+                status="running",
+                step=step_name,
+                step_index=self.step_index,
+                total_steps=self.total_steps,
+                progress=overall,
+                step_progress=sp,
+                chunk_index=chunk_index,
+                total_chunks=total_chunks,
+            ).model_dump(mode="json"),
+        )
 
 
 @dataclass

@@ -16,5 +16,5 @@ export {
 } from "./studyModes";
 
 export { PipelineProvider, usePipeline } from "./PipelineProvider";
-export { resolveViewerFileIds } from "./viewerFiles";
+export { resolveViewerFileIds, resolveVolumePreviewId } from "./viewerFiles";
 export { watchStudyUntilTerminal, STUDY_TERMINAL_POLL_MS } from "./studyWatch";

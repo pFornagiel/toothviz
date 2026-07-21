@@ -13,7 +13,7 @@ from backend.schemas import (
 
 def test_pipeline_completed_schema_has_no_artifacts():
     msg = PipelineWsCompletedMessage(job_id="j1")
-    dumped = msg.model_dump()
+    dumped = msg.model_dump(mode="json")
     assert dumped["event"] == "pipeline_completed"
     assert "artifacts" not in dumped
 
@@ -94,3 +94,8 @@ def test_step_completed_rejects_pipeline_running_status():
 def test_unknown_event_is_rejected():
     with pytest.raises(ValueError, match="unknown pipeline WebSocket event"):
         validate_pipeline_ws_payload({"event": "mystery", "job_id": "j1"})
+
+
+def test_missing_event_is_rejected():
+    with pytest.raises(ValueError, match="missing event"):
+        validate_pipeline_ws_payload({"job_id": "j1", "status": "completed"})

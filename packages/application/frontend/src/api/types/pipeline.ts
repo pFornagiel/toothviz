@@ -69,6 +69,8 @@ export interface PipelineWsStepStarted extends PipelineWsBase {
   step_index: number;
   total_steps: number;
   progress: number;
+  /** Present on reconnect catch-up when purposes were already committed. */
+  artifacts?: PipelineArtifacts;
 }
 
 export interface PipelineWsStepProgress extends PipelineWsBase {
@@ -81,6 +83,8 @@ export interface PipelineWsStepProgress extends PipelineWsBase {
   step_progress?: number;
   chunk_index?: number;
   total_chunks?: number;
+  /** Present on reconnect catch-up when purposes were already committed. */
+  artifacts?: PipelineArtifacts;
 }
 
 export interface PipelineWsStepCompleted extends PipelineWsBase {

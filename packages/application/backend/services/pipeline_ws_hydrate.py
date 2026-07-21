@@ -4,6 +4,7 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
+from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.exceptions import NotFoundError
 from backend.schemas import (
@@ -43,6 +44,13 @@ def build_pipeline_ws_hydrate(
                 steps = list(job.steps or [])
                 total = max(len(steps), 1)
                 step = steps[0] if steps else "pipeline"
+                artifacts: dict[str, str] = {}
+                for f in FileRepo(db).list_by_study(
+                    job.study_id,
+                    viewer_purpose_filter=["viewer_volume", "viewer_overlay"],
+                ):
+                    if f.viewer_purpose and f.viewer_purpose not in artifacts:
+                        artifacts[f.viewer_purpose] = f.id
                 return PipelineWsStepStartedMessage(
                     job_id=job.id,
                     status="running",
@@ -50,6 +58,7 @@ def build_pipeline_ws_hydrate(
                     step_index=0,
                     total_steps=total,
                     progress=0.0,
+                    artifacts=artifacts,
                 ).model_dump(mode="json")
 
             return None

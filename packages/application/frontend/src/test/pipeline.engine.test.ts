@@ -381,9 +381,16 @@ describe("PipelineEngine - resume processing", () => {
     expect(ws.disconnect).toHaveBeenCalledTimes(1);
   });
 
-  it("stops terminal poll after pipeline_completed", async () => {
-    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
-    const { engine, ws } = setup(resumeApi());
+  it("starts study terminal poll only after unexpected websocket close", async () => {
+    vi.useFakeTimers();
+    const getStudy = vi.fn(async () =>
+      makeStudy({
+        status: "processing",
+        job_id: "job1",
+        steps: [PipelineStepName.SegmentNifti],
+      }),
+    );
+    const { engine, ws } = setup({ getStudy });
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -391,13 +398,16 @@ describe("PipelineEngine - resume processing", () => {
     });
     await flush();
 
-    ws.onMessage({
-      event: "pipeline_completed",
-    });
+    // Healthy socket: no backup poll — only resume getStudy.
+    expect(getStudy).toHaveBeenCalledTimes(1);
+
+    ws.onClose();
     await flush();
 
-    expect(clearIntervalSpy).toHaveBeenCalled();
-    clearIntervalSpy.mockRestore();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(getStudy.mock.calls.length).toBeGreaterThan(1);
+
+    vi.useRealTimers();
   });
 });
 

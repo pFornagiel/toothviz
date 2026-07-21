@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveViewerFileIds } from "../app/pipeline/viewerFiles";
+import { resolveViewerFileIds, resolveVolumePreviewId } from "../app/pipeline/viewerFiles";
 import { watchStudyUntilTerminal } from "../app/pipeline/studyWatch";
 import type { StudyResponse } from "@/api/types";
 
@@ -58,6 +58,32 @@ describe("resolveViewerFileIds", () => {
     const resolved = await resolveViewerFileIds(listFiles, "s1", { includeOverlay: false });
     expect(resolved.volumeFileId).toBe("v1");
     expect(resolved.overlayFileId).toBeUndefined();
+    expect(listFiles).toHaveBeenCalledWith("s1", "viewer_volume");
+  });
+});
+
+describe("resolveVolumePreviewId", () => {
+  it("returns the known id without listing files", async () => {
+    const listFiles = vi.fn(async () => []);
+    await expect(resolveVolumePreviewId(listFiles, "s1", "known")).resolves.toBe("known");
+    expect(listFiles).not.toHaveBeenCalled();
+  });
+
+  it("lists viewer_volume when no known id", async () => {
+    const listFiles = vi.fn(async () => [
+      {
+        id: "v1",
+        study_id: "s1",
+        kind: "nifti_raw",
+        viewer_purpose: "viewer_volume",
+        display_name: "vol.nii",
+        blob_hash: "a",
+        size: 1,
+        created_at: "",
+        status: "ready",
+      },
+    ]);
+    await expect(resolveVolumePreviewId(listFiles, "s1")).resolves.toBe("v1");
     expect(listFiles).toHaveBeenCalledWith("s1", "viewer_volume");
   });
 });

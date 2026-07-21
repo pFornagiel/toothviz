@@ -7,6 +7,13 @@ import shutil
 from dataclasses import replace
 
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
+from backend.schemas import (
+    PipelineWsCancelledMessage,
+    PipelineWsCompletedMessage,
+    PipelineWsFailedMessage,
+    PipelineWsStepCompletedMessage,
+    PipelineWsStepStartedMessage,
+)
 from backend.services.storage_service import StorageService
 from backend.workers.steps.base import OutputArtifact, PipelineStep, StepContext
 
@@ -50,15 +57,14 @@ async def run_pipeline(
             if total:
                 await step_ctx.broadcaster.broadcast(
                     job_id,
-                    {
-                        "event": "step_started",
-                        "job_id": job_id,
-                        "step": step.name,
-                        "status": "running",
-                        "progress": i / total,
-                        "total_steps": total,
-                        "step_index": i,
-                    },
+                    PipelineWsStepStartedMessage(
+                        job_id=job_id,
+                        status="running",
+                        step=step.name,
+                        step_index=i,
+                        total_steps=total,
+                        progress=i / total,
+                    ).model_dump(mode="json"),
                 )
             try:
                 result = await step.run(step_ctx)
@@ -94,30 +100,25 @@ async def run_pipeline(
                 step_committed[artifact.purpose] = record.id
 
             if total:
-                completed_payload: dict[str, object] = {
-                    "event": "step_completed",
-                    "job_id": job_id,
-                    "step": step.name,
-                    "progress": (i + 1) / total if total else 1.0,
-                    "total_steps": total,
-                    "step_index": i,
-                    "step_progress": 1.0,
-                    # Optional: purposes committed this step (e.g. for mid-run preview).
-                    "artifacts": dict(step_committed),
-                }
-                await step_ctx.broadcaster.broadcast(job_id, completed_payload)
+                await step_ctx.broadcaster.broadcast(
+                    job_id,
+                    PipelineWsStepCompletedMessage(
+                        job_id=job_id,
+                        step=step.name,
+                        step_index=i,
+                        total_steps=total,
+                        progress=(i + 1) / total if total else 1.0,
+                        step_progress=1.0,
+                        artifacts=dict(step_committed),
+                    ).model_dump(mode="json"),
+                )
 
         with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")
 
         await ctx.broadcaster.broadcast(
             job_id,
-            {
-                "event": "pipeline_completed",
-                "job_id": job_id,
-                "status": "completed",
-                "progress": 1.0,
-            },
+            PipelineWsCompletedMessage(job_id=job_id).model_dump(mode="json"),
         )
 
     except asyncio.CancelledError:
@@ -125,11 +126,7 @@ async def run_pipeline(
             PipelineJobRepo(db).set_status(job_id, "cancelled")
         await ctx.broadcaster.broadcast(
             job_id,
-            {
-                "event": "pipeline_cancelled",
-                "job_id": job_id,
-                "status": "cancelled",
-            },
+            PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
         )
         raise
 
@@ -143,13 +140,11 @@ async def run_pipeline(
             PipelineJobRepo(db).set_status(job_id, "failed", error=error_text)
         await ctx.broadcaster.broadcast(
             job_id,
-            {
-                "event": "pipeline_failed",
-                "job_id": job_id,
-                "status": "failed",
-                "error": error_text,
-                "failed_step": failed_step,
-            },
+            PipelineWsFailedMessage(
+                job_id=job_id,
+                error=error_text,
+                failed_step=failed_step,
+            ).model_dump(mode="json"),
         )
 
     finally:

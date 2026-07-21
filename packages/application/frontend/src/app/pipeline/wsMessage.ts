@@ -59,14 +59,13 @@ export function applyWsMessage(
     return;
   }
 
-  if (msg.event === "step_completed") {
-    const previewId = artifactFileId(msg.artifacts, ViewerPurpose.Volume);
-    if (previewId) {
-      dispatch({
-        type: PipelineActionType.SetVolumePreview,
-        fileId: previewId,
-      });
-    }
+  // Live step_completed and reconnect catch-up (any step frame with artifacts).
+  const previewId = artifactFileId(msg.artifacts, ViewerPurpose.Volume);
+  if (previewId) {
+    dispatch({
+      type: PipelineActionType.SetVolumePreview,
+      fileId: previewId,
+    });
   }
 
   const step = pipelineStepProgress(msg);

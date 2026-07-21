@@ -60,3 +60,20 @@ export async function resolveViewerFileIds(
 
   return { volumeFileId, overlayFileId, volumeDisplayName, overlayDisplayName };
 }
+
+/**
+ * Resolve a volume file id for mid-pipeline preview (known id or listFiles).
+ */
+export async function resolveVolumePreviewId(
+  listFiles: ListFilesFn,
+  studyId: string,
+  knownId?: string | null,
+): Promise<string | undefined> {
+  if (knownId) {
+    return knownId;
+  }
+  const { volumeFileId } = await resolveViewerFileIds(listFiles, studyId, {
+    includeOverlay: false,
+  });
+  return volumeFileId;
+}

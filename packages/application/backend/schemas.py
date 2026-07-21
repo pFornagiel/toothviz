@@ -116,6 +116,8 @@ class PipelineJobResponse(BaseModel):
 class PipelineWsStepStartedMessage(BaseModel):
     """Pipeline still running; a step has begun."""
 
+    model_config = ConfigDict(extra="forbid")
+
     event: Literal["step_started"] = "step_started"
     job_id: str
     status: Literal["running"]
@@ -123,10 +125,14 @@ class PipelineWsStepStartedMessage(BaseModel):
     step_index: int
     total_steps: int
     progress: float
+    # Optional on catch-up frames (committed purposes so far).
+    artifacts: dict[str, str] = Field(default_factory=dict)
 
 
 class PipelineWsStepProgressMessage(BaseModel):
     """Pipeline still running; intra-step progress update."""
+
+    model_config = ConfigDict(extra="forbid")
 
     event: Literal["step_progress"] = "step_progress"
     job_id: str
@@ -138,6 +144,8 @@ class PipelineWsStepProgressMessage(BaseModel):
     step_progress: float | None = None
     chunk_index: int | None = None
     total_chunks: int | None = None
+    # Optional on catch-up frames (committed purposes so far).
+    artifacts: dict[str, str] = Field(default_factory=dict)
 
 
 class PipelineWsStepCompletedMessage(BaseModel):
@@ -183,6 +191,8 @@ class PipelineWsCompletedMessage(BaseModel):
 
 
 class PipelineWsFailedMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event: Literal["pipeline_failed"] = "pipeline_failed"
     job_id: str
     status: Literal["failed"] = "failed"
@@ -191,6 +201,8 @@ class PipelineWsFailedMessage(BaseModel):
 
 
 class PipelineWsCancelledMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event: Literal["pipeline_cancelled"] = "pipeline_cancelled"
     job_id: str
     status: Literal["cancelled"] = "cancelled"
@@ -204,12 +216,12 @@ _WS_STEP_COMPLETED = "step_completed"
 def validate_pipeline_ws_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize a pipeline WebSocket frame before broadcast.
 
-    Frames without an ``event`` pass through (legacy/test). Known events are
-    normalized via Pydantic. Unknown events raise ``ValueError``.
+    Known events are normalized via Pydantic. Missing or unknown ``event``
+    raises ``ValueError``.
     """
     event = payload.get("event")
     if not event:
-        return payload
+        raise ValueError("pipeline WebSocket payload missing event")
     if event == _WS_STEP_STARTED:
         return PipelineWsStepStartedMessage.model_validate(payload).model_dump(mode="json")
     if event == _WS_STEP_PROGRESS:

@@ -66,7 +66,7 @@ def test_hydrate_failed(db_session, session_factory):
     }
 
 
-def test_hydrate_running_emits_step_started(db_session, session_factory):
+def test_hydrate_running_emits_step_started_with_committed_files(db_session, session_factory):
     _setup(db_session, "running", steps=["dicom_to_nifti", "segment_nifti"])
     hydrate = build_pipeline_ws_hydrate(session_factory)
     payload = hydrate("j1")
@@ -74,6 +74,8 @@ def test_hydrate_running_emits_step_started(db_session, session_factory):
     assert payload["event"] == "step_started"
     assert payload["step"] == "dicom_to_nifti"
     assert payload["total_steps"] == 2
+    assert payload["artifacts"]["viewer_volume"] == "vol"
+    assert payload["artifacts"]["viewer_overlay"] == "mask"
 
 
 def test_hydrate_unknown_job(session_factory):

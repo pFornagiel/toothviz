@@ -27,11 +27,16 @@ class WSBroadcaster:
     Local desktop assumes at most one active pipeline job; a single asyncio lock
     still serializes register/replay vs broadcast so reconnect cannot race a
     newer live frame.
+
+    Mid-run catch-up merges ``_committed_artifacts`` into the last snapshot so
+    reconnect can restore volume preview without putting file ids on
+    ``pipeline_completed``.
     """
 
     def __init__(self, hydrate_job: HydrateFn | None = None) -> None:
         self._registry: dict[str, list[WebSocket]] = defaultdict(list)
         self._last_snapshot: dict[str, dict[str, Any]] = {}
+        self._committed_artifacts: dict[str, dict[str, str]] = {}
         self._hydrate_job = hydrate_job
         self._lock = asyncio.Lock()
 
@@ -52,11 +57,6 @@ class WSBroadcaster:
             if not conns:
                 self._registry.pop(job_id, None)
 
-    async def replay_snapshot(self, job_id: str, ws: WebSocket) -> None:
-        """Send catch-up frame to a newly connected client (snapshot or DB hydrate)."""
-        async with self._lock:
-            await self._send_catchup_unlocked(job_id, ws)
-
     async def _send_catchup_unlocked(self, job_id: str, ws: WebSocket) -> None:
         payload = self._last_snapshot.get(job_id)
         if payload is None and self._hydrate_job is not None:
@@ -67,6 +67,13 @@ class WSBroadcaster:
                 payload = None
         if payload is None:
             return
+
+        event = payload.get("event")
+        if event not in _TERMINAL_EVENTS:
+            committed = self._committed_artifacts.get(job_id)
+            if committed:
+                payload = {**payload, "artifacts": dict(committed)}
+
         try:
             await ws.send_text(json.dumps(payload))
         except Exception as exc:
@@ -91,7 +98,13 @@ class WSBroadcaster:
             event = payload.get("event")
             if event in _TERMINAL_EVENTS:
                 self._last_snapshot.pop(job_id, None)
-            elif event is not None:
+                self._committed_artifacts.pop(job_id, None)
+            else:
+                if event == "step_completed":
+                    arts = payload.get("artifacts") or {}
+                    if arts:
+                        bag = self._committed_artifacts.setdefault(job_id, {})
+                        bag.update(arts)
                 self._last_snapshot[job_id] = payload
 
             conns = self._registry.get(job_id)

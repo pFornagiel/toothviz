@@ -17,7 +17,7 @@ import { CANCELLED_HINTS, errorHints } from "./errorHints";
 import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
 import { watchStudyUntilTerminal, STUDY_TERMINAL_POLL_MS } from "./studyWatch";
-import { resolveViewerFileIds } from "./viewerFiles";
+import { resolveVolumePreviewId } from "./viewerFiles";
 
 const WS_RECONNECT_MAX_ATTEMPTS = 5;
 const WS_RECONNECT_BASE_MS = 1_000;
@@ -166,10 +166,7 @@ export class PipelineEngine {
         }
 
         if (job.kind === UploadKind.NiftiRaw) {
-          this.dispatch({
-            type: PipelineActionType.SetVolumePreview,
-            fileId: result.file_id,
-          });
+          await this.setVolumePreview(result.file_id);
         }
 
         this.dispatch({
@@ -213,7 +210,7 @@ export class PipelineEngine {
         return;
       }
 
-      if (this.handleTerminalStudyStatus(fresh)) {
+      if (this.applyTerminalStudy(fresh)) {
         return;
       }
 
@@ -254,7 +251,7 @@ export class PipelineEngine {
 
     const stepNames = (study.steps ?? []) as LoadingStepId[];
     this.dispatch({ type: PipelineActionType.SetSteps, steps: stepNames });
-    await this.restorePreviewVolume();
+    await this.setVolumePreview();
     if (this.cancelled) {
       return;
     }
@@ -276,13 +273,15 @@ export class PipelineEngine {
     this.disconnect = null;
     this.intentionalClose = false;
 
-    this.startTerminalPoll();
+    // Terminal poll is only a backup while the socket is down (see onClose).
+    this.clearTerminalPoll();
 
     const disconnect = this.api.establishWebsocketConnection(
       jobId,
       (msg) => {
-        // A live frame means the socket is healthy again.
+        // A live frame means the socket is healthy again — stop REST backup poll.
         this.reconnectAttempts = 0;
+        this.clearTerminalPoll();
         applyWsMessage(msg, {
           stepOffset,
           dispatch: this.dispatch,
@@ -319,6 +318,8 @@ export class PipelineEngine {
       return;
     }
     this.disconnect = null;
+    // While reconnecting, poll study status in case the job finished without a WS frame.
+    this.startTerminalPoll();
     this.scheduleReconnect();
   }
 
@@ -357,14 +358,16 @@ export class PipelineEngine {
   }
 
   private startTerminalPoll(): void {
-    this.clearTerminalPoll();
+    if (this.stopTerminalPoll) {
+      return;
+    }
     this.stopTerminalPoll = watchStudyUntilTerminal({
       getStudy: this.api.getStudy,
       studyId: this.studyId,
       intervalMs: STUDY_TERMINAL_POLL_MS,
       isCancelled: () => this.cancelled || this.finished,
       onTerminal: (fresh) => {
-        this.handleTerminalStudyStatus(fresh);
+        this.applyTerminalStudy(fresh);
       },
     });
   }
@@ -374,8 +377,11 @@ export class PipelineEngine {
     this.stopTerminalPoll = null;
   }
 
-  /** @returns true when a terminal status was handled (ready / failed / cancelled). */
-  private handleTerminalStudyStatus(fresh: StudyResponse): boolean {
+  /**
+   * Shared terminal path: ready → viewer; failed/cancelled → error.
+   * @returns true when a terminal status was handled.
+   */
+  private applyTerminalStudy(fresh: StudyResponse): boolean {
     if (fresh.status === "ready") {
       this.finished = true;
       this.clearReconnectTimer();
@@ -425,6 +431,7 @@ export class PipelineEngine {
     };
   }
 
+  /** WS pipeline_completed: confirm study readiness via REST, then navigate. */
   private async finishOk(): Promise<void> {
     this.clearReconnectTimer();
     this.clearTerminalPoll();
@@ -433,8 +440,7 @@ export class PipelineEngine {
     this.disconnect = null;
     this.intentionalClose = false;
 
-    // Same as main: confirm study readiness, then open the viewer. File ids are
-    // resolved by the visualization page via listFiles + viewer_purpose.
+    /** Confirm study readiness via REST, then navigate (shared with poll backup). */
     try {
       const fresh = await this.api.getStudy(this.studyId);
       if (this.cancelled) {
@@ -442,6 +448,9 @@ export class PipelineEngine {
       }
       if (fresh.status === "ready") {
         this.navigateToViewer();
+        return;
+      }
+      if (this.applyTerminalStudy(fresh)) {
         return;
       }
       this.goError(
@@ -468,13 +477,13 @@ export class PipelineEngine {
     });
   }
 
-  private async restorePreviewVolume(): Promise<void> {
+  private async setVolumePreview(knownId?: string | null): Promise<void> {
     try {
-      const { volumeFileId } = await resolveViewerFileIds(this.api.listFiles, this.studyId);
-      if (volumeFileId) {
+      const fileId = await resolveVolumePreviewId(this.api.listFiles, this.studyId, knownId);
+      if (fileId) {
         this.dispatch({
           type: PipelineActionType.SetVolumePreview,
-          fileId: volumeFileId,
+          fileId,
         });
       }
     } catch {
