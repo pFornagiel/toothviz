@@ -13,8 +13,8 @@ Electron shell for the Tooth CBCT app using [electron-vite](https://electron-vit
 
 ## Architecture
 
-- **Main process** spawns `uv run uvicorn backend.app:app` on `127.0.0.1:17890`
-- **Dev:** window loads Vite dev server; `/storage` and `/ws` proxy to the backend
+- **Main process** allocates a free localhost port, spawns `uv run uvicorn backend.app:app`, and exposes the origin to the renderer via `window.desktop.backendBaseUrl`
+- **Dev:** window loads Vite; API/WS calls go to that backend origin (not a fixed port)
 - **Production:** window loads the backend URL; FastAPI serves `frontend/dist` when `TOOTH_SERVE_FRONTEND=1`
 
 ## Environment variables (set by main process)

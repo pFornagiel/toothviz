@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 const frontendRoot = path.resolve(__dirname, "../frontend");
+// Dev proxy fallback only. Electron uses window.desktop.backendBaseUrl (free port).
 const backendPort = process.env.TOOTH_BACKEND_PORT ?? "17890";
 
 export default defineConfig({

@@ -1,4 +1,5 @@
 import { fetchJson } from "./client";
+import { apiUrl } from "./baseUrl";
 import type {
   UploadKind,
   BeginUploadResponse,
@@ -41,7 +42,7 @@ export async function uploadFile(
     const end = Math.min(start + chunk_size, file.size);
     const blob = file.slice(start, end);
 
-    await fetch(`/storage/uploads/${upload_id}/chunk?index=${i}`, {
+    await fetch(apiUrl(`/storage/uploads/${upload_id}/chunk?index=${i}`), {
       method: "PUT",
       body: blob,
       headers: { "Content-Type": "application/octet-stream" },

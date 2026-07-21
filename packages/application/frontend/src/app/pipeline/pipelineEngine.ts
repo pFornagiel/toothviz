@@ -327,7 +327,11 @@ export class PipelineEngine {
       return;
     }
     if (this.reconnectAttempts >= WS_RECONNECT_MAX_ATTEMPTS) {
-      this.dispatch({ type: PipelineActionType.ConnectionClosed, reconnecting: false });
+      this.goError(
+        "Connection lost",
+        "Could not reconnect to the processing service. The backend may have stopped — restart the app and reopen the study from Browse Studies.",
+        errorHints(null),
+      );
       return;
     }
 

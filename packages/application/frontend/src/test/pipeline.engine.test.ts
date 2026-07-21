@@ -340,6 +340,34 @@ describe("PipelineEngine - resume processing", () => {
     vi.useRealTimers();
   });
 
+  it("surfaces an error after websocket reconnects are exhausted", async () => {
+    vi.useFakeTimers();
+    const { engine, api, actions, ws } = setup(resumeApi());
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    for (let i = 0; i < 5; i++) {
+      ws.onClose();
+      await flush();
+      await vi.advanceTimersByTimeAsync(1_000 * 2 ** i);
+      await flush();
+    }
+    // Final close after the 5th reconnect still fails.
+    ws.onClose();
+    await flush();
+
+    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(6);
+    const err = findAction(actions, PipelineActionType.SetError);
+    expect(err?.error.title).toBe("Connection lost");
+    expect(err?.error.message).toMatch(/backend may have stopped/i);
+
+    vi.useRealTimers();
+  });
+
   it("dispose() cancels work and tears down the socket", async () => {
     const { engine, ws } = setup(resumeApi());
     engine.start({

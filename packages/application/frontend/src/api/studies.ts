@@ -1,4 +1,5 @@
 import { fetchJson } from "./client";
+import { apiUrl } from "./baseUrl";
 import type { StudyResponse, FileRecordResponse } from "./types";
 
 export async function listStudies(name?: string): Promise<StudyResponse[]> {
@@ -43,5 +44,5 @@ export async function listFiles(
 }
 
 export function fileContentUrl(studyId: string, fileId: string): string {
-  return `/storage/studies/${studyId}/files/${fileId}/content`;
+  return apiUrl(`/storage/studies/${studyId}/files/${fileId}/content`);
 }

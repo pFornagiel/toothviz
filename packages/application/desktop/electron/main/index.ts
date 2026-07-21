@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BackendManager } from "../backend-manager";
-import { backendBaseUrl } from "../constants";
+import { getBackendPort } from "../constants";
 import {
   installExtension,
   REACT_DEVELOPER_TOOLS,
@@ -14,8 +14,22 @@ let mainWindow: BrowserWindow | null = null;
 const backend = new BackendManager();
 const isDev = !app.isPackaged;
 
+backend.setUnexpectedExitHandler(({ code, signal }) => {
+  dialog.showErrorBox(
+    "Tooth - backend stopped",
+    [
+      "The local processing service stopped unexpectedly.",
+      `code=${code} signal=${signal ?? "none"}`,
+      "",
+      "Restart the app to continue.",
+    ].join("\n"),
+  );
+  app.quit();
+});
+
 async function createWindow(): Promise<void> {
   const preloadPath = path.join(__dirname, "../preload/index.mjs");
+  const backendUrl = backend.baseUrl();
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -28,6 +42,8 @@ async function createWindow(): Promise<void> {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Sandboxed preload cannot reliably use ipc sendSync; pass the URL here.
+      additionalArguments: [`--tooth-backend-url=${backendUrl}`],
     },
   });
 
@@ -39,13 +55,12 @@ async function createWindow(): Promise<void> {
   });
 
   const devRendererUrl = process.env.ELECTRON_RENDERER_URL;
-  const backendUrl = `${backendBaseUrl()}/`;
 
   if (isDev && devRendererUrl) {
     await mainWindow.loadURL(devRendererUrl);
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
-    await mainWindow.loadURL(backendUrl);
+    await mainWindow.loadURL(`${backendUrl}/`);
   }
 }
 
@@ -65,6 +80,7 @@ async function bootstrap(): Promise<void> {
       await installDevtools();
     }
     await backend.start();
+    console.info(`[desktop] backend ready at ${backend.baseUrl()} (port ${getBackendPort()})`);
     await createWindow();
   } catch (err) {
     const message =
