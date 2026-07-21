@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import NiiVueGPU from "@niivue/niivue/webgl2";
-import { SLICE_TYPE, MULTIPLANAR_TYPE } from "@niivue/niivue";
+import { SLICE_TYPE, MULTIPLANAR_TYPE, DRAG_MODE } from "@niivue/niivue";
 import { listFiles, fileContentUrl } from "@/api/studies";
 import { resolveViewerFileIds } from "../../pipeline/viewerFiles";
 import { ViewPhase, type VisualizationLocationState } from "../types";
@@ -178,9 +178,11 @@ export default function useNiivueViewer({
     const nv = new NiiVueGPU({
       backgroundColor: DEFAULT_BACK_COLOR_DARK,
       is3DCrosshairVisible: DEFAULT_SHOW_3D_CROSSHAIR,
+      isCrossLinesVisible: DEFAULT_SHOW_3D_CROSSHAIR,
       crosshairWidth: DEFAULT_CROSSHAIR_WIDTH,
       azimuth: DEFAULT_RENDER_AZIMUTH,
       elevation: DEFAULT_RENDER_ELEVATION,
+      secondaryDragMode: DRAG_MODE.pan,
     });
     // Set up event listeners before canvas attach
     configureNv(nv);

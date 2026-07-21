@@ -5,6 +5,8 @@ import {
   DEFAULT_BACK_COLOR_LIGHT,
   DEFAULT_SHOW_3D_CROSSHAIR,
   DEFAULT_CROSSHAIR_WIDTH,
+  DEFAULT_PAN2D_XYZMM,
+  DEFAULT_CROSSHAIR_POS,
 } from "../constants";
 
 export interface SceneControls {
@@ -14,12 +16,19 @@ export interface SceneControls {
   handleCrosshairWidthChange: (value: number) => void;
   lightBackground: boolean;
   handleBackgroundToggle: () => void;
+  /** Restores crosshair, background, pan/zoom-2D, and crosshair position. */
+  reset: () => void;
+}
+
+function applyCrosshairVisibility(nv: NiiVueGPU, visible: boolean): void {
+  nv.is3DCrosshairVisible = visible;
+  nv.isCrossLinesVisible = visible;
 }
 
 /**
- * Scene-level toggles (3D crosshair visibility/width and light vs dark
- * background) that are pushed straight onto the niivue instance. These are
- * deliberately not touched by `resetSettings`.
+ * Scene-level toggles (crosshair visibility/width and light vs dark
+ * background) pushed onto the niivue instance. `reset` restores defaults
+ * including 2D pan and crosshair center.
  */
 export default function useSceneControls({
   nvRef,
@@ -38,7 +47,7 @@ export default function useSceneControls({
 
     const newValue = !showCrosshair;
     setShowCrosshair(newValue);
-    nv.is3DCrosshairVisible = newValue;
+    applyCrosshairVisibility(nv, newValue);
   };
 
   const handleCrosshairWidthChange = (value: number) => {
@@ -62,6 +71,23 @@ export default function useSceneControls({
     nv.backgroundColor = newValue ? DEFAULT_BACK_COLOR_LIGHT : DEFAULT_BACK_COLOR_DARK;
   };
 
+  const reset = () => {
+    const nv = nvRef.current;
+    if (!nv) {
+      return;
+    }
+
+    setShowCrosshair(DEFAULT_SHOW_3D_CROSSHAIR);
+    setCrosshairWidth(DEFAULT_CROSSHAIR_WIDTH);
+    setLightBackground(false);
+
+    applyCrosshairVisibility(nv, DEFAULT_SHOW_3D_CROSSHAIR);
+    nv.crosshairWidth = DEFAULT_CROSSHAIR_WIDTH;
+    nv.backgroundColor = DEFAULT_BACK_COLOR_DARK;
+    nv.pan2Dxyzmm = [...DEFAULT_PAN2D_XYZMM];
+    nv.crosshairPos = [...DEFAULT_CROSSHAIR_POS];
+  };
+
   return {
     showCrosshair,
     handleCrosshairToggle,
@@ -69,5 +95,6 @@ export default function useSceneControls({
     handleCrosshairWidthChange,
     lightBackground,
     handleBackgroundToggle,
+    reset,
   };
 }

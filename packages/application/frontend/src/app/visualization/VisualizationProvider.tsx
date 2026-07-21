@@ -19,6 +19,7 @@ import useRenderControls from "./hooks/useRenderControls";
 import useNiivueViewer from "./hooks/useNiivueViewer";
 import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
 import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
+import useNiivueTileDoubleClick from "./hooks/useNiivueTileDoubleClick";
 import useProcessingPreview from "./hooks/useProcessingPreview";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
 import { ViewPhase } from "./types";
@@ -60,6 +61,9 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   const resetSettings = () => {
     volumeDisplay.reset();
     render.reset();
+    clipPlane.reset();
+    scene.reset();
+    viewLayout.reset();
   };
 
   const viewer = useNiivueViewer({
@@ -97,6 +101,14 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     nvRef,
     viewPhase: viewer.viewPhase,
     dragRotate: render.dragRotate,
+  });
+
+  useNiivueTileDoubleClick({
+    canvasRef,
+    nvRef,
+    viewPhase: viewer.viewPhase,
+    sliceType: viewLayout.sliceType,
+    handleSliceTypeChange: viewLayout.handleSliceTypeChange,
   });
 
   const handleBackFromError = useCallback(() => {

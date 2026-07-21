@@ -17,6 +17,8 @@ export interface ClipPlaneControls {
   setClipPlaneAzimuth: Dispatch<SetStateAction<number>>;
   clipPlaneElevation: number;
   setClipPlaneElevation: Dispatch<SetStateAction<number>>;
+  /** Restores depth/azimuth/elevation to defaults (effect pushes to niivue). */
+  reset: () => void;
 }
 
 /**
@@ -50,6 +52,12 @@ export default function useClipPlaneControls({
     handleClipPlaneChange();
   }, [handleClipPlaneChange]);
 
+  const reset = () => {
+    setClipPlaneDepth(DEFAULT_CLIP_PLANE_DEPTH);
+    setClipPlaneAzimuth(0);
+    setClipPlaneElevation(0);
+  };
+
   return {
     clipPlaneDepth,
     setClipPlaneDepth,
@@ -57,5 +65,6 @@ export default function useClipPlaneControls({
     setClipPlaneAzimuth,
     clipPlaneElevation,
     setClipPlaneElevation,
+    reset,
   };
 }

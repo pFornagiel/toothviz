@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
-import { DEFAULT_COLORMAP, DEFAULT_VISIBLE_OPACITY, CAL_MIN_GLOBAL_VAL, CAL_MAX_GLOBAL_VAL, HIDDEN_OPACITY } from "../constants";
+import { DEFAULT_COLORMAP, DEFAULT_VISIBLE_OPACITY, CAL_MIN_GLOBAL_VAL, CAL_MAX_GLOBAL_VAL, HIDDEN_OPACITY, DEFAULT_OVERLAY_OPACITY } from "../constants";
 export interface VolumeDisplayControls {
   // Volumes
   selectedVolume: number;
@@ -271,12 +271,33 @@ export default function useVolumeDisplayControls({
       return;
     }
 
-    setCalMin(initialCalMin.current);
-    setCalMax(initialCalMax.current);
+    const restoredCalMin = initialCalMin.current;
+    const restoredCalMax = initialCalMax.current;
+    setSelectedVolume(0);
+    setCalMin(restoredCalMin);
+    setCalMax(restoredCalMax);
     setOpacity(DEFAULT_VISIBLE_OPACITY);
     setColormap(DEFAULT_COLORMAP);
     setVolumeVisibility(nv.volumes.map(() => true));
-    setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
+
+    const opacities = nv.volumes.map((_, i) =>
+      i === 0 ? DEFAULT_VISIBLE_OPACITY : DEFAULT_OVERLAY_OPACITY,
+    );
+    setVolumeOpacities(opacities);
+
+    // Write through to every loaded volume so Reset View actually restores the canvas.
+    nv.volumes.forEach((_, i) => {
+      if (i === 0) {
+        void nv.setVolume(i, {
+          opacity: opacities[i],
+          colormap: DEFAULT_COLORMAP,
+          calMin: restoredCalMin,
+          calMax: restoredCalMax,
+        });
+      } else {
+        void nv.setVolume(i, { opacity: opacities[i] });
+      }
+    });
   };
 
   return {
