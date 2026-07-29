@@ -2,6 +2,12 @@ import type { LoadingStepId } from "@/api/types";
 import type { PipelineError, PipelineState } from "./types";
 import { clamp01 } from "./progress";
 
+const CONNECTION_LOST_TEXT =
+  "Connection lost — processing may still be running on this computer. Reopen the study from Browse Studies to continue.";
+
+const CONNECTION_RECONNECTING_TEXT =
+  "Connection lost — reconnecting to live progress…";
+
 export enum PipelineActionType {
   Begin = "BEGIN",
   SetSteps = "SET_STEPS",
@@ -11,7 +17,7 @@ export enum PipelineActionType {
   Finish = "FINISH",
   SetError = "SET_ERROR",
   ConnectionClosed = "CONNECTION_CLOSED",
-  ClearConnectionLost = "CLEAR_CONNECTION_LOST",
+  SetVolumePreview = "SET_VOLUME_PREVIEW",
 }
 
 export enum FinishMode {
@@ -32,10 +38,8 @@ export type PipelineAction =
   | { type: PipelineActionType.CompleteStep; stepIndex: number; statusText?: string }
   | { type: PipelineActionType.Finish; mode: FinishMode }
   | { type: PipelineActionType.SetError; error: PipelineError }
-  | { type: PipelineActionType.ConnectionClosed }
-  | { type: PipelineActionType.ClearConnectionLost };
-
-const CONNECTION_CLOSED_TEXT = "Connection closed - check your network or reconnect.";
+  | { type: PipelineActionType.ConnectionClosed; reconnecting?: boolean }
+  | { type: PipelineActionType.SetVolumePreview; fileId: string };
 
 export function pipelineReducer(state: PipelineState, action: PipelineAction): PipelineState {
   switch (action.type) {
@@ -47,8 +51,9 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         currentStepIndex: 0,
         progress: 0,
         statusText: "Starting upload...",
-        connectionLost: false,
         error: null,
+        volumePreviewFileId: null,
+        pipelineFinished: false,
       };
 
     case PipelineActionType.SetSteps:
@@ -93,21 +98,29 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
             ...state,
             progress: 1,
             currentStepIndex: null,
+            pipelineFinished: true,
             statusText: "Opening viewer...",
           }
         : {
             ...state,
             progress: 1,
-            statusText: "Pipeline completed - loading...",
+            pipelineFinished: true,
+            statusText: "Processing complete — loading results in viewer…",
           };
+
+    case PipelineActionType.SetVolumePreview:
+      return { ...state, volumePreviewFileId: action.fileId };
 
     case PipelineActionType.SetError:
       return { ...state, error: action.error };
 
     case PipelineActionType.ConnectionClosed:
-      return { ...state, connectionLost: true, statusText: CONNECTION_CLOSED_TEXT };
+      return {
+        ...state,
+        statusText: action.reconnecting ? CONNECTION_RECONNECTING_TEXT : CONNECTION_LOST_TEXT,
+      };
 
-    case PipelineActionType.ClearConnectionLost:
-      return { ...state, connectionLost: false };
+    default:
+      return state;
   }
 }

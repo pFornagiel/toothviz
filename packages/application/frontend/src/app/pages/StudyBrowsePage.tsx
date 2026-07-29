@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLoaderData, useRevalidator } from "react-router";
-import { listStudies, renameStudy, deleteStudy } from "@/api/studies";
+import { listStudies, retryStudyPipeline } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 import { FromPage } from "../pipeline";
@@ -13,32 +13,29 @@ export async function browseLoader() {
   return await listStudies();
 }
 
+function canRetryStudy(study: StudyResponse): boolean {
+  return (
+    (study.status === "failed" || study.status === "cancelled") &&
+    Boolean(study.source_file_id)
+  );
+}
+
 interface StudyItemProps {
   study: StudyResponse;
   onEdit: (study: StudyResponse) => void;
-  validatorRefresher: () => Promise<void>;
   isSelected: boolean;
   onSelect: (id: string) => void;
 }
 
-function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: StudyItemProps) {
+function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
   const navigate = useNavigate();
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const showRetry = canRetryStudy(study);
 
   const handleEditClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     e.preventDefault();
     onEdit(study);
-  };
-
-  const handleRename = async (study: StudyResponse) => {
-    const newName = prompt("New study name:", study.name ?? "");
-    if (!newName || newName === study.name) {
-      return;
-    }
-    setActiveDropdown(null);
-    await renameStudy(study.id, newName);
-    validatorRefresher();
   };
 
   const formatDate = (iso: string) =>
@@ -58,13 +55,20 @@ function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: 
     }
   };
 
-  const handleDeleteStudy = async (id: string) => {
-    if (!confirm("Delete this study?")) {
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (retrying) {
       return;
     }
-    setActiveDropdown(null);
-    await deleteStudy(id);
-    validatorRefresher();
+    setRetrying(true);
+    try {
+      await retryStudyPipeline(study.id);
+      navigate(`/pipeline/${study.id}`, { state: { from: FromPage.Browse } });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Retry failed");
+      setRetrying(false);
+    }
   };
 
   return (
@@ -93,7 +97,17 @@ function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: 
         {formatDate(study.created_at)}
       </td>
       <td className="px-6 py-4 text-sm text-muted-foreground">
-        <div className="relative">
+        <div className="flex items-center justify-end gap-1">
+          {showRetry && (
+            <Button
+              variant="ghost"
+              onClick={handleRetry}
+              disabled={retrying}
+              className={`px-2 h-8 cursor-pointer rounded text-sm font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 ${isSelected ? "hover:bg-primary/20" : "hover:bg-accent"}`}
+            >
+              {retrying ? "Retrying…" : "Retry"}
+            </Button>
+          )}
           <Button
             variant="ghost"
             onClick={handleEditClick}
@@ -101,23 +115,6 @@ function StudyItem({ study, onEdit, validatorRefresher, isSelected, onSelect }: 
           >
             <EllipsisVertical className="!size-5" />
           </Button>
-
-          {activeDropdown === study.id && (
-            <div className="absolute right-0 mt-2 w-48 bg-popover border border-border rounded-md shadow-lg z-10 overflow-hidden">
-              <button
-                onClick={() => handleRename(study)}
-                className="w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors"
-              >
-                Edit Name
-              </button>
-              <button
-                onClick={() => handleDeleteStudy(study.id)}
-                className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors border-t border-border"
-              >
-                Delete
-              </button>
-            </div>
-          )}
         </div>
       </td>
     </tr>
@@ -185,7 +182,6 @@ export function StudyBrowsePage() {
                   key={study.id}
                   study={study}
                   onEdit={onEdit}
-                  validatorRefresher={refresh}
                   isSelected={selectedStudyId === study.id}
                   onSelect={setSelectedStudyId}
                 />

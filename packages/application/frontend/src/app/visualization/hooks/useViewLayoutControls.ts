@@ -8,6 +8,10 @@ export interface ViewLayoutControls {
   handleSliceTypeChange: (type: SliceTypeKey) => void;
   /** Slice types that include a 3D render tile and therefore expose render controls */
   showsRender: boolean;
+  /** Slice types that include at least one 2D plane tile */
+  showsSlices: boolean;
+  /** Restores the default multiplanar layout. */
+  reset: () => void;
 }
 
 /**
@@ -25,6 +29,13 @@ export default function useViewLayoutControls({
   // Slice types that include a 3D render tile and therefore expose render controls
   const showsRender =
     sliceType === SliceTypeKey.Render ||
+    sliceType === SliceTypeKey.Multiplanar ||
+    sliceType === SliceTypeKey.Multiplanar4View;
+
+  const showsSlices =
+    sliceType === SliceTypeKey.Axial ||
+    sliceType === SliceTypeKey.Coronal ||
+    sliceType === SliceTypeKey.Sagittal ||
     sliceType === SliceTypeKey.Multiplanar ||
     sliceType === SliceTypeKey.Multiplanar4View;
 
@@ -74,9 +85,15 @@ export default function useViewLayoutControls({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sliceType]);
 
+  const reset = () => {
+    handleSliceTypeChange(DEFAULT_SLICE_TYPE);
+  };
+
   return {
     sliceType,
     handleSliceTypeChange,
     showsRender,
+    showsSlices,
+    reset,
   };
 }

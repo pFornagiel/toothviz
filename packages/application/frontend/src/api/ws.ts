@@ -1,13 +1,12 @@
 import type { PipelineMessage } from "./types";
+import { pipelineWsUrl } from "./baseUrl";
 
 export function establishWebsocketConnection(
   jobId: string,
   onMessage: (msg: PipelineMessage) => void,
   onClose?: () => void,
 ): () => void {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const url = `${protocol}//${window.location.host}/ws/pipeline/${jobId}`;
-  const ws = new WebSocket(url);
+  const ws = new WebSocket(pipelineWsUrl(jobId));
 
   ws.onmessage = (event) => {
     try {

@@ -10,6 +10,7 @@ from backend.workers.steps.base import (
     WORKER_POOL_DICOM,
 )
 from backend.workers.steps.configs import DicomToNiftiStepConfig
+from backend.workers.steps.progress_queue import parse_float_progress, run_with_progress_pump
 from backend.workers.subprocesses.dicom_fn import convert_dicom
 
 
@@ -22,13 +23,22 @@ class DicomToNiftiStep:
         out_dir = ctx.work_dir / "dicom_output"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        nifti_path_str: str = await ctx.run_in_worker_pool(
-            WORKER_POOL_DICOM,
-            convert_dicom,
-            str(ctx.current_input_path),
-            str(out_dir),
-            self.config.max_zip_members,
-            self.config.max_uncompressed_zip_bytes,
+        async def _convert(progress_queue) -> str:
+            return await ctx.run_in_worker_pool(
+                WORKER_POOL_DICOM,
+                convert_dicom,
+                str(ctx.current_input_path),
+                str(out_dir),
+                self.config.max_zip_members,
+                self.config.max_uncompressed_zip_bytes,
+                progress_queue,
+            )
+
+        nifti_path_str = await run_with_progress_pump(
+            ctx,
+            self.name,
+            _convert,
+            parse_item=parse_float_progress,
         )
         nifti_path = Path(nifti_path_str)
 

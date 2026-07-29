@@ -1,6 +1,47 @@
 import type { PipelineMessage } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
 
+const STEP_LABELS: Record<string, string> = {
+  segment_nifti: "Segmenting volume",
+  dicom_to_nifti: "Converting DICOM",
+  stub: "Processing",
+  passthrough: "Processing",
+};
+
+function stepLabel(step: string | undefined): string {
+  if (!step) {
+    return "Processing";
+  }
+  return STEP_LABELS[step] ?? step;
+}
+
+function pipelineStepStatusText(
+  msg: PipelineMessage,
+  completed: boolean,
+  fraction: number,
+): string {
+  const label = stepLabel(msg.step);
+  const mapped = msg.step != null && msg.step in STEP_LABELS;
+
+  if (completed) {
+    return mapped ? `${label} complete` : `Finished step: ${msg.step}`;
+  }
+
+  if (msg.event === "step_progress" && mapped) {
+    if (
+      msg.step === "segment_nifti" &&
+      msg.total_chunks != null &&
+      msg.chunk_index != null
+    ) {
+      const done = msg.chunk_index + 1;
+      return `Segmenting chunk ${done} / ${msg.total_chunks}`;
+    }
+    const pct = Math.round((msg.step_progress ?? fraction) * 100);
+    return `${label}… ${pct}%`;
+  }
+
+  return mapped ? `${label}…` : `Started: ${msg.step}`;
+}
 /** A non-terminal progress update for one step of the combined step list. */
 export interface StepProgress {
   stepIndex: number;
@@ -37,8 +78,8 @@ export function uploadStepProgress(
       const done = (upload.chunkIndex ?? 0) + 1;
       return {
         stepIndex,
-        fraction: done / upload.totalChunks,
-        statusText: `Uploading chunks ${done} / ${upload.totalChunks}`,
+        fraction: (upload.chunkIndex ?? 0) / upload.totalChunks,
+        statusText: `Uploading chunk ${done} / ${upload.totalChunks}`,
       };
     }
 
@@ -73,16 +114,18 @@ export function pipelineStepProgress(msg: PipelineMessage): PipelineStepProgress
   const completed = msg.event === "step_completed";
   const total = msg.total_steps ?? 0;
   const fraction =
-    msg.progress != null && total > 0
-      ? clamp01(msg.progress * total - msg.step_index)
-      : completed
-        ? 1
-        : 0;
+    msg.total_chunks != null && msg.chunk_index != null && msg.total_chunks > 0
+      ? clamp01(msg.chunk_index / msg.total_chunks)
+      : msg.progress != null && total > 0
+        ? clamp01(msg.progress * total - msg.step_index)
+        : completed
+          ? 1
+          : 0;
 
   return {
     stepIndex: msg.step_index,
     fraction,
-    statusText: completed ? `Finished step: ${msg.step}` : `Started: ${msg.step}`,
+    statusText: pipelineStepStatusText(msg, completed, fraction),
     completed,
   };
 }

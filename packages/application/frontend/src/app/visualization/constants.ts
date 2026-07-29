@@ -50,6 +50,7 @@ export const CLIP_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
 export const RENDER_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
 export const RENDER_ELEVATION_RANGE = { min: -180, max: 180, step: 1 };
 export const RENDER_ZOOM_RANGE = { min: 0.1, max: 5, step: 0.1 };
+export const PAN2D_ZOOM_RANGE = { min: 0.1, max: 10, step: 0.1 };
 
 export const RENDER_DRAG_DPR_SCALE = 0.8;
 export const NATIVE_DPR_AUTO = 0;
@@ -63,6 +64,9 @@ export const DEFAULT_CLIP_PLANE_DEPTH = CLIP_DEPTH_EDGE;
 // useNiivueCanvasWheel - wheel interaction step sizes
 export const RENDER_ZOOM_SCROLL_FACTOR = 1.1; // multiplicative zoom step per wheel notch
 export const CLIP_DEPTH_SCROLL_STEP = 0.05; // additive clip-depth step per wheel notch
+export const DEFAULT_PAN2D_ZOOM = 1.0;
+export const DEFAULT_PAN2D_XYZMM: [number, number, number, number] = [0, 0, 0, DEFAULT_PAN2D_ZOOM];
+export const DEFAULT_CROSSHAIR_POS: [number, number, number] = [0.5, 0.5, 0.5];
 
 // useNiivueSyncedRotation - drag rotation sensitivity (degrees per pixel)
 export const DRAG_DEG_PER_PX = 0.5;

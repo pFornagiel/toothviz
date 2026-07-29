@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { PanelLeftOpen } from "lucide-react";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
+import { ProcessingNoticeBar } from "./screens/ProcessingNoticeBar";
 import { getStudy } from "@/api/studies";
 import { PageLayout } from "../components/layout/page-layout";
 import { Button } from "../components/ui/button";
@@ -32,8 +33,17 @@ export function VisualizationPage() {
 function VisualizationView() {
   const { canvasRef, viewer, layout, scene } = useVisualization();
 
-  const { viewPhase, statusText, errorTitle, errorMessage, errorHints, errorBackLabel, onBackFromError } =
-    viewer;
+  const {
+    viewPhase,
+    statusText,
+    errorTitle,
+    errorMessage,
+    errorHints,
+    errorBackLabel,
+    onBackFromError,
+    processingNotice,
+    onReturnToProgress,
+  } = viewer;
   const { sidebarVisible, setSidebarVisible } = layout;
   const { lightBackground } = scene;
 
@@ -69,6 +79,16 @@ function VisualizationView() {
                 >
                   <PanelLeftOpen className="size-5" />
                 </Button>
+              )}
+              {processingNotice !== "none" && (
+                <div className="absolute top-3 left-14 z-30">
+                  <ProcessingNoticeBar
+                    notice={processingNotice}
+                    showReturnLink={processingNotice !== "artifacts-ready"}
+                    onReturnToProgress={onReturnToProgress}
+                    placement="overlay"
+                  />
+                </div>
               )}
               {viewPhase === ViewPhase.Loading && (
                 <div className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">

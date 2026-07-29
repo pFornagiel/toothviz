@@ -19,7 +19,10 @@ import useRenderControls from "./hooks/useRenderControls";
 import useNiivueViewer from "./hooks/useNiivueViewer";
 import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
 import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
+import useNiivueTileDoubleClick from "./hooks/useNiivueTileDoubleClick";
+import useProcessingPreview from "./hooks/useProcessingPreview";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
+import { ViewPhase } from "./types";
 
 const VisualizationContext = createContext<VisualizationContextValue | null>(null);
 
@@ -58,6 +61,9 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   const resetSettings = () => {
     volumeDisplay.reset();
     render.reset();
+    clipPlane.reset();
+    scene.reset();
+    viewLayout.reset();
   };
 
   const viewer = useNiivueViewer({
@@ -67,6 +73,18 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     nvRef,
     configureNv: render.configureNv,
     onVolumesLoaded: volumeDisplay.syncFromVolumes,
+  });
+
+  const previewEnabled =
+    Boolean(studyId) &&
+    routeState.previewWhileProcessing === true &&
+    viewer.viewPhase !== ViewPhase.Error;
+
+  const { processingNotice } = useProcessingPreview({
+    studyId,
+    nvRef,
+    enabled: previewEnabled,
+    onOverlayLoaded: volumeDisplay.syncFromVolumes,
   });
 
   // Wire the mouse-wheel interaction and sync with react state
@@ -85,6 +103,14 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     dragRotate: render.dragRotate,
   });
 
+  useNiivueTileDoubleClick({
+    canvasRef,
+    nvRef,
+    viewPhase: viewer.viewPhase,
+    sliceType: viewLayout.sliceType,
+    handleSliceTypeChange: viewLayout.handleSliceTypeChange,
+  });
+
   const handleBackFromError = useCallback(() => {
     const from = routeState.from ?? FromPage.Home;
     if (from === FromPage.Browse) {
@@ -93,6 +119,18 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
       navigate("/");
     }
   }, [navigate, routeState.from]);
+
+  const handleReturnToProgress = useCallback(() => {
+    if (!studyId) {
+      return;
+    }
+    navigate(`/pipeline/${studyId}`, {
+      state: {
+        from: routeState.from ?? FromPage.Home,
+        volumePreviewFileId: routeState.volumeFileId ?? null,
+      },
+    });
+  }, [navigate, studyId, routeState.from, routeState.volumeFileId]);
 
   // Read from the ref each render on purpose: niivue mutates its volume list
   // outside React state, and the page re-renders often enough to stay fresh.
@@ -111,6 +149,8 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
       isVolatile: !studyId,
       errorBackLabel: routeState.from === FromPage.Browse ? "Back to studies" : "Back to home",
       onBackFromError: handleBackFromError,
+      processingNotice,
+      onReturnToProgress: handleReturnToProgress,
     },
     layout: { sidebarVisible, setSidebarVisible },
     volumes: volumeList.map((v) => ({ name: v.name })),

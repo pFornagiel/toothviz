@@ -110,6 +110,52 @@ function SliderRow({
   );
 }
 
+function ZoomControl({
+  zoom,
+  onChange,
+}: {
+  zoom: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <span className="text-sm text-foreground">Zoom</span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8 shrink-0 bg-card"
+          title="Zoom out"
+          onClick={() => onChange(zoom / RENDER_ZOOM_BUTTON_FACTOR)}
+        >
+          <Minus className="size-4" />
+        </Button>
+        <input
+          type="range"
+          value={zoom}
+          min={RENDER_ZOOM_RANGE.min}
+          max={RENDER_ZOOM_RANGE.max}
+          step={RENDER_ZOOM_RANGE.step}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="h-1.5 min-w-0 flex-1 cursor-pointer accent-primary"
+        />
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8 shrink-0 bg-card"
+          title="Zoom in"
+          onClick={() => onChange(zoom * RENDER_ZOOM_BUTTON_FACTOR)}
+        >
+          <Plus className="size-4" />
+        </Button>
+        <span className="w-10 shrink-0 text-right text-sm text-foreground">
+          {zoom.toFixed(1)}×
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function VisualizationSidebar() {
   const { viewer, layout, volumes, view, display, scene, clip, render, onReset } =
     useVisualization();
@@ -258,6 +304,11 @@ export function VisualizationSidebar() {
                 step={1}
                 onChange={display.handleCalMaxChange}
               />
+
+              {/* Zoom for 2D-only layouts (Render View section not shown). */}
+              {view.showsSlices && !view.showsRender && (
+                <ZoomControl zoom={render.renderZoom} onChange={render.handleRenderZoomChange} />
+              )}
             </ControlSection>
 
             {/* Render view (3D only) */}
@@ -281,41 +332,7 @@ export function VisualizationSidebar() {
                   step={RENDER_ELEVATION_RANGE.step}
                   onChange={render.handleRenderElevationChange}
                 />
-                <div className="space-y-1.5">
-                  <span className="text-sm text-foreground">Zoom</span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="size-8 shrink-0 bg-card"
-                      title="Zoom out"
-                      onClick={() => render.handleRenderZoomChange(render.renderZoom / RENDER_ZOOM_BUTTON_FACTOR)}
-                    >
-                      <Minus className="size-4" />
-                    </Button>
-                    <input
-                      type="range"
-                      value={render.renderZoom}
-                      min={RENDER_ZOOM_RANGE.min}
-                      max={RENDER_ZOOM_RANGE.max}
-                      step={RENDER_ZOOM_RANGE.step}
-                      onChange={(e) => render.handleRenderZoomChange(parseFloat(e.target.value))}
-                      className="h-1.5 min-w-0 flex-1 cursor-pointer accent-primary"
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="size-8 shrink-0 bg-card"
-                      title="Zoom in"
-                      onClick={() => render.handleRenderZoomChange(render.renderZoom * RENDER_ZOOM_BUTTON_FACTOR)}
-                    >
-                      <Plus className="size-4" />
-                    </Button>
-                    <span className="w-10 shrink-0 text-right text-sm text-foreground">
-                      {render.renderZoom.toFixed(1)}×
-                    </span>
-                  </div>
-                </div>
+                <ZoomControl zoom={render.renderZoom} onChange={render.handleRenderZoomChange} />
               </ControlSection>
             )}
 

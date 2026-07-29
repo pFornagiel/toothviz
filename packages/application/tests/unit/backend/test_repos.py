@@ -103,6 +103,51 @@ def test_file_repo_create_and_list(db_session):
     assert len(volumes) == 1
 
 
+def test_file_repo_clear_viewer_purpose_can_exclude_source(db_session):
+    """Exclude keeps the source binding when clearing other rows with the same purpose.
+
+    (study_id, viewer_purpose) is unique, so at most one row holds a purpose at a
+    time — the exclude path is exercised by clearing when only the source matches
+    (0 rows updated) and when a non-source derived row matches.
+    """
+    _setup_study_with_files(db_session)
+    repo = FileRepo(db_session)
+
+    repo.create_file_record(
+        file_id="src",
+        study_id="s1",
+        kind="nifti_raw",
+        viewer_purpose="viewer_volume",
+        display_name="source.nii",
+        blob_hash="a" * 64,
+        size=100,
+    )
+    # Only the source holds viewer_volume — exclude leaves it untouched.
+    cleared = repo.clear_viewer_purpose("s1", "viewer_volume", exclude_file_id="src")
+    db_session.commit()
+    assert cleared == 0
+    volumes = repo.list_by_study("s1", viewer_purpose_filter=["viewer_volume"])
+    assert len(volumes) == 1
+    assert volumes[0].id == "src"
+
+    # Replace with a derived volume (as DICOM conversion would), then clear
+    # while excluding the (now unbound) source id — derived purpose is wiped.
+    repo.clear_viewer_purpose("s1", "viewer_volume")
+    repo.create_file_record(
+        file_id="derived",
+        study_id="s1",
+        kind="nifti_derived",
+        viewer_purpose="viewer_volume",
+        display_name="derived.nii",
+        blob_hash="b" * 64,
+        size=100,
+    )
+    cleared = repo.clear_viewer_purpose("s1", "viewer_volume", exclude_file_id="src")
+    db_session.commit()
+    assert cleared == 1
+    assert repo.list_by_study("s1", viewer_purpose_filter=["viewer_volume"]) == []
+
+
 def test_file_repo_clear_viewer_purpose(db_session):
     _setup_study_with_files(db_session)
     repo = FileRepo(db_session)

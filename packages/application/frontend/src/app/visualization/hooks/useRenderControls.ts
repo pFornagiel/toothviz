@@ -4,6 +4,7 @@ import useNiivueSyncedRotation from "./useNiivueSyncedRotation";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
 import { RENDER_ZOOM_RANGE, DEFAULT_RENDER_ZOOM } from "../constants";
 import { clamp } from "../../utils/clamp";
+import { setUnifiedZoom } from "./niivueZoom";
 
 export interface RenderControls {
   renderAzimuth: number;
@@ -63,7 +64,7 @@ export default function useRenderControls({
     const clamped = clamp(value, RENDER_ZOOM_RANGE.min, RENDER_ZOOM_RANGE.max);
     setRenderZoom(clamped);
     queueNvUpdate(NvUpdateKey.RenderZoom, () => {
-      nv.scaleMultiplier = clamped;
+      setUnifiedZoom(nv, clamped);
     });
   };
 
@@ -82,9 +83,8 @@ export default function useRenderControls({
 
     resetRotation();
 
-    // reset render zoom
     queueNvUpdate(NvUpdateKey.RenderZoom, () => {
-      nv.scaleMultiplier = DEFAULT_RENDER_ZOOM;
+      setUnifiedZoom(nv, DEFAULT_RENDER_ZOOM);
       setRenderZoom(DEFAULT_RENDER_ZOOM);
     });
   };

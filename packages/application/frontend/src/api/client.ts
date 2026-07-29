@@ -1,3 +1,5 @@
+import { apiUrl } from "./baseUrl";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -9,7 +11,7 @@ export class ApiError extends Error {
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     ...init,
     headers: {
       "Content-Type": "application/json",

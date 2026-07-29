@@ -11,7 +11,7 @@ export interface StudyResponse {
   pipeline_status: string;
   steps: LoadingStepId[];
   error: string;
-  source_file_id: string;
+  source_file_id: string | null;
 }
 
 // --- Requests ---

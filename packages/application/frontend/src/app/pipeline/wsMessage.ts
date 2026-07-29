@@ -1,5 +1,6 @@
 import type { Dispatch } from "react";
 import type { PipelineMessage } from "@/api/types";
+import { ViewerPurpose, artifactFileId } from "@/api/types";
 import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
 import { pipelineStepProgress } from "./progress";
 
@@ -9,7 +10,7 @@ export interface WsHandlerOptions {
   getPipelineFinished: () => boolean;
   markPipelineFinished: () => void;
   disconnect: () => void;
-  onPipelineCompleted: () => void;
+  onPipelineCompleted: (msg: PipelineMessage) => void;
   onPipelineFailed: (msg: PipelineMessage) => void;
   onPipelineCancelled: () => void;
 }
@@ -34,7 +35,7 @@ export function applyWsMessage(
     markPipelineFinished();
     disconnect();
     dispatch({ type: PipelineActionType.Finish, mode: FinishMode.Completed });
-    onPipelineCompleted();
+    onPipelineCompleted(msg);
     return;
   }
 
@@ -58,12 +59,27 @@ export function applyWsMessage(
     return;
   }
 
+  // Live step_completed and reconnect catch-up (any step frame with artifacts).
+  const previewId = artifactFileId(msg.artifacts, ViewerPurpose.Volume);
+  if (previewId) {
+    dispatch({
+      type: PipelineActionType.SetVolumePreview,
+      fileId: previewId,
+    });
+  }
+
   const step = pipelineStepProgress(msg);
   if (!step) {
     return;
   }
 
   const stepIndex = step.stepIndex + stepOffset;
+  if (msg.step_index != null && msg.step_index > 0) {
+    dispatch({
+      type: PipelineActionType.CompleteStep,
+      stepIndex: msg.step_index + stepOffset - 1,
+    });
+  }
   dispatch({
     type: PipelineActionType.Progress,
     stepIndex,

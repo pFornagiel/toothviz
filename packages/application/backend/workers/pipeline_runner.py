@@ -5,14 +5,17 @@ import logging
 import re
 import shutil
 from dataclasses import replace
-from typing import TYPE_CHECKING
 
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
+from backend.schemas import (
+    PipelineWsCancelledMessage,
+    PipelineWsCompletedMessage,
+    PipelineWsFailedMessage,
+    PipelineWsStepCompletedMessage,
+    PipelineWsStepStartedMessage,
+)
 from backend.services.storage_service import StorageService
 from backend.workers.steps.base import OutputArtifact, PipelineStep, StepContext
-
-if TYPE_CHECKING:
-    from backend.services.study_service import StudyService
 
 logger = logging.getLogger(__name__)
 
@@ -29,16 +32,14 @@ async def run_pipeline(
     steps: list[PipelineStep],
     ctx: StepContext,
     storage_service: StorageService,
-    study_service: StudyService | None = None,
 ) -> None:
-    """Async orchestrator - runs steps sequentially, commits artifacts at the end.
+    """Async orchestrator - runs steps sequentially and stores artifacts as each step finishes.
 
-    Derived files are stored only after every step succeeds.
-    If any step fails, no artifacts from this run are persisted (the job is
-    marked ``failed`` and the workspace is removed in ``finally``).
-
-    When ``study_service`` is set, the study row and uploaded data are removed
-    after a failure broadcast so erroneous studies are not kept.
+    Derived files are committed after the producing step succeeds so clients can
+    open a volume preview while later steps (e.g. segmentation) still run.
+    If a later step fails, earlier artifacts may already be persisted; the job is
+    marked ``failed`` and the workspace is removed in ``finally``. The study row
+    is kept so the client can surface the failed job status and retry.
     """
 
     ctx.work_dir.mkdir(parents=True, exist_ok=True)
@@ -52,68 +53,72 @@ async def run_pipeline(
         collected: dict[str, OutputArtifact] = {}
 
         for i, step in enumerate(steps):
+            step_ctx = replace(ctx, step_index=i, total_steps=total)
             if total:
-                await ctx.broadcaster.broadcast(
+                await step_ctx.broadcaster.broadcast(
                     job_id,
-                    {
-                        "event": "step_started",
-                        "job_id": job_id,
-                        "step": step.name,
-                        "status": "running",
-                        "progress": i / total,
-                        "total_steps": total,
-                        "step_index": i,
-                    },
+                    PipelineWsStepStartedMessage(
+                        job_id=job_id,
+                        status="running",
+                        step=step.name,
+                        step_index=i,
+                        total_steps=total,
+                        progress=i / total,
+                    ).model_dump(mode="json"),
                 )
             try:
-                result = await step.run(ctx)
+                result = await step.run(step_ctx)
             except Exception as exc:
                 raise RuntimeError(
                     f"Pipeline step {step.name!r} failed"
                 ) from exc
 
             ctx = replace(ctx, current_input_path=result.next_input_path)
+            step_purposes: set[str] = set()
             for artifact in result.artifacts:
                 if artifact.purpose in collected:
                     raise _duplicate_purpose_error(
                         step.name, artifact.purpose, collected
                     )
+                if artifact.purpose in step_purposes:
+                    raise ValueError(
+                        f"Duplicate viewer purpose {artifact.purpose!r} "
+                        f"emitted by step {step.name!r}"
+                    )
+                step_purposes.add(artifact.purpose)
+
+            step_committed: dict[str, str] = {}
+            for artifact in result.artifacts:
                 collected[artifact.purpose] = artifact
+                record = storage_service.store_derived(
+                    src_path=artifact.path,
+                    study_id=ctx.study_id,
+                    filename=artifact.path.name,
+                    kind=artifact.kind,
+                    viewer_purpose=artifact.purpose,
+                )
+                step_committed[artifact.purpose] = record.id
 
             if total:
-                await ctx.broadcaster.broadcast(
+                await step_ctx.broadcaster.broadcast(
                     job_id,
-                    {
-                        "event": "step_completed",
-                        "job_id": job_id,
-                        "step": step.name,
-                        "status": "completed",
-                        "progress": (i + 1) / total if total else 1.0,
-                        "total_steps": total,
-                        "step_index": i,
-                    },
+                    PipelineWsStepCompletedMessage(
+                        job_id=job_id,
+                        step=step.name,
+                        step_index=i,
+                        total_steps=total,
+                        progress=(i + 1) / total if total else 1.0,
+                        step_progress=1.0,
+                        artifacts=dict(step_committed),
+                    ).model_dump(mode="json"),
                 )
-
-        for artifact in collected.values():
-            storage_service.store_derived(
-                src_path=artifact.path,
-                study_id=ctx.study_id,
-                filename=artifact.path.name,
-                kind=artifact.kind,
-                viewer_purpose=artifact.purpose,
-            )
 
         with storage_service.session_factory() as db:
             PipelineJobRepo(db).set_status(job_id, "completed")
 
         await ctx.broadcaster.broadcast(
             job_id,
-            {
-                "event": "pipeline_completed",
-                "job_id": job_id,
-                "status": "completed",
-                "progress": 1.0,
-            },
+            PipelineWsCompletedMessage(job_id=job_id).model_dump(mode="json"),
         )
 
     except asyncio.CancelledError:
@@ -121,37 +126,26 @@ async def run_pipeline(
             PipelineJobRepo(db).set_status(job_id, "cancelled")
         await ctx.broadcaster.broadcast(
             job_id,
-            {
-                "event": "pipeline_cancelled",
-                "job_id": job_id,
-                "status": "cancelled",
-            },
+            PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
         )
         raise
 
     except Exception as exc:
         logger.exception("Pipeline %s failed", job_id)
         failed_step = _extract_failed_step(exc)
+        error_text = str(exc)
+        if exc.__cause__ is not None:
+            error_text = f"{error_text}. Cause: {exc.__cause__}"
         with storage_service.session_factory() as db:
-            PipelineJobRepo(db).set_status(job_id, "failed", error=str(exc))
+            PipelineJobRepo(db).set_status(job_id, "failed", error=error_text)
         await ctx.broadcaster.broadcast(
             job_id,
-            {
-                "event": "pipeline_failed",
-                "job_id": job_id,
-                "status": "failed",
-                "error": str(exc),
-                "failed_step": failed_step,
-            },
+            PipelineWsFailedMessage(
+                job_id=job_id,
+                error=error_text,
+                failed_step=failed_step,
+            ).model_dump(mode="json"),
         )
-        if study_service is not None:
-            try:
-                study_service.delete(ctx.study_id)
-            except Exception:
-                logger.exception(
-                    "Study cleanup after pipeline failure failed for %s",
-                    ctx.study_id,
-                )
 
     finally:
         shutil.rmtree(ctx.work_dir, ignore_errors=True)

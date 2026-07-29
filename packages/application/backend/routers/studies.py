@@ -76,3 +76,14 @@ def rename_study(request: Request, study_id: str, body: RenameStudyRequest):
 @router.delete("/{study_id}", status_code=204)
 def delete_study(request: Request, study_id: str):
     _svc(request).delete(study_id)
+
+
+@router.post("/{study_id}/pipeline:retry", response_model=StudyResponse)
+def retry_pipeline(request: Request, study_id: str):
+    """Re-dispatch the pipeline for a failed/cancelled study that still has a source file."""
+    storage_svc = request.app.state.storage_service
+    pipeline_svc = request.app.state.job_pipeline_service
+    with storage_svc.session_factory() as db:
+        pipeline_svc.retry(study_id, db)
+        s = StudyRepo(db).get_with_pipeline_job(study_id)
+    return _study_response(s, s.pipeline_job)

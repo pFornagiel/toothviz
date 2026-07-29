@@ -18,6 +18,28 @@ function makeOptions(overrides: Partial<Parameters<typeof applyWsMessage>[1]> = 
 }
 
 describe("applyWsMessage - non-terminal events", () => {
+  it("marks earlier pipeline steps complete when resuming mid-pipeline", () => {
+    const opts = makeOptions({ stepOffset: 0 });
+    applyWsMessage(
+      {
+        event: "step_progress",
+        step: "segment_nifti",
+        progress: 0.5,
+        step_progress: 0.5,
+        total_steps: 2,
+        step_index: 1,
+        chunk_index: 1,
+        total_chunks: 4,
+      },
+      opts,
+    );
+
+    expect(opts.dispatch).toHaveBeenCalledWith({
+      type: PipelineActionType.CompleteStep,
+      stepIndex: 0,
+    });
+  });
+
   it("globalises step_started into a single PROGRESS dispatch", () => {
     const opts = makeOptions();
     applyWsMessage(
@@ -56,6 +78,46 @@ describe("applyWsMessage - non-terminal events", () => {
     });
   });
 
+  it("stores preview volume id when step_completed includes viewer_volume artifact", () => {
+    const opts = makeOptions({ stepOffset: 0 });
+    applyWsMessage(
+      {
+        event: "step_completed",
+        step: "dicom_to_nifti",
+        progress: 0.5,
+        total_steps: 2,
+        step_index: 0,
+        artifacts: { viewer_volume: "vol-1" },
+      },
+      opts,
+    );
+
+    expect(opts.dispatch).toHaveBeenCalledWith({
+      type: PipelineActionType.SetVolumePreview,
+      fileId: "vol-1",
+    });
+  });
+
+  it("stores preview volume id when catch-up step_progress includes artifacts", () => {
+    const opts = makeOptions({ stepOffset: 0 });
+    applyWsMessage(
+      {
+        event: "step_progress",
+        step: "segment_nifti",
+        progress: 0.75,
+        total_steps: 2,
+        step_index: 1,
+        artifacts: { viewer_volume: "vol-catchup" },
+      },
+      opts,
+    );
+
+    expect(opts.dispatch).toHaveBeenCalledWith({
+      type: PipelineActionType.SetVolumePreview,
+      fileId: "vol-catchup",
+    });
+  });
+
   it("ignores a non-terminal message with no step index", () => {
     const opts = makeOptions();
     applyWsMessage({ event: "step_started", step: "x" }, opts);
@@ -66,7 +128,10 @@ describe("applyWsMessage - non-terminal events", () => {
 describe("applyWsMessage - terminal events", () => {
   it("pipeline_completed: marks finished, disconnects, dispatches FINISH(completed), calls onCompleted once", () => {
     const opts = makeOptions();
-    applyWsMessage({ event: "pipeline_completed" }, opts);
+    const msg: PipelineMessage = {
+      event: "pipeline_completed",
+    };
+    applyWsMessage(msg, opts);
 
     expect(opts.markPipelineFinished).toHaveBeenCalledTimes(1);
     expect(opts.disconnect).toHaveBeenCalledTimes(1);
@@ -76,6 +141,7 @@ describe("applyWsMessage - terminal events", () => {
       mode: FinishMode.Completed,
     });
     expect(opts.onPipelineCompleted).toHaveBeenCalledTimes(1);
+    expect(opts.onPipelineCompleted).toHaveBeenCalledWith(msg);
     expect(opts.onPipelineFailed).not.toHaveBeenCalled();
     expect(opts.onPipelineCancelled).not.toHaveBeenCalled();
   });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { PipelineEngine, type PipelineApi } from "@/app/pipeline/pipelineEngine";
+
 import { PipelineActionType, FinishMode, type PipelineAction } from "@/app/pipeline/reducer";
 import { FromPage } from "@/app/pipeline/types";
 import { ApiError } from "@/api/client";
@@ -68,8 +69,9 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
   const ws = {} as Ws;
 
   const api: PipelineApi = {
-    getStudy: vi.fn(async () => makeStudy({ status: "ready" })),
+    getStudy: vi.fn(async () => makeStudy({ status: "processing", job_id: "job1" })),
     deleteStudy: vi.fn(async () => {}),
+    listFiles: vi.fn(async () => []),
     uploadFile: vi.fn(async (_studyId, _file, _kind, _pipelines, onProgress) => {
       onProgress?.({ phase: "begin" });
       onProgress?.({ phase: "uploading", chunkIndex: 0, totalChunks: 1 });
@@ -126,13 +128,15 @@ describe("PipelineEngine - start routing", () => {
       study: makeStudy({ status: "processing", job_id: null }),
       routeState: { from: FromPage.Browse },
     });
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Browse);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Browse });
   });
 });
 
 describe("PipelineEngine - upload flow", () => {
   it("uploads, globalises pipeline steps, and navigates on completion", async () => {
-    const { engine, api, actions, onNavigateToViewer, ws } = setup();
+    const { engine, api, actions, onNavigateToViewer, ws } = setup({
+      getStudy: vi.fn(async () => makeStudy({ status: "ready", job_id: "job1" })),
+    });
     engine.start({
       studyId: "s1",
       study: makeStudy(),
@@ -161,11 +165,17 @@ describe("PipelineEngine - upload flow", () => {
       actions.some((a) => a.type === PipelineActionType.CompleteStep && a.stepIndex === 2),
     ).toBe(true);
 
-    ws.onMessage({ event: "pipeline_completed" });
+    ws.onMessage({
+      event: "pipeline_completed",
+    });
     expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.Completed);
 
     await flush();
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Home);
+    // Final display matches main: navigate with from only; viewer loads via REST.
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", {
+      from: FromPage.Home,
+    });
+    expect(api.getStudy).toHaveBeenCalled();
   });
 
   it("uploads volume then mask, sharing the trailing finalize step", async () => {
@@ -224,7 +234,7 @@ describe("PipelineEngine - upload flow", () => {
 
     expect(api.establishWebsocketConnection).not.toHaveBeenCalled();
     expect(findAction(actions, PipelineActionType.Finish)?.mode).toBe(FinishMode.NoPipeline);
-    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", FromPage.Browse);
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Browse });
   });
 
   it("deletes the study and surfaces an error when upload fails", async () => {
@@ -247,15 +257,19 @@ describe("PipelineEngine - upload flow", () => {
   });
 });
 
-describe("PipelineEngine - reconnect flow", () => {
-  const reconnectApi = () => ({
+describe("PipelineEngine - resume processing", () => {
+  const resumeApi = () => ({
     getStudy: vi.fn(async () =>
-      makeStudy({ status: "processing", steps: [PipelineStepName.SegmentNifti] }),
+      makeStudy({
+        status: "processing",
+        job_id: "job1",
+        steps: [PipelineStepName.SegmentNifti],
+      }),
     ),
   });
 
   it("adopts server steps, enters the pipeline at step 0, and connects", async () => {
-    const { engine, api, actions } = setup(reconnectApi());
+    const { engine, api, actions } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -285,8 +299,24 @@ describe("PipelineEngine - reconnect flow", () => {
     expect(findAction(actions, PipelineActionType.SetError)?.error.title).toBe("Study not found");
   });
 
-  it("dispatches ConnectionClosed on socket close; reconnect() re-runs", async () => {
-    const { engine, api, actions, ws } = setup(reconnectApi());
+  it("navigates without opening a socket when the study is already ready", async () => {
+    const { engine, api, onNavigateToViewer } = setup({
+      getStudy: vi.fn(async () => makeStudy({ status: "ready", job_id: "job1" })),
+    });
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    expect(api.establishWebsocketConnection).not.toHaveBeenCalled();
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Home });
+  });
+
+  it("schedules a websocket reconnect after unexpected close", async () => {
+    vi.useFakeTimers();
+    const { engine, api, actions, ws } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -296,31 +326,50 @@ describe("PipelineEngine - reconnect flow", () => {
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
 
     ws.onClose();
-    expect(actions.some((a) => a.type === PipelineActionType.ConnectionClosed)).toBe(true);
-
-    engine.reconnect();
     await flush();
-    expect(actions.some((a) => a.type === PipelineActionType.ClearConnectionLost)).toBe(true);
+
+    expect(
+      actions.some(
+        (a) => a.type === PipelineActionType.ConnectionClosed && a.reconnecting === true,
+      ),
+    ).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1000);
     expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
   });
 
-  it("ignores reconnect() while the socket is still connected", async () => {
-    const { engine, api } = setup(reconnectApi());
+  it("surfaces an error after websocket reconnects are exhausted", async () => {
+    vi.useFakeTimers();
+    const { engine, api, actions, ws } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
       routeState: {},
     });
     await flush();
-    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
 
-    engine.reconnect();
+    for (let i = 0; i < 5; i++) {
+      ws.onClose();
+      await flush();
+      await vi.advanceTimersByTimeAsync(1_000 * 2 ** i);
+      await flush();
+    }
+    // Final close after the 5th reconnect still fails.
+    ws.onClose();
     await flush();
-    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(1);
+
+    expect(api.establishWebsocketConnection).toHaveBeenCalledTimes(6);
+    const err = findAction(actions, PipelineActionType.SetError);
+    expect(err?.error.title).toBe("Connection lost");
+    expect(err?.error.message).toMatch(/backend may have stopped/i);
+
+    vi.useRealTimers();
   });
 
   it("dispose() cancels work and tears down the socket", async () => {
-    const { engine, ws } = setup(reconnectApi());
+    const { engine, ws } = setup(resumeApi());
     engine.start({
       studyId: "s1",
       study: makeStudy({ job_id: "job1" }),
@@ -330,5 +379,74 @@ describe("PipelineEngine - reconnect flow", () => {
 
     engine.dispose();
     expect(ws.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts study terminal poll only after unexpected websocket close", async () => {
+    vi.useFakeTimers();
+    const getStudy = vi.fn(async () =>
+      makeStudy({
+        status: "processing",
+        job_id: "job1",
+        steps: [PipelineStepName.SegmentNifti],
+      }),
+    );
+    const { engine, ws } = setup({ getStudy });
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    // Healthy socket: no backup poll — only resume getStudy.
+    expect(getStudy).toHaveBeenCalledTimes(1);
+
+    ws.onClose();
+    await flush();
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(getStudy.mock.calls.length).toBeGreaterThan(1);
+
+    vi.useRealTimers();
+  });
+});
+
+describe("PipelineEngine - resume restores preview volume", () => {
+  it("sets volume preview from listFiles when resuming a processing study", async () => {
+    const { engine, actions } = setup({
+      listFiles: vi.fn(async () => [
+        {
+          id: "vol-resume",
+          study_id: "s1",
+          kind: "nifti_raw",
+          display_name: "volume.nii",
+          blob_hash: "abc",
+          size: 1,
+          created_at: "2026-01-01T00:00:00Z",
+          viewer_purpose: "viewer_volume",
+          status: "ready",
+        },
+      ]),
+      getStudy: vi.fn(async () =>
+        makeStudy({
+          status: "processing",
+          job_id: "job1",
+          steps: [PipelineStepName.SegmentNifti],
+        }),
+      ),
+    });
+
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({
+        status: "processing",
+        job_id: "job1",
+        steps: [PipelineStepName.SegmentNifti],
+      }),
+      routeState: {},
+    });
+    await flush();
+
+    expect(findAction(actions, PipelineActionType.SetVolumePreview)?.fileId).toBe("vol-resume");
   });
 });

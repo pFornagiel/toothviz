@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import NiiVueGPU from "@niivue/niivue/webgl2";
-import { SLICE_TYPE, MULTIPLANAR_TYPE } from "@niivue/niivue";
+import { SLICE_TYPE, MULTIPLANAR_TYPE, DRAG_MODE } from "@niivue/niivue";
 import { listFiles, fileContentUrl } from "@/api/studies";
+import { resolveViewerFileIds } from "../../pipeline/viewerFiles";
 import { ViewPhase, type VisualizationLocationState } from "../types";
 import {
   DEFAULT_BACK_COLOR_DARK,
@@ -74,23 +75,34 @@ export default function useNiivueViewer({
         return;
       }
       setStatusText("Loading files...");
-      const files = await listFiles(studyId, "viewer_volume,viewer_overlay");
+      const { volumeFileId, previewWhileProcessing } = routeState;
+      const skipOverlay = previewWhileProcessing === true;
+
+      // Final display always resolves by viewer_purpose via REST. Route file ids
+      // are only hints for mid-pipeline preview (volume only).
+      const resolved = await resolveViewerFileIds(listFiles, studyId, {
+        volumeFileId: skipOverlay ? volumeFileId : undefined,
+        includeOverlay: !skipOverlay,
+      });
+
+      const volumeId = resolved.volumeFileId;
+      const overlayId = resolved.overlayFileId;
+      const volumeName = resolved.volumeDisplayName ?? DEFAULT_VOLUME_NAME;
+      const overlayName = resolved.overlayDisplayName ?? DEFAULT_OVERLAY_NAME;
 
       const volumes: { url: string; name: string; opacity?: number; colormap?: string }[] = [];
-      const volume = files.find((f) => f.viewer_purpose === "viewer_volume");
-      const overlay = files.find((f) => f.viewer_purpose === "viewer_overlay");
 
-      if (volume) {
+      if (volumeId) {
         volumes.push({
-          url: fileContentUrl(studyId, volume.id),
-          name: volume.display_name ?? DEFAULT_VOLUME_NAME,
+          url: fileContentUrl(studyId, volumeId),
+          name: volumeName,
           colormap: VOLUME_COLORMAP,
         });
       }
-      if (overlay) {
+      if (overlayId) {
         volumes.push({
-          url: fileContentUrl(studyId, overlay.id),
-          name: overlay.display_name ?? DEFAULT_OVERLAY_NAME,
+          url: fileContentUrl(studyId, overlayId),
+          name: overlayName,
           opacity: DEFAULT_OVERLAY_OPACITY,
           colormap: OVERLAY_COLORMAP,
         });
@@ -109,7 +121,12 @@ export default function useNiivueViewer({
         throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
-    [studyId, onVolumesLoaded],
+    [
+      studyId,
+      routeState.volumeFileId,
+      routeState.previewWhileProcessing,
+      onVolumesLoaded,
+    ],
   );
 
   const loadVolatileFiles = useCallback(
@@ -161,9 +178,11 @@ export default function useNiivueViewer({
     const nv = new NiiVueGPU({
       backgroundColor: DEFAULT_BACK_COLOR_DARK,
       is3DCrosshairVisible: DEFAULT_SHOW_3D_CROSSHAIR,
+      isCrossLinesVisible: DEFAULT_SHOW_3D_CROSSHAIR,
       crosshairWidth: DEFAULT_CROSSHAIR_WIDTH,
       azimuth: DEFAULT_RENDER_AZIMUTH,
       elevation: DEFAULT_RENDER_ELEVATION,
+      secondaryDragMode: DRAG_MODE.pan,
     });
     // Set up event listeners before canvas attach
     configureNv(nv);

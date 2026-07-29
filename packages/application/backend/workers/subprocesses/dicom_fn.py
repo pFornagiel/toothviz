@@ -39,11 +39,21 @@ def _select_primary_nifti(candidates: list[Path]) -> Path:
     return scored[0][0]
 
 
+def _emit_progress(progress_queue, value: float) -> None:
+    if progress_queue is None:
+        return
+    try:
+        progress_queue.put(float(value))
+    except Exception:
+        pass
+
+
 def convert_dicom(
     input_path: str,
     out_dir: str,
     max_zip_members: int,
     max_uncompressed_zip_bytes: int,
+    progress_queue=None,
 ) -> str:
     """Convert a DICOM input to a NIfTI file.
 
@@ -65,6 +75,7 @@ def convert_dicom(
         max_members=max_zip_members,
         max_uncompressed_bytes=max_uncompressed_zip_bytes,
     )
+    _emit_progress(progress_queue, 0.25)
 
     nifti_dir = out / "nifti_from_dicom"
     if nifti_dir.exists():
@@ -82,6 +93,7 @@ def convert_dicom(
         raise RuntimeError(
             "DICOM to NIfTI conversion failed (no valid series or missing DICOM files?)"
         ) from exc
+    _emit_progress(progress_queue, 0.75)
 
     candidates = _collect_nifti_candidates(nifti_dir)
     if not candidates:
@@ -100,4 +112,5 @@ def convert_dicom(
 
     # Validate (catch corrupted writer output early)
     _ = nib.load(str(final_path))
+    _emit_progress(progress_queue, 1.0)
     return str(final_path)

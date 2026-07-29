@@ -6,6 +6,10 @@ export interface StudyErrorScreenProps {
   hints: string[];
   backLabel: string;
   onBack: () => void;
+  /** When set, show a primary Retry action (e.g. upload succeeded but pipeline failed). */
+  retryLabel?: string;
+  onRetry?: () => void;
+  retryDisabled?: boolean;
 }
 
 export function StudyErrorScreen({
@@ -14,6 +18,9 @@ export function StudyErrorScreen({
   hints,
   backLabel,
   onBack,
+  retryLabel = "Retry processing",
+  onRetry,
+  retryDisabled = false,
 }: StudyErrorScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6">
@@ -32,13 +39,25 @@ export function StudyErrorScreen({
             </ul>
           </div>
         )}
-        <button
-          type="button"
-          onClick={onBack}
-          className="w-full sm:w-auto px-4 py-2 rounded bg-card border border-border text-foreground hover:bg-muted font-medium transition-colors text-sm shadow-sm"
-        >
-          {backLabel}
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={retryDisabled}
+              className="w-full sm:w-auto px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 font-medium transition-colors text-sm shadow-sm disabled:opacity-50"
+            >
+              {retryLabel}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onBack}
+            className="w-full sm:w-auto px-4 py-2 rounded bg-card border border-border text-foreground hover:bg-muted font-medium transition-colors text-sm shadow-sm"
+          >
+            {backLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

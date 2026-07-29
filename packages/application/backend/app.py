@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -11,11 +12,13 @@ setup_logging("app")
 
 from backend import config
 from backend.db.models import Base
+from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.db.repos.upload_session_repo import UploadSessionRepo
 from backend.db.session import SessionLocal, engine
 from backend.exceptions import AppError
 from backend.routers import files, health, studies, uploads, ws
 from backend.services.job_pipeline_service import JobPipelineService
+from backend.services.pipeline_ws_hydrate import build_pipeline_ws_hydrate
 from backend.services.storage_service import StorageService
 from backend.services.study_service import StudyService
 from backend.services.upload_service import UploadService
@@ -44,7 +47,7 @@ async def lifespan(app: FastAPI):
     # 2. Build storage objects
     storage_engine = LocalStorageEngine(config.DATA_ROOT)
     storage_service = StorageService(storage_engine, SessionLocal)
-    broadcaster = WSBroadcaster()
+    broadcaster = WSBroadcaster(hydrate_job=build_pipeline_ws_hydrate(SessionLocal))
 
     # 3. Wipe on Startup: abort lingering active UploadSessions
     with SessionLocal() as db:
@@ -56,6 +59,10 @@ async def lifespan(app: FastAPI):
             tmp_upload_svc.abort_session(session.id)
         except Exception:
             pass
+
+    # 3b. Fail pipeline jobs left running when the backend last exited mid-job.
+    with SessionLocal() as db:
+        PipelineJobRepo(db).fail_interrupted_jobs()
 
     # 4. CAS OS Sweep Failsafe
     storage_service.sweep_orphans()
@@ -91,7 +98,6 @@ async def lifespan(app: FastAPI):
 
     # 7. Final service instances with full wiring
     study_service = StudyService(storage_service, job_pipeline_service)
-    job_pipeline_service.attach_study_service(study_service)
     upload_service = UploadService(storage_service, job_pipeline_service)
 
     # 8. Expose on app.state
@@ -109,6 +115,16 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="CBCT Backend", lifespan=lifespan)
+
+    # Electron/Vite may call the API cross-origin (renderer on :5173, backend on
+    # an OS-allocated localhost port). Backend listens on 127.0.0.1 only.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.exception_handler(AppError)
     async def _app_error_handler(request: Request, exc: AppError):

@@ -59,17 +59,27 @@ class FileRepo:
             or 0
         )
 
-    def clear_viewer_purpose(self, study_id: str, viewer_purpose: str) -> int:
-        """Set viewer_purpose=NULL on all records for the given study+purpose.
-        Returns the number of rows affected."""
-        count = (
-            self._db.query(FileRecord)
-            .filter(
-                FileRecord.study_id == study_id,
-                FileRecord.viewer_purpose == viewer_purpose,
-            )
-            .update({FileRecord.viewer_purpose: None})
+    def clear_viewer_purpose(
+        self,
+        study_id: str,
+        viewer_purpose: str,
+        *,
+        exclude_file_id: str | None = None,
+    ) -> int:
+        """Set viewer_purpose=NULL on records for the given study+purpose.
+
+        When ``exclude_file_id`` is set (e.g. the study source upload), that
+        row is left unchanged so a nifti_raw volume binding survives retry.
+
+        Returns the number of rows affected.
+        """
+        q = self._db.query(FileRecord).filter(
+            FileRecord.study_id == study_id,
+            FileRecord.viewer_purpose == viewer_purpose,
         )
+        if exclude_file_id is not None:
+            q = q.filter(FileRecord.id != exclude_file_id)
+        count = q.update({FileRecord.viewer_purpose: None})
         self._db.flush()
         return count
 

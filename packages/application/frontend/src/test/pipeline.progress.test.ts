@@ -18,8 +18,15 @@ describe("uploadStepProgress - dedicated finalize step (no-mask: idx 0, finalize
       uploadStepProgress({ phase: "uploading", chunkIndex: 0, totalChunks: 4 }, layout),
     ).toEqual({
       stepIndex: 0,
-      fraction: 1 / 4,
-      statusText: "Uploading chunks 1 / 4",
+      fraction: 0,
+      statusText: "Uploading chunk 1 / 4",
+    });
+    expect(
+      uploadStepProgress({ phase: "uploading", chunkIndex: 2, totalChunks: 4 }, layout),
+    ).toEqual({
+      stepIndex: 0,
+      fraction: 2 / 4,
+      statusText: "Uploading chunk 3 / 4",
     });
   });
 
@@ -110,5 +117,73 @@ describe("pipelineStepProgress", () => {
 
   it("returns null for a message without a step index", () => {
     expect(pipelineStepProgress({ event: "step_started", step: "x" })).toBeNull();
+  });
+
+  it("uses friendly labels for segment_nifti", () => {
+    expect(
+      pipelineStepProgress({
+        event: "step_started",
+        step: "segment_nifti",
+        progress: 0,
+        total_steps: 1,
+        step_index: 0,
+      }),
+    ).toEqual({
+      stepIndex: 0,
+      fraction: 0,
+      statusText: "Segmenting volume…",
+      completed: false,
+    });
+
+    expect(
+      pipelineStepProgress({
+        event: "step_completed",
+        step: "segment_nifti",
+        progress: 1,
+        total_steps: 1,
+        step_index: 0,
+      }),
+    ).toEqual({
+      stepIndex: 0,
+      fraction: 1,
+      statusText: "Segmenting volume complete",
+      completed: true,
+    });
+  });
+
+  it("step_progress shows chunk counts for segmentation", () => {
+    const msg: PipelineMessage = {
+      event: "step_progress",
+      step: "segment_nifti",
+      progress: 0.75,
+      step_progress: 0.5,
+      total_steps: 2,
+      step_index: 1,
+      chunk_index: 2,
+      total_chunks: 8,
+    };
+    expect(pipelineStepProgress(msg)).toEqual({
+      stepIndex: 1,
+      fraction: 2 / 8,
+      statusText: "Segmenting chunk 3 / 8",
+      completed: false,
+    });
+  });
+
+  it("step_progress falls back to percentage without chunk fields", () => {
+    const msg: PipelineMessage = {
+      event: "step_progress",
+      step: "dicom_to_nifti",
+      progress: 0.25,
+      step_progress: 0.5,
+      total_steps: 2,
+      step_index: 0,
+    };
+    expect(pipelineStepProgress(msg)).toEqual({
+      stepIndex: 0,
+      fraction: 0.5,
+      statusText: "Converting DICOM… 50%",
+      completed: false,
+    });
   });
 });
