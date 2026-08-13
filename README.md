@@ -1,22 +1,18 @@
-# ToothViz — Dental CBCT Visualisation and Tooth Segmentation
+# ToothViz - Dental CBCT Visualisation and Tooth Segmentation
 
 ToothViz is a local-first desktop application for analysis of dental cone-beam
-computed tomography (CBCT) scans, segmenting individual teeth, and exploring the
-result in an interactive 2D and 3D viewer.
+computed tomography (CBCT) scans, automatic ML-based teeth segmentation, and visualisation of
+results in an interactive 2D and 3D viewer.
 
 The application accepts NIfTI data, runs the processing pipeline on the
 user's machine, and overlays the resulting segmentation mask on the original
-volume. Scans and derived files are not uploaded to an external service.
+volume - all done locally, performant on the CPU and not uploaded to an external service.
 
-ToothViz is being developed as an engineering thesis by Paweł Fornagiel,
+ToothViz is being developed as part of an engineering thesis by Paweł Fornagiel,
 Katarzyna Bęben, Łukasz Dragon, and Emil Żychowicz.
 
-[Features](#features) · [Quick start](#quick-start) ·
+[How it works](#how-it-works) · [Quick start](#quick-start) ·
 [Development](#development) · [Architecture](#architecture)
-
-> [!CAUTION]
-> ToothViz is research software, not a certified medical device. It must not be
-> used as the sole basis for diagnosis or treatment decisions.
 
 ## Screenshots
 
@@ -27,49 +23,22 @@ docs/screenshots/pipeline.png
 docs/screenshots/visualization.png
 -->
 
-![ToothViz start screen](docs/screenshots/start.png)
+![Toothviz scan](docs/screenshots/visualisation.png)
 
-*Choose a temporary viewing session, create a study, or reopen a saved scan.*
-
-![ToothViz processing pipeline](docs/screenshots/pipeline.png)
-
-*Follow upload, DICOM conversion, and segmentation progress step by step.*
-
-![ToothViz volume viewer](docs/screenshots/visualization.png)
-
-*Inspect the source volume and segmentation overlay in 2D or 3D.*
-
-## Features
-
-- **DICOM and NIfTI input** — open `.nii` and `.nii.gz` volumes, a DICOM
-  `.dcm` file, or a ZIP archive containing a DICOM series.
-- **Three study modes** — review the source volume only, add an existing NIfTI
-  mask, or run automatic tooth segmentation.
-- **Interactive volume visualisation** — switch between axial, coronal,
-  sagittal, multiplanar, and 3D views using
-  [NiiVue](https://github.com/niivue/niivue).
-- **Viewer controls** — adjust colormaps, intensity calibration, opacity,
-  crosshairs, zoom, orientation, and 3D clipping planes.
-- **Observable processing** — conversion and inference run in background worker
-  processes while progress and errors are streamed to the interface over a
-  WebSocket.
-- **Persistent studies** — save imported scans and generated artefacts in a
-  local study library, then reopen or retry them later.
-- **Local processing** — the desktop-managed API, database, model, and files all
-  remain on the same computer.
 
 ## How it works
 
-1. **Choose a workflow.** Open a NIfTI volume for a temporary viewing session,
-   create a persistent study, or select an existing study.
-2. **Provide the scan.** Select NIfTI directly or import DICOM data. DICOM input
-   is converted to NIfTI before further processing.
-3. **Choose segmentation.** View the raw volume, upload a precomputed NIfTI
-   mask, or run the ONNX model.
-4. **Track processing.** The pipeline reports the state of each upload,
-   conversion, and segmentation step.
-5. **Explore the result.** The source volume and optional mask are loaded into
-   the viewer as separate, configurable layers.
+The application lets the user open a NIfTI volume for a temporary viewing
+session, create a named study from a NIfTI file or a DICOM series, or reopen a
+study from the local archive. DICOM input is converted to NIfTI automatically.
+When creating a study, the user chooses whether to inspect the volume only,
+overlay an existing segmentation mask, or run the local ONNX model.
+
+Processing reports progress for each upload, conversion, and segmentation step.
+The source volume can be previewed while inference is still running. Once the
+pipeline finishes, the scan and the mask (if one was produced) are shown as
+separate layers in the 2D/3D viewer, where the user can window the CT, switch
+layouts, and clip the volume.
 
 ## Quick start
 
@@ -169,18 +138,6 @@ npm --prefix packages/application/frontend run lint
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    A[DICOM or NIfTI] --> B[Electron + React]
-    B <-->|HTTP| C[FastAPI]
-    C --> D[Conversion and ONNX workers]
-    D --> E[(Content-addressed files)]
-    C <--> F[(SQLite metadata)]
-    C -->|WebSocket progress| B
-    C <--> E
-    B --> G[NiiVue 2D/3D viewer]
-```
-
 The Electron main process allocates a free loopback port and launches FastAPI as
 a child process. The React interface communicates with that API over HTTP and
 receives job updates over a WebSocket. FastAPI coordinates uploads, study
@@ -197,18 +154,24 @@ The main technologies are:
 
 ## Segmentation model
 
-The semantic model was developed with the project's
-[nnU-Net training fork](https://github.com/pFornagiel/nnunet_test) and the
-public ToothFairy3 dataset to predict background and 32 tooth classes. The
-desktop runtime uses an ONNX export, so inference does not require PyTorch or a
-full [nnU-Net](https://github.com/MIC-DKFZ/nnUNet) installation.
+Right now the app ships a test ONNX model. It is enough to run automatic
+segmentation end to end and overlay a mask in the viewer, but it is not the
+model this project is aiming for.
 
-Inference includes CT intensity normalisation, resampling, sliding-window
-prediction with Gaussian blending, and restoration of the mask to the source
-volume's geometry. ONNX Runtime currently uses its CPU execution provider.
+The real weights are still being trained. We forked nnU-Net and changed two
+things so the network can run on a laptop CPU instead of needing a full 3D
+U-Net. First, the convolutions are depth-wise separable — the same trick
+MobileNet uses — which cuts the parameter count a lot. Second, the model is
+2.5D: it still segments one slice at a time, but each slice is stacked with a
+neighbour a little above and a little below, so it has some 3D context without
+the cost of looking at the whole volume. It is trained on ToothFairy3 to label
+each of the 32 adult teeth, and that export will replace the test model in the
+final product.
 
-Model binaries are tracked with Git LFS. After cloning, run `git lfs pull`
-before selecting automatic segmentation.
+Inference today still goes through ONNX Runtime on CPU: intensity
+normalisation, resampling, sliding-window prediction with Gaussian blending,
+then mapping the mask back onto the original volume. Model files live in Git
+LFS, so run `git lfs pull` after cloning if you want automatic segmentation.
 
 ## Data and configuration
 
@@ -243,7 +206,6 @@ packages/
 └── prototyping/       Earlier experiments and proofs of concept
 
 notes/                 Research notes and thesis resources
-docs/screenshots/      Images used in this README
 ```
 
 ## Disclaimer
