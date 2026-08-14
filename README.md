@@ -67,6 +67,7 @@ normalisation, resampling, sliding-window prediction with Gaussian blending,
 then mapping the mask back onto the original volume. Model files live in Git
 LFS, so run `git lfs pull` after cloning if you want automatic segmentation.
 
+![Model analysis example](docs/screenshots/upload_files.png)
 
 ## Quick start
 
