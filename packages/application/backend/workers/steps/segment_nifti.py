@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import logging
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
-from backend.config import SEGMENTATION_MODE
+from backend.config import SEGMENTATION_MODE, MODEL_PATH
 from backend.workers.steps.base import (
     OutputArtifact,
     StepContext,
     StepResult,
     WORKER_POOL_SEGMENTATION,
 )
-from backend.workers.steps.configs import SegmentNiftiStepConfig
 from backend.workers.steps.progress_queue import parse_patch_progress, run_with_progress_pump
 
 if SEGMENTATION_MODE == "dummy":
@@ -27,7 +28,19 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SegmentNiftiStep:
     name: str = "segment_nifti"
-    config: SegmentNiftiStepConfig = field(default_factory=SegmentNiftiStepConfig)
+    config: dict[str, Any] | None = None
+
+    def __post_init__(self):
+        if not self.config:
+            # Default to the config tied to the globally configured MODEL_PATH
+            json_path = MODEL_PATH.with_suffix(".json")
+            if json_path.exists():
+                logger.info(f"Loading pipeline config for model from {json_path}")
+                with open(json_path, "r", encoding="utf-8") as f:
+                    self.config = json.load(f)
+            else:
+                logger.warning(f"No JSON config found for model at {json_path}, using empty config")
+                self.config = {}
 
     async def run(self, ctx: StepContext) -> StepResult:
         logger.info(f"Starting segmentation step '{self.name}' for job {ctx.job_id}")

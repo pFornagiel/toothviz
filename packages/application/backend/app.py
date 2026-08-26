@@ -25,7 +25,6 @@ from backend.services.upload_service import UploadService
 from backend.storage.local_engine import LocalStorageEngine
 from backend.workers.steps.base import StepFactory
 from backend.workers.steps.segment_nifti import SegmentNiftiStep
-from backend.workers.steps.configs import SegmentNiftiStepConfig
 from backend.workers.steps.stub import StubStep, PassthroughViewerStep
 from backend.workers.worker_pool import WorkerPool
 from backend.workers.ws_broadcaster import WSBroadcaster
@@ -81,7 +80,7 @@ async def lifespan(app: FastAPI):
 
     step_registry: dict[str, StepFactory] = {
         "segment_nifti": lambda cfg: SegmentNiftiStep(
-            config=SegmentNiftiStepConfig.from_mapping(cfg),
+            config=cfg,
         ),
         "stub": lambda cfg: StubStep(),
         "passthrough": lambda cfg: PassthroughViewerStep(),
