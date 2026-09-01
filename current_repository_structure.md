@@ -146,7 +146,7 @@ The current startup sequence is:
 5. Abort lingering `UploadSession` rows that are still `active` from a previous run.
 6. Run a CAS orphan sweep as a startup failsafe.
 7. Start two `WorkerPool` instances (each `max_workers=1` by default): one plain pool for DICOM→NIfTI (`"dicom"`), and one whose worker processes run `_init_segmentation(model_path, execution_providers)` for ONNX (`"segmentation"`), using `config.MODEL_PATH` and `config.ONNX_EXECUTION_PROVIDERS`.
-8. Build the pipeline step registry. The HTTP-facing registry currently exposes `segment_nifti`, constructed with `SegmentNiftiStepConfig.from_mapping(...)`.
+8. Build the pipeline step registry. The HTTP-facing registry currently exposes `segment_nifti`, passing the raw config dictionary directly.
 9. Create `JobPipelineService` with the `worker_pools` mapping, `StudyService`, and `UploadService`.
 10. Attach the services and broadcaster to `app.state`.
 11. Register routers for studies, uploads, files, and WebSockets.
@@ -497,7 +497,7 @@ If no steps are produced, dispatch returns `None` and the upload flow marks the 
 | `SegmentNiftiStep` | `workers/steps/segment_nifti.py` | NIfTI path | `segmentation_mask.nii.gz`, `kind="segmentation_mask"`, `purpose="viewer_overlay"` |
 | `AnonymiseDicomStep` | `workers/steps/dicom_anonymise.py` | ZIP, DICOM tree, or single `.dcm` | None by default (forwards anonymized path or bundle ZIP as `next_input_path` only). |
 
-`DicomToNiftiStep` uses `DicomToNiftiStepConfig` (ZIP member cap and max uncompressed bytes, aligned with `utils/dicom_zip` defaults). `SegmentNiftiStep` uses `SegmentNiftiStepConfig` (`threshold`, `pad_multiple`; validated in `from_mapping` when passed from the API).
+`DicomToNiftiStep` uses `DicomToNiftiStepConfig` (ZIP member cap and max uncompressed bytes, aligned with `utils/dicom_zip` defaults). `SegmentNiftiStep` now directly uses a dictionary configuration, loading default JSON configuration if not provided in the request.
 
 `AnonymiseDicomStep` is implemented for pipeline composition but is **not** registered in `app.py`'s `step_registry` today, so it is not reachable from the public finalize `pipelines` payload until wired through configuration.
 
@@ -727,7 +727,7 @@ Backend unit tests cover:
 | Job pipeline service | Step construction, dispatch, cancellation bookkeeping, named worker pools. |
 | Pipeline runner | Status transitions, derived artifact storage (after full success), duplicate-purpose guard, cancellation, failure handling, workspace cleanup. |
 | Pipeline steps | Step result contracts and worker-pool delegation. |
-| Step configs | `DicomToNiftiStepConfig` / `SegmentNiftiStepConfig` parsing and validation. |
+| Step configs | `DicomToNiftiStepConfig` parsing and validation. Config for segmentation step is raw dictionary logic. |
 | DICOM subprocess | `convert_dicom` / multi-NIfTI selection (see `test_dicom_fn.py`). |
 | Segmentation subprocess | `run_segmentation` shape and output handling (see `test_segmentation_fn.py`). |
 | WebSocket broadcaster | Registration, broadcast, cleanup of failed sockets. |

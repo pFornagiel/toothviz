@@ -12,7 +12,7 @@ from pathlib import Path
 
 import nibabel as nib
 import numpy as np
-from backend.workers.steps.configs import SegmentNiftiStepConfig
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def run_segmentation(
     input_nifti_path: str,
     out_dir: str,
-    config: SegmentNiftiStepConfig,
+    config: dict[str, Any],
     progress_queue=None,
     ) -> str:
     """

@@ -1,0 +1,34 @@
+{
+  "preprocessing": [
+    { "name": "CropToNonZero" },
+    {
+      "name": "NormalizeCT",
+      "clip_min": -113.79613494873047,
+      "clip_max": 4021.0,
+      "z_score": true,
+      "intensity_mean": 1921.5234230332373,
+      "intensity_std": 686.8805465431079
+    },
+    {
+      "name": "Resample",
+      "target_spacing": [0.3, 0.3, 0.3]
+    },
+    {
+      "name": "PadToSize",
+      "min_size": [256, 256, 256]
+    }
+  ],
+  "prediction": {
+    "strategy": "sliding_window_3d",
+    "params": {
+      "patch_size": [256, 256, 256],
+      "tile_step_size": 0.9
+    }
+  },
+  "postprocessing": [
+    { "name": "ReversePad" },
+    { "name": "ReverseResample" },
+    { "name": "ReverseCrop" },
+    { "name": "Argmax" }
+  ]
+}

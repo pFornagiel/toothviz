@@ -111,7 +111,7 @@ def test_dicom_zip_finalize_with_segmentation_returns_job_id(client, created_stu
 
 
 @pytest.mark.asyncio
-async def test_segmentation_failure_removes_study(integration_app, created_study):
+async def test_segmentation_failure_keeps_study(integration_app, created_study):
     import asyncio
     from unittest.mock import AsyncMock
 
@@ -142,17 +142,20 @@ async def test_segmentation_failure_removes_study(integration_app, created_study
         )
         assert resp.status_code == 200
 
-        gone = False
+        # Wait for the job to fail
+        failed = False
         for _ in range(200):
             r = await ac.get(f"/storage/studies/{study_id}")
-            if r.status_code == 404:
-                gone = True
-                break
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("pipeline_status") == "failed":
+                    failed = True
+                    break
             await asyncio.sleep(0.05)
 
-    assert gone, "study should be deleted after pipeline failure"
+    assert failed, "study job should transition to failed state"
 
     transport2 = ASGITransport(app=integration_app)
     async with AsyncClient(transport=transport2, base_url="http://test") as ac2:
         listed = (await ac2.get("/storage/studies")).json()
-    assert not any(s["id"] == study_id for s in listed)
+    assert any(s["id"] == study_id for s in listed), "study should still exist to allow retries"
