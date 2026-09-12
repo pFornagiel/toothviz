@@ -62,12 +62,14 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   const clipPlane = useClipPlaneControls({ nvRef, queueNvUpdate });
   const render = useRenderControls({ nvRef, queueNvUpdate });
 
+  const syncVolumeDisplay = volumeDisplay.syncFromVolumes;
+  const syncTeeth = teeth.syncFromVolumes;
   const syncAfterVolumesLoaded = useCallback(
     (nv: NiiVueGPU) => {
-      volumeDisplay.syncFromVolumes(nv);
-      teeth.syncFromVolumes(nv);
+      syncVolumeDisplay(nv);
+      syncTeeth(nv);
     },
-    [volumeDisplay.syncFromVolumes, teeth.syncFromVolumes],
+    [syncVolumeDisplay, syncTeeth],
   );
 
   // Global reset

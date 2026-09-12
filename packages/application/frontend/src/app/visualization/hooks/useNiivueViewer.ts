@@ -47,6 +47,7 @@ export default function useNiivueViewer({
   onVolumesLoaded: (nv: NiiVueGPU) => void;
 }): NiivueViewerState {
   const blobUrlsRef = useRef<string[]>([]);
+  const { volumeFileId, previewWhileProcessing, primary, mask } = routeState;
 
   const [statusText, setStatusText] = useState("Ready");
   const [viewPhase, setViewPhase] = useState<ViewPhase>(ViewPhase.Loading);
@@ -75,7 +76,6 @@ export default function useNiivueViewer({
         return;
       }
       setStatusText("Loading files...");
-      const { volumeFileId, previewWhileProcessing } = routeState;
       const skipOverlay = previewWhileProcessing === true;
 
       // Final display always resolves by viewer_purpose via REST. Route file ids
@@ -121,17 +121,11 @@ export default function useNiivueViewer({
         throw new Error("No viewable volume or overlay files are available yet.");
       }
     },
-    [
-      studyId,
-      routeState.volumeFileId,
-      routeState.previewWhileProcessing,
-      onVolumesLoaded,
-    ],
+    [studyId, volumeFileId, previewWhileProcessing, onVolumesLoaded],
   );
 
   const loadVolatileFiles = useCallback(
     async (nv: NiiVueGPU) => {
-      const { primary, mask } = routeState;
       if (!primary) {
         throw new Error("No file was provided. Go back and choose Open Raw File.");
       }
@@ -165,7 +159,7 @@ export default function useNiivueViewer({
       nv.sliceType = SLICE_TYPE.MULTIPLANAR;
       nv.multiplanarType = MULTIPLANAR_TYPE.AUTO;
     },
-    [routeState, onVolumesLoaded],
+    [primary, mask, onVolumesLoaded],
   );
 
   const initNiivue = useCallback(async () => {
