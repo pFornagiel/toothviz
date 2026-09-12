@@ -13,6 +13,10 @@ from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.exceptions import ConflictError, ValidationError
 from backend.schemas import PipelineWsCancelledMessage
 from backend.services.storage_service import StorageService
+from backend.utils.status import (
+    PIPELINE_CANCEL_ACTIVE_STATUSES,
+    PIPELINE_CANCEL_NOOP_STATUSES,
+)
 from backend.workers.pipeline_runner import run_pipeline
 from backend.workers.steps.base import PipelineStep, StepContext, StepFactory
 from backend.workers.steps.dicom_to_nifti import DicomToNiftiStep
@@ -252,21 +256,22 @@ class JobPipelineService:
         """Cancel the study's pipeline job and return the updated job row.
 
         Accepts ``queued`` / ``running`` (mark cancelled, then kill workers) and
-        ``created`` (pre-dispatch: mark cancelled in DB only). Already terminal
-        (``cancelled`` / ``completed`` / ``failed``) is a no-op success. Other
-        statuses raise ``ConflictError``.
+        ``created`` (pre-dispatch: mark cancelled in DB only). Already finished
+        (``cancelled`` / ``completed`` / ``failed`` / ``ready``) is a no-op
+        success. Other statuses raise ``ConflictError``.
         """
         repo = PipelineJobRepo(db)
         job = repo.get_by_study_id(study_id)
 
-        # Terminal states: cancel is a no-op so late clicks don't 409.
-        if job.status in ("cancelled", "completed", "failed"):
+        # Finished / never-pipelined: late clicks must not 409.
+        if job.status in PIPELINE_CANCEL_NOOP_STATUSES:
             return job
 
+        # Pre-dispatch: DB only — no worker kill and no WS broadcast.
         if job.status == "created":
             return repo.set_status(job.id, "cancelled")
 
-        if job.status not in ("queued", "running"):
+        if job.status not in PIPELINE_CANCEL_ACTIVE_STATUSES:
             raise ConflictError(
                 f"pipeline can only be cancelled when created, queued, or running "
                 f"(status={job.status}, job_id={job.id})"
@@ -278,7 +283,7 @@ class JobPipelineService:
         status = repo.update_status_if(
             job.id,
             "cancelled",
-            from_statuses=("queued", "running"),
+            from_statuses=PIPELINE_CANCEL_ACTIVE_STATUSES,
         )
         job = repo.get(job.id)
         if status != "cancelled":
