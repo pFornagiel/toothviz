@@ -1,6 +1,10 @@
 /* Selection is driven by teethConditions (blue = detected, green = selected).
-   Chart is readOnly so we own clicks without remounting — but the library sets
-   pointer-events:none on [data-read-only=true], so re-enable hits here. */
+   The chart is readOnly so we handle clicks ourselves (no remount on toggle).
+
+   DO NOT remove pointer-events: auto below. react-odontogram sets
+   .Odontogram[data-read-only=true] { pointer-events: none }, which would
+   block our parent onClick handler entirely. We re-enable hits here, then
+   disable only undetected teeth (no data-colored path) in the next rule. */
 .toothviz-odontogram .Odontogram[data-read-only="true"] {
   pointer-events: auto;
 }

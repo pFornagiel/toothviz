@@ -286,8 +286,8 @@ export function VisualizationSidebar() {
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="max-w-60 text-balance">
-                          This mode enables selecting teeth also by clicking in the viewer or preview legend list. All other teeth stay
-                          visible until you turn it off.
+                          This mode enables selecting teeth also by clicking 2D slice views or the color legend.
+                          All other teeth stay visible until you turn this mode off.
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -301,7 +301,7 @@ export function VisualizationSidebar() {
                   {teeth.pickModePending
                     ? "Updating overlay…"
                     : teeth.pickFromPreview
-                      ? "Click teeth in the viewer, legend list or chart below to select or unselect."
+                      ? "Click teeth in 2D slices, the color legend, or the chart to select or unselect."
                       : "Select on the chart below, or enable pick mode.\nGreen = selected, blue = detected."}
                 </p>
                 <div

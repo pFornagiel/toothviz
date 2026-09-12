@@ -106,6 +106,8 @@ export default function useToothSelectionControls({
   const appliedVisibilityKeyRef = useRef<string | null>(null);
   /** True after the initial setColormapLabel installed centroids. */
   const labelColormapInstalledRef = useRef(false);
+  /** Desired NiiVue legend visibility (follows mask overlay checkbox). */
+  const maskLegendVisibleRef = useRef(true);
   const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   presentClassIdsRef.current = presentClassIds;
@@ -150,8 +152,10 @@ export default function useToothSelectionControls({
           const finish = () => {
             appliedVisibilityKeyRef.current = key;
             overlayShowsAllRef.current = showsAll;
-            nv.isLegendVisible = true;
-            vol.isLegendVisible = true;
+            // Keep legend in sync with mask visibility — do not force it back on.
+            const legendVisible = maskLegendVisibleRef.current;
+            nv.isLegendVisible = legendVisible;
+            vol.isLegendVisible = legendVisible;
             resolve();
           };
 
@@ -193,6 +197,7 @@ export default function useToothSelectionControls({
     (visible: boolean) => {
       const nv = nvRef.current;
       const idx = overlayIndexRef.current;
+      maskLegendVisibleRef.current = visible;
       if (!nv) {
         return;
       }
@@ -292,6 +297,7 @@ export default function useToothSelectionControls({
       showAllCmapRef.current = null;
       labelColormapInstalledRef.current = false;
       appliedVisibilityKeyRef.current = null;
+      maskLegendVisibleRef.current = true;
       return;
     }
     const present = readPresentClasses(nv, nextOverlayIndex);
