@@ -83,11 +83,15 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
     actions.push(a);
   });
   const onNavigateToViewer = vi.fn();
+  const onNavigateAfterCancel = vi.fn();
   const ws = {} as Ws;
 
   const api: PipelineApi = {
     getStudy: vi.fn(async () => makeStudy({ status: "processing", job_id: "job1" })),
     deleteStudy: vi.fn(async () => {}),
+    cancelStudyPipeline: vi.fn(async () =>
+      makeStudy({ status: "cancelled", job_id: "job1", pipeline_status: "cancelled" }),
+    ),
     listFiles: vi.fn(async () => []),
     uploadFile: vi.fn(async (_studyId, _file, _kind, _pipelines, onProgress) => {
       onProgress?.({ phase: "begin" });
@@ -105,8 +109,13 @@ function setup(apiOverrides: Partial<PipelineApi> = {}) {
     ...apiOverrides,
   };
 
-  const engine = new PipelineEngine({ dispatch, api, onNavigateToViewer });
-  return { engine, api, actions, onNavigateToViewer, ws };
+  const engine = new PipelineEngine({
+    dispatch,
+    api,
+    onNavigateToViewer,
+    onNavigateAfterCancel,
+  });
+  return { engine, api, actions, onNavigateToViewer, onNavigateAfterCancel, ws };
 }
 
 const findAction = <T extends PipelineActionType>(actions: PipelineAction[], type: T) =>
@@ -396,6 +405,44 @@ describe("PipelineEngine - resume processing", () => {
 
     engine.dispose();
     expect(ws.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("requestCancel() calls the cancel API and navigates to Browse", async () => {
+    const { engine, api, onNavigateAfterCancel } = setup(resumeApi());
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    engine.requestCancel();
+    await flush();
+
+    expect(api.cancelStudyPipeline).toHaveBeenCalledWith("s1");
+    expect(onNavigateAfterCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("requestCancel() when job already finished opens the viewer", async () => {
+    const { engine, api, onNavigateToViewer, onNavigateAfterCancel } = setup({
+      ...resumeApi(),
+      cancelStudyPipeline: vi.fn(async () =>
+        makeStudy({ status: "ready", job_id: "job1", pipeline_status: "completed" }),
+      ),
+    });
+    engine.start({
+      studyId: "s1",
+      study: makeStudy({ job_id: "job1" }),
+      routeState: {},
+    });
+    await flush();
+
+    engine.requestCancel();
+    await flush();
+
+    expect(api.cancelStudyPipeline).toHaveBeenCalledWith("s1");
+    expect(onNavigateAfterCancel).not.toHaveBeenCalled();
+    expect(onNavigateToViewer).toHaveBeenCalledWith("s1", { from: FromPage.Home });
   });
 
   it("starts study terminal poll only after unexpected websocket close", async () => {

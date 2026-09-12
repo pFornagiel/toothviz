@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+# Soft no-op targets for cancel_for_study (already finished / never ran a pipeline).
+PIPELINE_CANCEL_NOOP_STATUSES = frozenset(
+    {"cancelled", "completed", "failed", "ready"}
+)
+# In-flight jobs that cancel must mark atomically, then stop workers.
+PIPELINE_CANCEL_ACTIVE_STATUSES = ("queued", "running")
+
 
 def study_workflow_display_status(job_status: str) -> str:
     """Map pipeline job status to values the frontend treats as processing/ready."""

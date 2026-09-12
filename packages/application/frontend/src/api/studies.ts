@@ -35,6 +35,12 @@ export async function retryStudyPipeline(studyId: string): Promise<StudyResponse
   });
 }
 
+export async function cancelStudyPipeline(studyId: string): Promise<StudyResponse> {
+  return fetchJson<StudyResponse>(`/storage/studies/${studyId}/pipeline:cancel`, {
+    method: "POST",
+  });
+}
+
 export async function listFiles(
   studyId: string,
   viewerPurpose?: string,

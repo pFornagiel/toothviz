@@ -31,8 +31,8 @@ export type PipelineAction =
   | { type: PipelineActionType.EnterPipeline; stepIndex: number | null }
   | {
       type: PipelineActionType.Progress;
-      stepIndex: number;
-      fraction: number;
+      stepIndex?: number | null;
+      fraction?: number | null;
       statusText: string;
     }
   | { type: PipelineActionType.CompleteStep; stepIndex: number; statusText?: string }
@@ -54,6 +54,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         error: null,
         volumePreviewFileId: null,
         pipelineFinished: false,
+        pipelineActive: false,
       };
 
     case PipelineActionType.SetSteps:
@@ -67,15 +68,23 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         currentStepIndex: idx,
         progress: idx != null && total > 0 ? clamp01(idx / total) : 0,
         statusText: "Pipeline running...",
+        pipelineActive: true,
       };
     }
 
     case PipelineActionType.Progress: {
       const total = state.steps.length;
+      const stepIndex = action.stepIndex ?? state.currentStepIndex;
+      const fraction = action.fraction;
+      const keepProgress = fraction == null || stepIndex == null;
       return {
         ...state,
-        currentStepIndex: action.stepIndex,
-        progress: total > 0 ? clamp01((action.stepIndex + action.fraction) / total) : 0,
+        currentStepIndex: stepIndex,
+        progress: keepProgress
+          ? state.progress
+          : total > 0
+            ? clamp01((stepIndex + fraction) / total)
+            : 0,
         statusText: action.statusText,
       };
     }

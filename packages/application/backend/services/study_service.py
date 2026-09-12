@@ -43,7 +43,8 @@ class StudyService:
             job_repo = PipelineJobRepo(db)
             job = job_repo.get_by_study_id(study_id)
             if self._pipeline is not None and job.status in ("queued", "running"):
-                self._pipeline.cancel(job.id)
+                # Same mark-cancelled-then-kill path as the cancel API.
+                self._pipeline.cancel_for_study(study_id, db)
 
             file_repo = FileRepo(db)
             blob_hashes = file_repo.delete_by_study(study_id)

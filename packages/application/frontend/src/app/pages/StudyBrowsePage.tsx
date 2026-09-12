@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLoaderData, useRevalidator } from "react-router";
-import { listStudies, retryStudyPipeline } from "@/api/studies";
+import { cancelStudyPipeline, listStudies, retryStudyPipeline } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
-import { FromPage } from "../pipeline";
+import { canCancelStudy, canRetryStudy, FromPage, isProcessingStudy } from "../pipeline";
 import { Folder, EllipsisVertical, Dot } from "lucide-react";
+import { CancelPipelineDialog } from "../components/CancelPipelineDialog";
 import { Button } from "../components/ui/button";
 import { EditStudyModal } from "../components/EditStudyModal";
 import { StudyStatusIndicator } from "../components/StudyStatusIndicator";
@@ -13,24 +14,25 @@ export async function browseLoader() {
   return await listStudies();
 }
 
-function canRetryStudy(study: StudyResponse): boolean {
-  return (
-    (study.status === "failed" || study.status === "cancelled") &&
-    Boolean(study.source_file_id)
-  );
-}
-
 interface StudyItemProps {
   study: StudyResponse;
   onEdit: (study: StudyResponse) => void;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  onRefresh: () => void;
 }
 
-function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
+function StudyItem({ study, onEdit, isSelected, onSelect, onRefresh }: StudyItemProps) {
   const navigate = useNavigate();
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const showRetry = canRetryStudy(study);
+  const showCancel = canCancelStudy(study);
+
+  const actionBtnClass = `px-2 h-8 cursor-pointer rounded text-sm font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 ${
+    isSelected ? "hover:bg-primary/20" : "hover:bg-accent"
+  }`;
 
   const handleEditClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -46,7 +48,7 @@ function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
     });
 
   const handleNavigate = (study: StudyResponse) => {
-    if (study.status === "processing" && study.job_id) {
+    if (isProcessingStudy(study) && study.job_id) {
       navigate(`/pipeline/${study.id}`, {
         state: { from: FromPage.Browse },
       });
@@ -68,6 +70,30 @@ function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
     } catch (err) {
       alert(err instanceof Error ? err.message : "Retry failed");
       setRetrying(false);
+    }
+  };
+
+  const handleCancelClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (cancelling) {
+      return;
+    }
+    setConfirmCancelOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (cancelling) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      await cancelStudyPipeline(study.id);
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Cancel failed");
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -98,12 +124,22 @@ function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
       </td>
       <td className="px-6 py-4 text-sm text-muted-foreground">
         <div className="flex items-center justify-end gap-1">
+          {showCancel && (
+            <Button
+              variant="ghost"
+              onClick={handleCancelClick}
+              disabled={cancelling}
+              className={actionBtnClass}
+            >
+              {cancelling ? "Cancelling…" : "Cancel"}
+            </Button>
+          )}
           {showRetry && (
             <Button
               variant="ghost"
               onClick={handleRetry}
               disabled={retrying}
-              className={`px-2 h-8 cursor-pointer rounded text-sm font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 ${isSelected ? "hover:bg-primary/20" : "hover:bg-accent"}`}
+              className={actionBtnClass}
             >
               {retrying ? "Retrying…" : "Retry"}
             </Button>
@@ -116,6 +152,12 @@ function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
             <EllipsisVertical className="!size-5" />
           </Button>
         </div>
+        <CancelPipelineDialog
+          open={confirmCancelOpen}
+          onOpenChange={setConfirmCancelOpen}
+          onConfirm={() => void handleConfirmCancel()}
+          stopPropagation
+        />
       </td>
     </tr>
   );
@@ -184,6 +226,7 @@ export function StudyBrowsePage() {
                   onEdit={onEdit}
                   isSelected={selectedStudyId === study.id}
                   onSelect={setSelectedStudyId}
+                  onRefresh={refresh}
                 />
               ))}
             </tbody>

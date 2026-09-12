@@ -7,11 +7,16 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
-from backend.db.models import FileRecord
+from backend.db.models import FileRecord, PipelineJob
 from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.exceptions import ConflictError, ValidationError
+from backend.schemas import PipelineWsCancelledMessage
 from backend.services.storage_service import StorageService
+from backend.utils.status import (
+    PIPELINE_CANCEL_ACTIVE_STATUSES,
+    PIPELINE_CANCEL_NOOP_STATUSES,
+)
 from backend.workers.pipeline_runner import run_pipeline
 from backend.workers.steps.base import PipelineStep, StepContext, StepFactory
 from backend.workers.steps.dicom_to_nifti import DicomToNiftiStep
@@ -45,9 +50,13 @@ class JobPipelineService:
     The captured ``self._loop`` reference is safe to hold because uvicorn keeps
     the same loop alive for the entire application lifespan.
 
-    Cancellation is **best-effort**: cancelling the concurrent future can stop
-    the asyncio side of the pipeline, but work already submitted to
-    ``ProcessPoolExecutor`` may still run to completion in child processes.
+    Cancellation marks the job cancelled in the DB first, cancels the asyncio
+    pipeline future, then terminates worker-pool child processes via
+    ``WorkerPool.force_stop`` when no other pipeline is still running (shared
+    pools must not kill a sibling study). Kill-induced executor errors are
+    mapped to ``CancelledError`` (and status transitions refuse to overwrite
+    ``cancelled``). The next pipeline run recreates workers and may re-load
+    the segmentation model.
     """
 
     def __init__(
@@ -215,26 +224,89 @@ class JobPipelineService:
         return steps
 
     def cancel(self, job_id: str) -> bool:
-        """Request cancellation of a running pipeline job.
+        """Cancel a running pipeline job; kill worker processes when safe.
 
-        Cancelling the concurrent.futures.Future propagates an
-        asyncio.CancelledError into the coroutine on the event loop, which
-        run_pipeline catches to mark the job as cancelled.
+        Cancels the asyncio pipeline future. Shared worker pools are only
+        ``force_stop``'d when no *other* pipeline is in ``_running`` — otherwise
+        a sibling study would lose its in-flight DICOM/segmentation work.
+        When siblings remain, cancel is soft for the pool (orchestrator
+        ``CancelledError``); orphaned CPU work may finish but cannot overwrite
+        a persisted ``cancelled`` status.
 
-        This does not guarantee subprocess work stops immediately; see class docstring.
+        If ``job_id`` is not in ``_running``, this is a no-op (no pool recreate)
+        so stale DB rows do not reload the segmentation model.
         """
         future = self._running.get(job_id)
         if future is None:
             return False
         future.cancel()
+        # Pools are process-wide singletons; only hard-kill when this job is alone.
+        if not any(jid != job_id for jid in self._running):
+            self._force_stop_worker_pools()
         return True
+
+    def _force_stop_worker_pools(self) -> None:
+        for name, pool in self._worker_pools.items():
+            try:
+                pool.force_stop()
+            except Exception:
+                logger.exception("Failed to force-stop worker pool %s", name)
+
+    def cancel_for_study(self, study_id: str, db: Session) -> PipelineJob:
+        """Cancel the study's pipeline job and return the updated job row.
+
+        Accepts ``queued`` / ``running`` (mark cancelled, then kill workers) and
+        ``created`` (pre-dispatch: mark cancelled in DB only). Already finished
+        (``cancelled`` / ``completed`` / ``failed`` / ``ready``) is a no-op
+        success. Other statuses raise ``ConflictError``.
+        """
+        repo = PipelineJobRepo(db)
+        job = repo.get_by_study_id(study_id)
+
+        # Finished / never-pipelined: late clicks must not 409.
+        if job.status in PIPELINE_CANCEL_NOOP_STATUSES:
+            return job
+
+        # Pre-dispatch: DB only — no worker kill and no WS broadcast.
+        if job.status == "created":
+            return repo.set_status(job.id, "cancelled")
+
+        if job.status not in PIPELINE_CANCEL_ACTIVE_STATUSES:
+            raise ConflictError(
+                f"pipeline can only be cancelled when created, queued, or running "
+                f"(status={job.status}, job_id={job.id})"
+            )
+
+        # Atomic so a concurrent completed/failed commit is not overwritten.
+        # Also persists cancelled before killing workers so a BrokenProcessPool
+        # race cannot mark failed, and blocks begin-run (queued/running → running).
+        status = repo.update_status_if(
+            job.id,
+            "cancelled",
+            from_statuses=PIPELINE_CANCEL_ACTIVE_STATUSES,
+        )
+        job = repo.get(job.id)
+        if status != "cancelled":
+            return job
+
+        found = self.cancel(job.id)
+        if not found:
+            asyncio.run_coroutine_threadsafe(
+                self._broadcaster.broadcast(
+                    job.id,
+                    PipelineWsCancelledMessage(job_id=job.id).model_dump(mode="json"),
+                ),
+                self._loop,
+            )
+        return job
 
     def get_status(self, job_id: str, db: Session):
         return PipelineJobRepo(db).get(job_id)
 
     async def shutdown(self) -> None:
-        """Cancel all in-flight jobs and tear down the worker pools."""
+        """Cancel in-flight jobs, kill worker processes, and tear down pools."""
         for future in list(self._running.values()):
             future.cancel()
+        self._force_stop_worker_pools()
         for pool in self._worker_pools.values():
-            pool.shutdown(wait=True)
+            pool.shutdown(wait=False)
