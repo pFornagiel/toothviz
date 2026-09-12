@@ -1,16 +1,10 @@
-/* Keep odontogram fills readable: blue = detected, green = selected,
-   regardless of chart vs preview picking. The library's `.selected` rule
-   otherwise paints selection with --light-blue and can hide condition colors. */
-.toothviz-odontogram .Odontogram g.selected path:nth-of-type(2) {
-  fill: #86efac !important;
-  opacity: 1;
+/* Selection is driven by teethConditions (blue = detected, green = selected).
+   Chart is readOnly so we own clicks without remounting — but the library sets
+   pointer-events:none on [data-read-only=true], so re-enable hits here. */
+.toothviz-odontogram .Odontogram[data-read-only="true"] {
+  pointer-events: auto;
 }
 
-.toothviz-odontogram .Odontogram g.selected {
-  color: #15803d;
-}
-
-/* Only detected (condition-colored) teeth are selectable. */
 .toothviz-odontogram .Odontogram g[class^="teeth-"]:not(:has(path[data-colored="true"])) {
   pointer-events: none;
   opacity: 0.32;
@@ -19,8 +13,13 @@
 
 .toothviz-odontogram
   .Odontogram
-  g[class^="teeth-"]:has(path[data-colored="true"]):hover:not(.selected)
+  g[class^="teeth-"]:has(path[data-colored="true"]) {
+  cursor: pointer;
+}
+
+.toothviz-odontogram
+  .Odontogram
+  g[class^="teeth-"]:has(path[data-colored="true"]):hover
   path:nth-of-type(2) {
-  fill: #93c5fd;
-  opacity: 1;
+  opacity: 0.85;
 }

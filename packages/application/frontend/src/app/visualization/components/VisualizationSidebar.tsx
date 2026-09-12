@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { Tooth } from "../../components/icons/tooth";
+import { toothIdFromOdontogramTarget } from "../toothLabels";
 import {
   SliceTypeKey,
   SLICE_TYPE_LABELS,
@@ -303,16 +304,25 @@ export function VisualizationSidebar() {
                       ? "Click teeth in the viewer, legend list or chart below to select or unselect."
                       : "Select on the chart below, or enable pick mode.\nGreen = selected, blue = detected."}
                 </p>
-                <div className="toothviz-odontogram w-full overflow-x-auto">
+                <div
+                  className="toothviz-odontogram w-full overflow-x-auto"
+                  onClick={(e) => {
+                    if (teeth.pickModePending) {
+                      return;
+                    }
+                    const toothId = toothIdFromOdontogramTarget(e.target);
+                    if (toothId) {
+                      teeth.toggleToothFromChart(toothId);
+                    }
+                  }}
+                >
                   <Odontogram
-                    key={teeth.odontogramKey}
                     notation="FDI"
                     layout="square"
                     showTooltip
                     showLabels={false}
-                    defaultSelected={teeth.selectedToothIds}
+                    readOnly
                     teethConditions={teeth.detectedConditions}
-                    onChange={teeth.onOdontogramChange}
                     colors={{
                       darkBlue: "#15803d",
                       baseBlue: "#93c5fd",

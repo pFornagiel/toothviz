@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLASS_TO_FDI,
   buildDetectedConditions,
+  buildLabelLut,
   buildSelectionConditions,
   buildToothLabelColormap,
   classToFdi,
@@ -11,8 +12,10 @@ import {
   fdiToToothId,
   presentClassesFromImg,
   toothClassFromLocationValues,
+  toothIdFromOdontogramTarget,
   toothIdToFdi,
   toggleToothId,
+  visibilityKey,
   visibleClassesFromSelection,
   withColormapVisibility,
 } from "../app/visualization/toothLabels";
@@ -151,5 +154,30 @@ describe("selection visibility", () => {
     const filtered = withColormapVisibility(base, [9]);
     expect(filtered.A).toEqual([0, 0, 255]);
     expect(withColormapVisibility(base, null).A).toEqual([0, 255, 255]);
+  });
+
+  it("builds a packed label LUT with per-class alpha", () => {
+    const base = buildToothLabelColormap([1, 9], [9]);
+    const { lut, min, max } = buildLabelLut(base);
+    expect(min).toBe(0);
+    expect(max).toBe(9);
+    expect(lut[(1 - min) * 4 + 3]).toBe(0);
+    expect(lut[(9 - min) * 4 + 3]).toBe(255);
+    expect(lut[(0 - min) * 4 + 3]).toBe(0);
+  });
+
+  it("builds stable visibility keys", () => {
+    expect(visibilityKey(null)).toBe("*");
+    expect(visibilityKey([])).toBe("");
+    expect(visibilityKey([9, 1])).toBe("1,9");
+  });
+
+  it("parses tooth ids from odontogram event targets", () => {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "teeth-21");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    g.appendChild(path);
+    expect(toothIdFromOdontogramTarget(path)).toBe("teeth-21");
+    expect(toothIdFromOdontogramTarget(document.createElement("div"))).toBeNull();
   });
 });

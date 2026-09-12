@@ -1,5 +1,5 @@
 diff --git a/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js b/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
-index dcb4298..40fc62a 100644
+index dcb4298..40f4761 100644
 --- a/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
 +++ b/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
 @@ -17987,7 +17987,7 @@ let gb = class extends EventTarget {
@@ -11,6 +11,26 @@ index dcb4298..40fc62a 100644
    }
    get volumeOutlineWidth() {
      return this.model.volume.outlineWidth;
+@@ -18560,7 +18560,18 @@ let gb = class extends EventTarget {
+    */
+   async setColormapLabel(t, e) {
+     const s = this.model.getVolumes();
+-    this._checkBounds(s, t, "Volume") && (e === null ? s[t].colormapLabel = null : (s[t].colormapLabel = Be(e), s[t].colormapLabel.centroids = Hi(s[t])), s[t].isDirty = !0, await this.updateGLVolume());
++    if (!this._checkBounds(s, t, "Volume")) return;
++    if (e === null) {
++      s[t].colormapLabel = null;
++    } else {
++      const prev = s[t].colormapLabel;
++      s[t].colormapLabel = Be(e);
++      const next = s[t].colormapLabel;
++      const sameLabels = prev?.labels && next.labels && prev.min === next.min && prev.max === next.max && prev.labels.length === next.labels.length && prev.labels.every((x, i) => x === next.labels[i]);
++      next.centroids = sameLabels && prev.centroids ? prev.centroids : Hi(s[t]);
++    }
++    s[t].isDirty = !0;
++    await this.updateGLVolume();
+   }
+   /**
+    * Fetch a label colormap JSON from a URL or File and apply it to a volume.
 diff --git a/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js b/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
 index 475cb18..f7f9823 100644
 --- a/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js

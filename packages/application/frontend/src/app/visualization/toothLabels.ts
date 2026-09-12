@@ -270,6 +270,49 @@ export function withColormapVisibility(
   };
 }
 
+/**
+ * Build a NiiVue-compatible packed RGBA label LUT (same layout as their
+ * internal `Be()` helper). A new typed-array identity is required so NiiVue's
+ * colormap cache key changes when only alphas flip.
+ */
+export function buildLabelLut(cmap: LabelColorMap): {
+  lut: Uint8ClampedArray;
+  min: number;
+  max: number;
+} {
+  const { R, G, B, A, I } = cmap;
+  if (I.length === 0) {
+    return { lut: new Uint8ClampedArray(0), min: 0, max: 0 };
+  }
+  let min = I[0];
+  let max = I[0];
+  for (let i = 1; i < I.length; i++) {
+    const v = I[i];
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const lut = new Uint8ClampedArray((max - min + 1) * 4);
+  for (let h = 0; h < I.length; h++) {
+    let m = (I[h] - min) * 4;
+    lut[m++] = R[h] ?? 0;
+    lut[m++] = G[h] ?? 0;
+    lut[m++] = B[h] ?? 0;
+    lut[m] = A[h] ?? 0;
+  }
+  return { lut, min, max };
+}
+
+/** Stable key for a visibility set (`*` = all present teeth opaque). */
+export function visibilityKey(visibleClassIds: number[] | null): string {
+  if (visibleClassIds === null) {
+    return "*";
+  }
+  if (visibleClassIds.length === 0) {
+    return "";
+  }
+  return [...visibleClassIds].sort((a, b) => a - b).join(",");
+}
+
 /** Resolve which class IDs should be opaque given selection tooth IDs. */
 export function visibleClassesFromSelection(
   presentClassIds: number[],
@@ -291,4 +334,14 @@ export function visibleClassesFromSelection(
     }
   }
   return visible;
+}
+
+/** Parse `teeth-NN` from an odontogram SVG event target. */
+export function toothIdFromOdontogramTarget(target: EventTarget | null): string | null {
+  const el = (target as Element | null)?.closest?.("g[class*='teeth-']");
+  if (!el) {
+    return null;
+  }
+  const match = el.getAttribute("class")?.match(/teeth-\d+/);
+  return match?.[0] ?? null;
 }
