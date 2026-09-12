@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Minus,
   Plus,
+  CircleHelp,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
 import "react-odontogram/style.css";
@@ -17,6 +18,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Checkbox } from "../../components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../components/ui/tooltip";
 import {
   Accordion,
   AccordionContent,
@@ -256,12 +262,36 @@ export function VisualizationSidebar() {
             {teeth.hasToothLabels && (
               <ControlSection value="teeth" icon={Tooth} title="Tooth Selection">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-foreground">Pick from preview</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-foreground">Pick from preview</span>
+                    {!teeth.pickFromPreview && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="rounded-sm text-muted-foreground hover:text-foreground"
+                            aria-label="About pick from preview"
+                          >
+                            <CircleHelp className="size-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-60 text-balance">
+                          This mode enables selecting teeth by clicking in the viewer. All teeth stay
+                          visible until you turn it off.
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                   <Switch
                     checked={teeth.pickFromPreview}
                     onCheckedChange={teeth.setPickFromPreview}
                   />
                 </div>
+                <p className="whitespace-pre-line text-xs text-muted-foreground">
+                  {teeth.pickFromPreview
+                    ? "Click teeth in the viewer, right-side panel list or chart below to select or unselect. All other teeth stay visible until you turn this mode off."
+                    : "Select on the chart below, or enable pick mode.\nGreen = selected, blue = detected."}
+                </p>
                 <div className="toothviz-odontogram w-full overflow-x-auto">
                   <Odontogram
                     key={teeth.odontogramKey}
@@ -280,6 +310,13 @@ export function VisualizationSidebar() {
                     className="w-full"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  {teeth.selectedToothIds.length === 0
+                    ? `No selection - showing all ${teeth.presentToothIds.length} detected teeth.`
+                    : teeth.pickFromPreview
+                      ? `${teeth.selectedToothIds.length} selected - turn pick mode off to hide the rest.`
+                      : `Showing ${teeth.selectedToothIds.length} of ${teeth.presentToothIds.length} detected teeth.`}
+                </p>
                 {teeth.selectedToothIds.length > 0 && (
                   <Button
                     variant="outline"
