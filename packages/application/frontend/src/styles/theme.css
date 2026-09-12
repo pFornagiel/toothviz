@@ -252,3 +252,9 @@
 .pipeline-progress-shimmer {
   animation: pipeline-progress-shimmer 1.6s ease-in-out infinite;
 }
+
+/* Wait cursor while tooth overlay colormap is updating after pick-mode toggle. */
+html.toothviz-busy,
+html.toothviz-busy * {
+  cursor: wait !important;
+}

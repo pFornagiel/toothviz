@@ -27,6 +27,8 @@ export interface ToothSelectionControls {
    * Turning it off applies the filter (hides non-selected).
    */
   pickFromPreview: boolean;
+  /** True while applying colormap after a pick-mode toggle. */
+  pickModePending: boolean;
   setPickFromPreview: (enabled: boolean) => void;
   onOdontogramChange: (selected: ToothDetail[]) => void;
   /** Toggle a tooth from a preview click; remounts chart so colors stay in sync. */
@@ -78,12 +80,14 @@ export default function useToothSelectionControls({
   const [selectedToothIds, setSelectedToothIds] = useState<string[]>([]);
   const [odontogramKey, setOdontogramKey] = useState(0);
   const [pickFromPreview, setPickFromPreviewState] = useState(false);
+  const [pickModePending, setPickModePending] = useState(false);
   const [overlayIndex, setOverlayIndex] = useState(-1);
 
   const overlayIndexRef = useRef(-1);
   const presentClassIdsRef = useRef<number[]>([]);
   const selectedToothIdsRef = useRef<string[]>([]);
   const pickFromPreviewRef = useRef(false);
+  const pickModePendingGenRef = useRef(0);
   const showAllCmapRef = useRef<LabelColorMap | null>(null);
   /** Whether the overlay GPU state currently shows every present tooth. */
   const overlayShowsAllRef = useRef(true);
@@ -97,23 +101,29 @@ export default function useToothSelectionControls({
   const detectedConditions = buildSelectionConditions(presentToothIds, selectedToothIds);
 
   const pushColormap = useCallback(
-    (cmap: LabelColorMap, showsAll: boolean) => {
+    (cmap: LabelColorMap, showsAll: boolean): Promise<void> => {
       const nv = nvRef.current;
       const idx = overlayIndexRef.current;
       if (!nv || idx < 0) {
-        return;
+        return Promise.resolve();
       }
       overlayShowsAllRef.current = showsAll;
-      queueNvUpdate(NvUpdateKey.ToothLabels, () => {
-        nv.volumeIsAlphaClipDark = true;
-        void nv.setColormapLabel(idx, cmap).then(() => {
-          // Keep the per-class color legend in sync with overlay display.
-          nv.isLegendVisible = true;
-          const vol = nv.volumes[idx] as { isLegendVisible?: boolean } | undefined;
-          if (vol) {
-            vol.isLegendVisible = true;
-          }
-          void nv.updateGLVolume();
+      return new Promise((resolve) => {
+        queueNvUpdate(NvUpdateKey.ToothLabels, () => {
+          nv.volumeIsAlphaClipDark = true;
+          void nv
+            .setColormapLabel(idx, cmap)
+            .then(() => {
+              // Keep the per-class color legend in sync with overlay display.
+              nv.isLegendVisible = true;
+              const vol = nv.volumes[idx] as { isLegendVisible?: boolean } | undefined;
+              if (vol) {
+                vol.isLegendVisible = true;
+              }
+              return nv.updateGLVolume();
+            })
+            .catch(() => undefined)
+            .finally(() => resolve());
         });
       });
     },
@@ -139,30 +149,29 @@ export default function useToothSelectionControls({
     [nvRef],
   );
 
-  const showAllTeeth = useCallback(() => {
+  const showAllTeeth = useCallback((): Promise<void> => {
     const base = showAllCmapRef.current;
     if (!base) {
-      return;
+      return Promise.resolve();
     }
     if (overlayShowsAllRef.current) {
-      return;
+      return Promise.resolve();
     }
-    pushColormap(base, true);
+    return pushColormap(base, true);
   }, [pushColormap]);
 
   const filterToSelection = useCallback(
-    (selected: string[]) => {
+    (selected: string[]): Promise<void> => {
       const present = presentClassIdsRef.current;
       const base = showAllCmapRef.current;
       if (!base || present.length === 0) {
-        return;
+        return Promise.resolve();
       }
       if (selected.length === 0) {
-        showAllTeeth();
-        return;
+        return showAllTeeth();
       }
       const visible = visibleClassesFromSelection(present, selected);
-      pushColormap(withColormapVisibility(base, visible), false);
+      return pushColormap(withColormapVisibility(base, visible), false);
     },
     [pushColormap, showAllTeeth],
   );
@@ -202,6 +211,8 @@ export default function useToothSelectionControls({
     overlayIndexRef.current = nextOverlayIndex;
     setOverlayIndex(nextOverlayIndex);
     if (nextOverlayIndex < 0) {
+      pickModePendingGenRef.current += 1;
+      setPickModePending(false);
       setPresentClassIds([]);
       setSelectedToothIds([]);
       setPickFromPreviewState(false);
@@ -241,34 +252,45 @@ export default function useToothSelectionControls({
 
   const setPickFromPreview = useCallback(
     (enabled: boolean) => {
+      if (pickModePending) {
+        return;
+      }
       if (enabled === pickFromPreviewRef.current) {
         return;
       }
       pickFromPreviewRef.current = enabled;
       setPickFromPreviewState(enabled);
 
-      if (enabled) {
-        showAllTeeth();
-        return;
-      }
+      const gen = ++pickModePendingGenRef.current;
+      setPickModePending(true);
 
-      filterToSelection(selectedToothIdsRef.current);
+      const apply = enabled
+        ? showAllTeeth()
+        : filterToSelection(selectedToothIdsRef.current);
+
+      void apply.finally(() => {
+        if (gen === pickModePendingGenRef.current) {
+          setPickModePending(false);
+        }
+      });
     },
-    [showAllTeeth, filterToSelection],
+    [showAllTeeth, filterToSelection, pickModePending],
   );
 
   const clearSelection = useCallback(() => {
     setSelectedToothIds([]);
     setOdontogramKey((k) => k + 1);
-    showAllTeeth();
+    void showAllTeeth();
   }, [showAllTeeth]);
 
   const reset = useCallback(() => {
+    pickModePendingGenRef.current += 1;
+    setPickModePending(false);
     setSelectedToothIds([]);
     setPickFromPreviewState(false);
     pickFromPreviewRef.current = false;
     setOdontogramKey((k) => k + 1);
-    showAllTeeth();
+    void showAllTeeth();
   }, [showAllTeeth]);
 
   return {
@@ -278,6 +300,7 @@ export default function useToothSelectionControls({
     detectedConditions,
     odontogramKey,
     pickFromPreview,
+    pickModePending,
     setPickFromPreview,
     onOdontogramChange,
     toggleToothFromPreview,

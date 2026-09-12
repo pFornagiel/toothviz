@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -128,12 +129,13 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     teeth.overlayIndex >= 0 && (volumeDisplay.volumeVisibility[teeth.overlayIndex] ?? true);
   const pickCursor =
     teeth.pickFromPreview && teeth.hasToothLabels && maskVisible ? "cell" : "";
+  const busyCursor = teeth.pickModePending ? "wait" : "";
 
   useNiivueToothPick({
     canvasRef,
     nvRef,
     viewPhase: viewer.viewPhase,
-    enabled: Boolean(pickCursor),
+    enabled: Boolean(pickCursor) && !teeth.pickModePending,
     overlayIndex: teeth.overlayIndex,
     presentToothIds: teeth.presentToothIds,
     toggleToothFromPreview: teeth.toggleToothFromPreview,
@@ -143,10 +145,29 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     canvasRef,
     nvRef,
     viewPhase: viewer.viewPhase,
-    enabled: teeth.hasToothLabels && maskVisible,
-    pickCursor,
+    enabled: teeth.hasToothLabels && maskVisible && !teeth.pickModePending,
+    pickCursor: busyCursor || pickCursor,
     lightBackground: scene.lightBackground,
   });
+
+  // Busy wait cursor over the app while the overlay colormap is applying.
+  useEffect(() => {
+    if (!teeth.pickModePending) {
+      return;
+    }
+    const root = document.documentElement;
+    const canvas = canvasRef.current;
+    root.classList.add("toothviz-busy");
+    if (canvas) {
+      canvas.style.cursor = "wait";
+    }
+    return () => {
+      root.classList.remove("toothviz-busy");
+      if (canvas) {
+        canvas.style.cursor = pickCursor || "";
+      }
+    };
+  }, [teeth.pickModePending, pickCursor, canvasRef]);
 
   const handleBackFromError = useCallback(() => {
     const from = routeState.from ?? FromPage.Home;

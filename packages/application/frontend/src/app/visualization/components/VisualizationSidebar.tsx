@@ -285,7 +285,7 @@ export function VisualizationSidebar() {
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="max-w-60 text-balance">
-                          This mode enables selecting teeth by clicking in the viewer. All teeth stay
+                          This mode enables selecting teeth also by clicking in the viewer or preview legend list. All other teeth stay
                           visible until you turn it off.
                         </TooltipContent>
                       </Tooltip>
@@ -297,9 +297,11 @@ export function VisualizationSidebar() {
                   />
                 </div>
                 <p className="whitespace-pre-line text-xs text-muted-foreground">
-                  {teeth.pickFromPreview
-                    ? "Click teeth in the viewer or chart below to select or unselect. All stay visible until you turn this mode off."
-                    : "Select on the chart below, or enable pick mode.\nGreen = selected, blue = detected."}
+                  {teeth.pickModePending
+                    ? "Updating overlay…"
+                    : teeth.pickFromPreview
+                      ? "Click teeth in the viewer, legend list or chart below to select or unselect."
+                      : "Select on the chart below, or enable pick mode.\nGreen = selected, blue = detected."}
                 </p>
                 <div className="toothviz-odontogram w-full overflow-x-auto">
                   <Odontogram
