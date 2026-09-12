@@ -13,6 +13,7 @@ import { FromPage } from "../pipeline";
 import useNvUpdateQueue from "./hooks/useNvUpdateQueue";
 import useViewLayoutControls from "./hooks/useViewLayoutControls";
 import useVolumeDisplayControls from "./hooks/useVolumeDisplayControls";
+import useToothSelectionControls from "./hooks/useToothSelectionControls";
 import useSceneControls from "./hooks/useSceneControls";
 import useClipPlaneControls from "./hooks/useClipPlaneControls";
 import useRenderControls from "./hooks/useRenderControls";
@@ -53,13 +54,23 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   // Control state hooks
   const viewLayout = useViewLayoutControls({ nvRef });
   const volumeDisplay = useVolumeDisplayControls({ nvRef, queueNvUpdate });
+  const teeth = useToothSelectionControls({ nvRef, queueNvUpdate });
   const scene = useSceneControls({ nvRef });
   const clipPlane = useClipPlaneControls({ nvRef, queueNvUpdate });
   const render = useRenderControls({ nvRef, queueNvUpdate });
 
+  const syncAfterVolumesLoaded = useCallback(
+    (nv: NiiVueGPU) => {
+      volumeDisplay.syncFromVolumes(nv);
+      teeth.syncFromVolumes(nv);
+    },
+    [volumeDisplay.syncFromVolumes, teeth.syncFromVolumes],
+  );
+
   // Global reset
   const resetSettings = () => {
     volumeDisplay.reset();
+    teeth.reset();
     render.reset();
     clipPlane.reset();
     scene.reset();
@@ -72,7 +83,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     canvasRef,
     nvRef,
     configureNv: render.configureNv,
-    onVolumesLoaded: volumeDisplay.syncFromVolumes,
+    onVolumesLoaded: syncAfterVolumesLoaded,
   });
 
   const previewEnabled =
@@ -84,7 +95,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     studyId,
     nvRef,
     enabled: previewEnabled,
-    onOverlayLoaded: volumeDisplay.syncFromVolumes,
+    onOverlayLoaded: syncAfterVolumesLoaded,
   });
 
   // Wire the mouse-wheel interaction and sync with react state
@@ -156,6 +167,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     volumes: volumeList.map((v) => ({ name: v.name })),
     view: viewLayout,
     display: volumeDisplay,
+    teeth,
     scene,
     clip: clipPlane,
     render,

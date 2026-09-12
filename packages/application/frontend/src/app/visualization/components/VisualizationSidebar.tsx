@@ -10,6 +10,8 @@ import {
   Minus,
   Plus,
 } from "lucide-react";
+import { Odontogram } from "react-odontogram";
+import "react-odontogram/style.css";
 import { cn } from "@/lib/utils";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
@@ -27,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { Tooth } from "../../components/icons/tooth";
 import {
   SliceTypeKey,
   SLICE_TYPE_LABELS,
@@ -157,7 +160,7 @@ function ZoomControl({
 }
 
 export function VisualizationSidebar() {
-  const { viewer, layout, volumes, view, display, scene, clip, render, onReset } =
+  const { viewer, layout, volumes, view, display, teeth, scene, clip, render, onReset } =
     useVisualization();
 
   const ready = viewer.viewPhase === ViewPhase.Ready;
@@ -166,6 +169,7 @@ export function VisualizationSidebar() {
   // Sections open by default; clip/render appear only where a 3D tile is shown.
   const openSections = [
     "volumes",
+    ...(teeth.hasToothLabels ? ["teeth"] : []),
     "view",
     "display",
     "scene",
@@ -201,7 +205,12 @@ export function VisualizationSidebar() {
         )}
       >
         <fieldset disabled={!ready} className="m-0 min-w-0 border-0 p-0">
-          <Accordion type="multiple" defaultValue={openSections} className="w-full">
+          <Accordion
+            key={teeth.hasToothLabels ? "with-teeth" : "no-teeth"}
+            type="multiple"
+            defaultValue={openSections}
+            className="w-full"
+          >
             {/* Volume selection */}
             {volumes.length > 0 && (
               <ControlSection value="volumes" icon={Layers} title="Volume Selection">
@@ -239,6 +248,47 @@ export function VisualizationSidebar() {
                       </SelectContent>
                     </Select>
                   </div>
+                )}
+              </ControlSection>
+            )}
+
+            {teeth.hasToothLabels && (
+              <ControlSection value="teeth" icon={Tooth} title="Tooth Selection">
+                <p className="text-xs text-muted-foreground">
+                  Detected teeth are highlighted. Select one or more to show only those in the
+                  viewer.
+                </p>
+                <div className="toothviz-odontogram w-full overflow-x-auto">
+                  <Odontogram
+                    key={teeth.odontogramKey}
+                    notation="FDI"
+                    layout="square"
+                    showTooltip
+                    showLabels={false}
+                    teethConditions={teeth.detectedConditions}
+                    onChange={teeth.onOdontogramChange}
+                    colors={{
+                      darkBlue: "#005eb8",
+                      baseBlue: "#93c5fd",
+                      lightBlue: "#dbeafe",
+                    }}
+                    className="w-full"
+                  />
+                </div>
+                {teeth.selectedToothIds.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full bg-card"
+                    onClick={teeth.clearSelection}
+                  >
+                    Show all ({teeth.presentToothIds.length} detected)
+                  </Button>
+                )}
+                {teeth.selectedToothIds.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Showing all {teeth.presentToothIds.length} detected teeth.
+                  </p>
                 )}
               </ControlSection>
             )}

@@ -22,8 +22,11 @@ vi.mock("@niivue/niivue/webgl2", () => ({
     devicePixelRatio: 1,
     colormaps: ["Gray", "Red", "Green"],
     volumes: [],
+    volumeIsAlphaClipDark: false,
     setClipPlane: vi.fn(),
     setVolume: vi.fn(),
+    setColormapLabel: vi.fn().mockResolvedValue(undefined),
+    updateGLVolume: vi.fn().mockResolvedValue(undefined),
     destroy: vi.fn(),
     addEventListener: vi.fn(),
     view: null,
@@ -34,6 +37,7 @@ vi.mock("@niivue/niivue", () => ({
   SLICE_TYPE: { MULTIPLANAR: 0, AXIAL: 1, CORONAL: 2, SAGITTAL: 3, RENDER: 4 },
   MULTIPLANAR_TYPE: { AUTO: 0, GRID: 2 },
   SHOW_RENDER: { AUTO: 0, ALWAYS: 1 },
+  DRAG_MODE: { none: 0, contrast: 1, measurement: 2, pan: 3 },
 }));
 
 const getStudyMock = vi.fn();

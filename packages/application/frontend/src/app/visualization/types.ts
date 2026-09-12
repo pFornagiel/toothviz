@@ -7,6 +7,7 @@ import type { VolumeDisplayControls } from "./hooks/useVolumeDisplayControls";
 import type { SceneControls } from "./hooks/useSceneControls";
 import type { ClipPlaneControls } from "./hooks/useClipPlaneControls";
 import type { RenderControls } from "./hooks/useRenderControls";
+import type { ToothSelectionControls } from "./hooks/useToothSelectionControls";
 
 // Lifecycle phase of the visualization view
 export enum ViewPhase {
@@ -57,6 +58,7 @@ export interface VisualizationContextValue {
   volumes: VolumeInfo[];
   view: ViewLayoutControls;
   display: VolumeDisplayControls;
+  teeth: ToothSelectionControls;
   scene: SceneControls;
   clip: ClipPlaneControls;
   render: RenderControls;
