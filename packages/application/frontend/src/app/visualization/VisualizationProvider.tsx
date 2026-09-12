@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -13,6 +14,7 @@ import { FromPage } from "../pipeline";
 import useNvUpdateQueue from "./hooks/useNvUpdateQueue";
 import useViewLayoutControls from "./hooks/useViewLayoutControls";
 import useVolumeDisplayControls from "./hooks/useVolumeDisplayControls";
+import useToothSelectionControls from "./hooks/useToothSelectionControls";
 import useSceneControls from "./hooks/useSceneControls";
 import useClipPlaneControls from "./hooks/useClipPlaneControls";
 import useRenderControls from "./hooks/useRenderControls";
@@ -20,6 +22,8 @@ import useNiivueViewer from "./hooks/useNiivueViewer";
 import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
 import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
 import useNiivueTileDoubleClick from "./hooks/useNiivueTileDoubleClick";
+import useNiivueToothPick from "./hooks/useNiivueToothPick";
+import useNiivueLegendCursor from "./hooks/useNiivueLegendCursor";
 import useProcessingPreview from "./hooks/useProcessingPreview";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
 import { ViewPhase } from "./types";
@@ -53,13 +57,25 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   // Control state hooks
   const viewLayout = useViewLayoutControls({ nvRef });
   const volumeDisplay = useVolumeDisplayControls({ nvRef, queueNvUpdate });
+  const teeth = useToothSelectionControls({ nvRef, queueNvUpdate });
   const scene = useSceneControls({ nvRef });
   const clipPlane = useClipPlaneControls({ nvRef, queueNvUpdate });
   const render = useRenderControls({ nvRef, queueNvUpdate });
 
+  const syncVolumeDisplay = volumeDisplay.syncFromVolumes;
+  const syncTeeth = teeth.syncFromVolumes;
+  const syncAfterVolumesLoaded = useCallback(
+    (nv: NiiVueGPU) => {
+      syncVolumeDisplay(nv);
+      syncTeeth(nv);
+    },
+    [syncVolumeDisplay, syncTeeth],
+  );
+
   // Global reset
   const resetSettings = () => {
     volumeDisplay.reset();
+    teeth.reset();
     render.reset();
     clipPlane.reset();
     scene.reset();
@@ -72,7 +88,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     canvasRef,
     nvRef,
     configureNv: render.configureNv,
-    onVolumesLoaded: volumeDisplay.syncFromVolumes,
+    onVolumesLoaded: syncAfterVolumesLoaded,
   });
 
   const previewEnabled =
@@ -84,7 +100,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     studyId,
     nvRef,
     enabled: previewEnabled,
-    onOverlayLoaded: volumeDisplay.syncFromVolumes,
+    onOverlayLoaded: syncAfterVolumesLoaded,
   });
 
   // Wire the mouse-wheel interaction and sync with react state
@@ -110,6 +126,50 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     sliceType: viewLayout.sliceType,
     handleSliceTypeChange: viewLayout.handleSliceTypeChange,
   });
+
+  const maskVisible =
+    teeth.overlayIndex >= 0 && (volumeDisplay.volumeVisibility[teeth.overlayIndex] ?? true);
+  const pickCursor =
+    teeth.pickFromPreview && teeth.hasToothLabels && maskVisible ? "cell" : "";
+  const busyCursor = teeth.pickModePending ? "wait" : "";
+
+  useNiivueToothPick({
+    canvasRef,
+    nvRef,
+    viewPhase: viewer.viewPhase,
+    enabled: Boolean(pickCursor) && !teeth.pickModePending,
+    overlayIndex: teeth.overlayIndex,
+    presentToothIds: teeth.presentToothIds,
+    toggleToothFromPreview: teeth.toggleToothFromPreview,
+  });
+
+  useNiivueLegendCursor({
+    canvasRef,
+    nvRef,
+    viewPhase: viewer.viewPhase,
+    enabled: teeth.hasToothLabels && maskVisible && !teeth.pickModePending,
+    pickCursor: busyCursor || pickCursor,
+    lightBackground: scene.lightBackground,
+  });
+
+  // Busy wait cursor over the app while the overlay colormap is applying.
+  useEffect(() => {
+    if (!teeth.pickModePending) {
+      return;
+    }
+    const root = document.documentElement;
+    const canvas = canvasRef.current;
+    root.classList.add("toothviz-busy");
+    if (canvas) {
+      canvas.style.cursor = "wait";
+    }
+    return () => {
+      root.classList.remove("toothviz-busy");
+      if (canvas) {
+        canvas.style.cursor = pickCursor || "";
+      }
+    };
+  }, [teeth.pickModePending, pickCursor, canvasRef]);
 
   const handleBackFromError = useCallback(() => {
     const from = routeState.from ?? FromPage.Home;
@@ -156,6 +216,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     volumes: volumeList.map((v) => ({ name: v.name })),
     view: viewLayout,
     display: volumeDisplay,
+    teeth,
     scene,
     clip: clipPlane,
     render,

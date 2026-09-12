@@ -1,5 +1,5 @@
 import type { Dispatch } from "react";
-import type { PipelineMessage } from "@/api/types";
+import type { PipelineMessage, PipelineWsCompleted, PipelineWsFailed } from "@/api/types";
 import { ViewerPurpose, artifactFileId } from "@/api/types";
 import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
 import { pipelineStepProgress } from "./progress";
@@ -10,8 +10,8 @@ export interface WsHandlerOptions {
   getPipelineFinished: () => boolean;
   markPipelineFinished: () => void;
   disconnect: () => void;
-  onPipelineCompleted: (msg: PipelineMessage) => void;
-  onPipelineFailed: (msg: PipelineMessage) => void;
+  onPipelineCompleted: (msg: PipelineWsCompleted) => void;
+  onPipelineFailed: (msg: PipelineWsFailed) => void;
   onPipelineCancelled: () => void;
 }
 
@@ -74,7 +74,7 @@ export function applyWsMessage(
   }
 
   const stepIndex = step.stepIndex + stepOffset;
-  if (msg.step_index != null && msg.step_index > 0) {
+  if (msg.step_index > 0) {
     dispatch({
       type: PipelineActionType.CompleteStep,
       stepIndex: msg.step_index + stepOffset - 1,
