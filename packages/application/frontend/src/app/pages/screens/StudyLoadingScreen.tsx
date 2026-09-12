@@ -1,6 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { PipelineStepName, ClientStepName, BackendStepName, LoadingStepId } from "@/api/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Progress } from "../../components/ui/progress";
@@ -27,6 +38,8 @@ export interface StudyLoadingScreenProps {
   previewAvailable?: boolean;
   pipelineFinished?: boolean;
   onPreviewRawScan?: () => void;
+  onCancel?: () => void;
+  cancelling?: boolean;
 }
 
 function getLabelForStep(step: LoadingStepId): string {
@@ -52,10 +65,14 @@ export function StudyLoadingScreen({
   previewAvailable = false,
   pipelineFinished = false,
   onPreviewRawScan,
+  onCancel,
+  cancelling = false,
 }: StudyLoadingScreenProps) {
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const pct = Math.round(Math.min(1, Math.max(0, progressFraction)) * 100);
   const showPreviewChoice = previewAvailable && !pipelineFinished && onPreviewRawScan != null;
   const isRunning = !pipelineFinished;
+  const showCancel = isRunning && onCancel != null;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
@@ -148,6 +165,43 @@ export function StudyLoadingScreen({
             );
           })}
         </ol>
+      )}
+
+      {showCancel && (
+        <div className="mt-6 flex w-full max-w-md flex-col items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto px-2 py-1 text-xs font-normal text-muted-foreground hover:text-foreground"
+            disabled={cancelling}
+            onClick={() => setConfirmCancelOpen(true)}
+          >
+            {cancelling ? "Cancelling…" : "Cancel processing"}
+          </Button>
+          <AlertDialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancel processing?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Stops the current run. You can retry this study afterward from Browse
+                  Studies.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep processing</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setConfirmCancelOpen(false);
+                    onCancel?.();
+                  }}
+                >
+                  Cancel processing
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       )}
     </div>
   );
