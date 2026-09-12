@@ -3,35 +3,15 @@ import { useNavigate, useLoaderData, useRevalidator } from "react-router";
 import { cancelStudyPipeline, listStudies, retryStudyPipeline } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
-import { FromPage } from "../pipeline";
+import { canCancelStudy, canRetryStudy, FromPage, isProcessingStudy } from "../pipeline";
 import { Folder, EllipsisVertical, Dot } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../components/ui/alert-dialog";
+import { CancelPipelineDialog } from "../components/CancelPipelineDialog";
 import { Button } from "../components/ui/button";
 import { EditStudyModal } from "../components/EditStudyModal";
 import { StudyStatusIndicator } from "../components/StudyStatusIndicator";
 
 export async function browseLoader() {
   return await listStudies();
-}
-
-function canRetryStudy(study: StudyResponse): boolean {
-  return (
-    (study.status === "failed" || study.status === "cancelled") &&
-    Boolean(study.source_file_id)
-  );
-}
-
-function canCancelStudy(study: StudyResponse): boolean {
-  return study.status === "processing";
 }
 
 interface StudyItemProps {
@@ -68,7 +48,7 @@ function StudyItem({ study, onEdit, isSelected, onSelect, onRefresh }: StudyItem
     });
 
   const handleNavigate = (study: StudyResponse) => {
-    if (study.status === "processing" && study.job_id) {
+    if (isProcessingStudy(study) && study.job_id) {
       navigate(`/pipeline/${study.id}`, {
         state: { from: FromPage.Browse },
       });
@@ -103,7 +83,6 @@ function StudyItem({ study, onEdit, isSelected, onSelect, onRefresh }: StudyItem
   };
 
   const handleConfirmCancel = async () => {
-    setConfirmCancelOpen(false);
     if (cancelling) {
       return;
     }
@@ -173,25 +152,12 @@ function StudyItem({ study, onEdit, isSelected, onSelect, onRefresh }: StudyItem
             <EllipsisVertical className="!size-5" />
           </Button>
         </div>
-        <AlertDialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
-          <AlertDialogContent
-            onClick={(e) => e.stopPropagation()}
-          >
-            <AlertDialogHeader>
-              <AlertDialogTitle>Cancel processing?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Stops the current run. You can retry this study afterward from Browse
-                Studies.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep processing</AlertDialogCancel>
-              <AlertDialogAction onClick={() => void handleConfirmCancel()}>
-                Cancel processing
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <CancelPipelineDialog
+          open={confirmCancelOpen}
+          onOpenChange={setConfirmCancelOpen}
+          onConfirm={() => void handleConfirmCancel()}
+          stopPropagation
+        />
       </td>
     </tr>
   );

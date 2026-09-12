@@ -2,16 +2,7 @@
 
 import { useState } from "react";
 import { PipelineStepName, ClientStepName, BackendStepName, LoadingStepId } from "@/api/types";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../../components/ui/alert-dialog";
+import { CancelPipelineDialog } from "../../components/CancelPipelineDialog";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Progress } from "../../components/ui/progress";
@@ -179,28 +170,11 @@ export function StudyLoadingScreen({
           >
             {cancelling ? "Cancelling…" : "Cancel processing"}
           </Button>
-          <AlertDialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Cancel processing?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Stops the current run. You can retry this study afterward from Browse
-                  Studies.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep processing</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    setConfirmCancelOpen(false);
-                    onCancel?.();
-                  }}
-                >
-                  Cancel processing
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <CancelPipelineDialog
+            open={confirmCancelOpen}
+            onOpenChange={setConfirmCancelOpen}
+            onConfirm={() => onCancel?.()}
+          />
         </div>
       )}
     </div>

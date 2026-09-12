@@ -6,6 +6,7 @@ import {
 } from "../../pages/screens/ProcessingNoticeBar";
 import { resolveViewerFileIds } from "../../pipeline/viewerFiles";
 import { watchStudyUntilTerminal } from "../../pipeline/studyWatch";
+import { isFailedOrCancelled } from "../../pipeline/studyStatus";
 import {
   DEFAULT_OVERLAY_NAME,
   DEFAULT_OVERLAY_OPACITY,
@@ -96,7 +97,7 @@ export default function useProcessingPreview({
           await loadOverlayArtifact();
           return;
         }
-        if (study.status === "failed" || study.status === "cancelled") {
+        if (isFailedOrCancelled(study.status)) {
           setProcessingNotice("processing-failed");
         }
       },
