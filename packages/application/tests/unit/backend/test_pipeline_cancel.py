@@ -117,6 +117,17 @@ async def test_cancel_failed_is_noop(db_session, pipeline_service):
 
 
 @pytest.mark.asyncio
+async def test_cancel_ready_is_noop(db_session, pipeline_service):
+    """Studies that skipped the pipeline (status ready) must soft-succeed."""
+    _setup(db_session, status="ready")
+    with pipeline_service._session_factory() as db:
+        job = pipeline_service.cancel_for_study("s1", db)
+        assert job.status == "ready"
+    pipeline_service._worker_pools["segmentation"].force_stop.assert_not_called()
+    pipeline_service._broadcaster.broadcast.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_cancel_with_running_future_force_stops_pools(db_session, pipeline_service):
     _setup(db_session, status="running")
     mock_future = MagicMock()
