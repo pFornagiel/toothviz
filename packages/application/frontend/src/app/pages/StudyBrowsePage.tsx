@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLoaderData, useRevalidator } from "react-router";
-import { cancelStudyPipeline, listStudies, retryStudyPipeline } from "@/api/studies";
+import {
+  cancelStudyPipeline,
+  deleteStudy,
+  listStudies,
+  retryStudyPipeline,
+} from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 import { canCancelStudy, canRetryStudy, FromPage, isProcessingStudy } from "../pipeline";
 import { Folder, EllipsisVertical, Dot } from "lucide-react";
 import { CancelPipelineDialog } from "../components/CancelPipelineDialog";
+import { DeleteStudyDialog } from "../components/DeleteStudyDialog";
 import { Button } from "../components/ui/button";
 import { EditStudyModal } from "../components/EditStudyModal";
 import { StudyStatusIndicator } from "../components/StudyStatusIndicator";
@@ -167,6 +173,8 @@ export function StudyBrowsePage() {
   const studies = useLoaderData() as StudyResponse[];
   const [openEditStudyModal, setOpenEditStudyModal] = useState(false);
   const [editedStudy, setEditedStudy] = useState<StudyResponse | null>(null);
+  const [studyToDelete, setStudyToDelete] = useState<StudyResponse | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [selectedStudyId, setSelectedStudyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -189,7 +197,35 @@ export function StudyBrowsePage() {
     setEditedStudy(study);
     setOpenEditStudyModal(true);
   };
-  
+
+  const onRequestDelete = () => {
+    if (!editedStudy) {
+      return;
+    }
+    const target = editedStudy;
+    onCloseEditModal();
+    // Let the edit Dialog fully release body scroll/pointer lock first.
+    window.setTimeout(() => setStudyToDelete(target), 0);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!studyToDelete || deleting) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteStudy(studyToDelete.id);
+      setStudyToDelete(null);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
+      // Safety: nested/rapid modal close can leave Radix removeScroll stuck.
+      document.body.style.pointerEvents = "";
+    }
+  };
+
   return (
     <PageLayout
       showBackButton
@@ -243,8 +279,20 @@ export function StudyBrowsePage() {
           isOpen={openEditStudyModal}
           onClose={onCloseEditModal}
           onSave={refresh}
+          onRequestDelete={onRequestDelete}
         />
       )}
+
+      <DeleteStudyDialog
+        open={studyToDelete != null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) {
+            setStudyToDelete(null);
+          }
+        }}
+        studyName={studyToDelete?.name}
+        onConfirm={() => void handleConfirmDelete()}
+      />
     </PageLayout>
   );
 }
