@@ -1,12 +1,10 @@
 import type { StudyResponse } from "@/api/types";
+import { isTerminalStudyStatus } from "./studyStatus";
 
 export const STUDY_TERMINAL_POLL_MS = 5_000;
 
-export type TerminalStudyStatus = "ready" | "failed" | "cancelled";
-
-export function isTerminalStudyStatus(status: string): status is TerminalStudyStatus {
-  return status === "ready" || status === "failed" || status === "cancelled";
-}
+export type { TerminalStudyStatus } from "./studyStatus";
+export { isTerminalStudyStatus } from "./studyStatus";
 
 export interface WatchStudyUntilTerminalOptions {
   getStudy: (studyId: string) => Promise<StudyResponse>;

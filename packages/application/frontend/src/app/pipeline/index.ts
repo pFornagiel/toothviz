@@ -18,3 +18,11 @@ export {
 export { PipelineProvider, usePipeline } from "./PipelineProvider";
 export { resolveViewerFileIds, resolveVolumePreviewId } from "./viewerFiles";
 export { watchStudyUntilTerminal, STUDY_TERMINAL_POLL_MS } from "./studyWatch";
+export {
+  canCancelStudy,
+  canRetryStudy,
+  isFailedOrCancelled,
+  isProcessingStudy,
+  isTerminalStudyStatus,
+  type TerminalStudyStatus,
+} from "./studyStatus";
