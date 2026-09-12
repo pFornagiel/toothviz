@@ -36,11 +36,22 @@ def _open_progress_queue() -> _ProgressQueueResources:
 
 
 def _close_progress_queue(resources: _ProgressQueueResources) -> None:
-    if resources.manager is not None:
+    if resources.manager is None:
+        return
+    try:
+        resources.manager.shutdown()
+    except Exception:
+        logger.debug("Progress queue manager shutdown failed", exc_info=True)
+    # After a hard worker kill, Manager.shutdown can leave the server process
+    # alive — terminate it so cancel does not orphan a multiprocessing child.
+    proc = getattr(resources.manager, "_process", None)
+    if proc is not None:
         try:
-            resources.manager.shutdown()
+            if proc.is_alive():
+                proc.kill()
+                proc.join(timeout=1.0)
         except Exception:
-            logger.debug("Progress queue manager shutdown failed", exc_info=True)
+            logger.debug("Progress queue manager process kill failed", exc_info=True)
 
 
 def _drain_queue(
@@ -120,25 +131,31 @@ async def run_with_progress_pump(
             logger.debug("Progress pump stopped with error", exc_info=True)
 
     pump_task = asyncio.create_task(pump())
+    cancelled = False
     try:
         return await work(resources.queue)
+    except asyncio.CancelledError:
+        cancelled = True
+        raise
     finally:
         stop_evt.set()
+        pump_task.cancel()
         try:
             await pump_task
-        except Exception:
+        except (asyncio.CancelledError, Exception):
             pass
-        # Emit any progress left in the queue after the worker returns.
-        try:
-            update = _drain_queue(resources.queue, parse_item)
-            if update is not None:
-                sp, chunk_index, total_chunks = update
-                await ctx.broadcast_progress(
-                    step_name=step_name,
-                    step_progress=sp,
-                    chunk_index=chunk_index,
-                    total_chunks=total_chunks,
-                )
-        except Exception:
-            logger.debug("Final progress drain failed", exc_info=True)
+        # Skip drain/broadcast when cancelled — the worker (and queue) may be dead.
+        if not cancelled:
+            try:
+                update = _drain_queue(resources.queue, parse_item)
+                if update is not None:
+                    sp, chunk_index, total_chunks = update
+                    await ctx.broadcast_progress(
+                        step_name=step_name,
+                        step_progress=sp,
+                        chunk_index=chunk_index,
+                        total_chunks=total_chunks,
+                    )
+            except Exception:
+                logger.debug("Final progress drain failed", exc_info=True)
         _close_progress_queue(resources)

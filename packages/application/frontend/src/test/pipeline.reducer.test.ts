@@ -26,6 +26,7 @@ describe("pipelineReducer - lifecycle actions", () => {
     expect(next.progress).toBe(0);
     expect(next.statusText).toBe("Starting upload...");
     expect(next.error).toBeNull();
+    expect(next.pipelineActive).toBe(false);
   });
 
   it("SET_STEPS replaces only the step list", () => {
@@ -45,6 +46,7 @@ describe("pipelineReducer - lifecycle actions", () => {
     expect(next.currentStepIndex).toBe(2);
     expect(next.progress).toBeCloseTo(2 / 3, 10);
     expect(next.statusText).toBe("Pipeline running...");
+    expect(next.pipelineActive).toBe(true);
   });
 
   it("ENTER_PIPELINE with stepIndex 0 starts the bar at zero (resume entry)", () => {
@@ -54,6 +56,20 @@ describe("pipelineReducer - lifecycle actions", () => {
     });
     expect(next.progress).toBe(0);
     expect(next.currentStepIndex).toBe(0);
+    expect(next.pipelineActive).toBe(true);
+  });
+
+  it("BEGIN clears pipelineActive after a prior EnterPipeline", () => {
+    const active = pipelineReducer(stateWithSteps(noMaskSteps), {
+      type: PipelineActionType.EnterPipeline,
+      stepIndex: 2,
+    });
+    expect(active.pipelineActive).toBe(true);
+    const next = pipelineReducer(active, {
+      type: PipelineActionType.Begin,
+      steps: noMaskSteps,
+    });
+    expect(next.pipelineActive).toBe(false);
   });
 
   it("ENTER_PIPELINE with a null step index leaves progress at zero", () => {

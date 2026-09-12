@@ -17,6 +17,11 @@ export async function pipelineLoader({ params }: LoaderFunctionArgs) {
     return redirect(`/visualize/${study.id}`);
   }
 
+  // Cancelled studies are managed from Browse (retry there).
+  if (study.status === "cancelled") {
+    return redirect("/browse");
+  }
+
   return study;
 }
 
@@ -48,6 +53,8 @@ function PipelineScreens() {
     canRetry,
     retryFailedPipeline,
     retrying,
+    cancelPipeline,
+    cancelling,
   } = usePipeline();
 
   const handleBack = () => {
@@ -100,6 +107,8 @@ function PipelineScreens() {
         previewAvailable={volumePreviewFileId != null}
         pipelineFinished={pipelineFinished}
         onPreviewRawScan={handlePreviewRawScan}
+        onCancel={cancelPipeline}
+        cancelling={Boolean(cancelling)}
       />
     </PageLayout>
   );

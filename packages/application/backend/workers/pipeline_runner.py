@@ -27,6 +27,13 @@ def _extract_failed_step(exc: BaseException) -> str | None:
     return None
 
 
+def _format_error(exc: BaseException) -> str:
+    error_text = str(exc)
+    if exc.__cause__ is not None:
+        error_text = f"{error_text}. Cause: {exc.__cause__}"
+    return error_text
+
+
 async def run_pipeline(
     job_id: str,
     steps: list[PipelineStep],
@@ -45,7 +52,28 @@ async def run_pipeline(
     ctx.work_dir.mkdir(parents=True, exist_ok=True)
 
     with storage_service.session_factory() as db:
-        PipelineJobRepo(db).set_status(job_id, "running")
+        # Policy: only enter running from an active job. Atomic so cancel that
+        # already wrote ``cancelled`` is not overwritten by a plain set_status.
+        status = PipelineJobRepo(db).update_status_if(
+            job_id,
+            "running",
+            from_statuses=("queued", "running"),
+        )
+
+    if status == "cancelled":
+        await ctx.broadcaster.broadcast(
+            job_id,
+            PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
+        )
+        return
+
+    if status != "running":
+        logger.info(
+            "Pipeline %s not starting (status=%s after begin-run transition)",
+            job_id,
+            status,
+        )
+        return
 
     total = len(steps)
 
@@ -68,6 +96,8 @@ async def run_pipeline(
                 )
             try:
                 result = await step.run(step_ctx)
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:
                 raise RuntimeError(
                     f"Pipeline step {step.name!r} failed"
@@ -113,8 +143,28 @@ async def run_pipeline(
                     ).model_dump(mode="json"),
                 )
 
+        # Atomic so a cancel that already wrote ``cancelled`` is not overwritten.
         with storage_service.session_factory() as db:
-            PipelineJobRepo(db).set_status(job_id, "completed")
+            status = PipelineJobRepo(db).update_status_if(
+                job_id,
+                "completed",
+                from_statuses=("running",),
+            )
+
+        if status == "cancelled":
+            await ctx.broadcaster.broadcast(
+                job_id,
+                PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
+            )
+            return
+
+        if status != "completed":
+            logger.info(
+                "Pipeline %s finished steps but status is %s; skipping completed",
+                job_id,
+                status,
+            )
+            return
 
         await ctx.broadcaster.broadcast(
             job_id,
@@ -122,28 +172,53 @@ async def run_pipeline(
         )
 
     except asyncio.CancelledError:
+        # Do not overwrite completed/failed if cancel lost the race.
         with storage_service.session_factory() as db:
-            PipelineJobRepo(db).set_status(job_id, "cancelled")
-        await ctx.broadcaster.broadcast(
-            job_id,
-            PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
-        )
+            status = PipelineJobRepo(db).update_status_if(
+                job_id,
+                "cancelled",
+                from_statuses=("queued", "running", "created"),
+            )
+        if status == "cancelled":
+            await ctx.broadcaster.broadcast(
+                job_id,
+                PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
+            )
         raise
 
     except Exception as exc:
-        logger.exception("Pipeline %s failed", job_id)
-        failed_step = _extract_failed_step(exc)
-        error_text = str(exc)
-        if exc.__cause__ is not None:
-            error_text = f"{error_text}. Cause: {exc.__cause__}"
+        # force_stop can surface as a normal Exception if CancelledError lost a
+        # race; never overwrite an intentional cancel with failed.
         with storage_service.session_factory() as db:
-            PipelineJobRepo(db).set_status(job_id, "failed", error=error_text)
+            status = PipelineJobRepo(db).update_status_if(
+                job_id,
+                "failed",
+                from_statuses=("queued", "running"),
+                error=_format_error(exc),
+            )
+
+        if status == "cancelled":
+            await ctx.broadcaster.broadcast(
+                job_id,
+                PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
+            )
+            return
+
+        if status != "failed":
+            logger.info(
+                "Pipeline %s raised but status is %s; skipping failed",
+                job_id,
+                status,
+            )
+            return
+
+        logger.exception("Pipeline %s failed", job_id)
         await ctx.broadcaster.broadcast(
             job_id,
             PipelineWsFailedMessage(
                 job_id=job_id,
-                error=error_text,
-                failed_step=failed_step,
+                error=_format_error(exc),
+                failed_step=_extract_failed_step(exc),
             ).model_dump(mode="json"),
         )
 

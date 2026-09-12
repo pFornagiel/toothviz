@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLoaderData, useRevalidator } from "react-router";
-import { listStudies, retryStudyPipeline } from "@/api/studies";
+import { cancelStudyPipeline, listStudies, retryStudyPipeline } from "@/api/studies";
 import type { StudyResponse } from "@/api/types";
 import { PageLayout } from "../components/layout/page-layout";
 import { FromPage } from "../pipeline";
 import { Folder, EllipsisVertical, Dot } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import { Button } from "../components/ui/button";
 import { EditStudyModal } from "../components/EditStudyModal";
 import { StudyStatusIndicator } from "../components/StudyStatusIndicator";
@@ -20,17 +30,29 @@ function canRetryStudy(study: StudyResponse): boolean {
   );
 }
 
+function canCancelStudy(study: StudyResponse): boolean {
+  return study.status === "processing";
+}
+
 interface StudyItemProps {
   study: StudyResponse;
   onEdit: (study: StudyResponse) => void;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  onRefresh: () => void;
 }
 
-function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
+function StudyItem({ study, onEdit, isSelected, onSelect, onRefresh }: StudyItemProps) {
   const navigate = useNavigate();
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const showRetry = canRetryStudy(study);
+  const showCancel = canCancelStudy(study);
+
+  const actionBtnClass = `px-2 h-8 cursor-pointer rounded text-sm font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 ${
+    isSelected ? "hover:bg-primary/20" : "hover:bg-accent"
+  }`;
 
   const handleEditClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -71,6 +93,31 @@ function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
     }
   };
 
+  const handleCancelClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (cancelling) {
+      return;
+    }
+    setConfirmCancelOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    setConfirmCancelOpen(false);
+    if (cancelling) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      await cancelStudyPipeline(study.id);
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Cancel failed");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   return (
     <tr
       key={study.id}
@@ -98,12 +145,22 @@ function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
       </td>
       <td className="px-6 py-4 text-sm text-muted-foreground">
         <div className="flex items-center justify-end gap-1">
+          {showCancel && (
+            <Button
+              variant="ghost"
+              onClick={handleCancelClick}
+              disabled={cancelling}
+              className={actionBtnClass}
+            >
+              {cancelling ? "Cancelling…" : "Cancel"}
+            </Button>
+          )}
           {showRetry && (
             <Button
               variant="ghost"
               onClick={handleRetry}
               disabled={retrying}
-              className={`px-2 h-8 cursor-pointer rounded text-sm font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 ${isSelected ? "hover:bg-primary/20" : "hover:bg-accent"}`}
+              className={actionBtnClass}
             >
               {retrying ? "Retrying…" : "Retry"}
             </Button>
@@ -116,6 +173,25 @@ function StudyItem({ study, onEdit, isSelected, onSelect }: StudyItemProps) {
             <EllipsisVertical className="!size-5" />
           </Button>
         </div>
+        <AlertDialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
+          <AlertDialogContent
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel processing?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Stops the current run. You can retry this study afterward from Browse
+                Studies.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep processing</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void handleConfirmCancel()}>
+                Cancel processing
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </td>
     </tr>
   );
@@ -184,6 +260,7 @@ export function StudyBrowsePage() {
                   onEdit={onEdit}
                   isSelected={selectedStudyId === study.id}
                   onSelect={setSelectedStudyId}
+                  onRefresh={refresh}
                 />
               ))}
             </tbody>

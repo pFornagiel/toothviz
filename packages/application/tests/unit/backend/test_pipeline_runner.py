@@ -134,6 +134,107 @@ async def test_run_pipeline_failure(
 
 
 @pytest.mark.asyncio
+async def test_run_pipeline_skips_when_already_cancelled(
+    db_session, session_factory, storage_engine, tmp_path,
+):
+    """Cancel before begin-run transition must not resurrect the job as running."""
+    _setup_db(db_session)
+    storage_service = StorageService(storage_engine, session_factory)
+    with session_factory() as db:
+        PipelineJobRepo(db).set_status("j1", "cancelled")
+
+    ran = {"value": False}
+
+    class ShouldNotRun:
+        name = "seg"
+
+        async def run(self, ctx):
+            ran["value"] = True
+            return StepResult(next_input_path=ctx.current_input_path, artifacts=[])
+
+    input_file = tmp_path / "input.nii"
+    input_file.write_bytes(b"data")
+    work_dir = tmp_path / "work"
+    broadcaster = AsyncMock(spec=WSBroadcaster)
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, MagicMock(), MagicMock())
+
+    await run_pipeline("j1", [ShouldNotRun()], ctx, storage_service)
+
+    assert ran["value"] is False
+    with session_factory() as db:
+        assert PipelineJobRepo(db).get("j1").status == "cancelled"
+    events = [c.args[1].get("event") for c in broadcaster.broadcast.call_args_list]
+    assert events == ["pipeline_cancelled"]
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_does_not_overwrite_cancelled_with_failed(
+    db_session, session_factory, storage_engine, tmp_path,
+):
+    """If cancel already persisted cancelled, a kill-induced Exception stays cancelled."""
+    _setup_db(db_session)
+    storage_service = StorageService(storage_engine, session_factory)
+
+    class CancelThenBoom:
+        name = "seg"
+
+        async def run(self, ctx):
+            # Mimic cancel_for_study writing cancelled while the step is in flight.
+            with session_factory() as db:
+                PipelineJobRepo(db).set_status("j1", "cancelled")
+            raise RuntimeError("BrokenProcessPool")
+
+    steps = [CancelThenBoom()]
+
+    input_file = tmp_path / "input.nii"
+    input_file.write_bytes(b"data")
+    work_dir = tmp_path / "work"
+
+    broadcaster = AsyncMock(spec=WSBroadcaster)
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, MagicMock(), MagicMock())
+
+    await run_pipeline("j1", steps, ctx, storage_service)
+
+    with session_factory() as db:
+        j = PipelineJobRepo(db).get("j1")
+        assert j.status == "cancelled"
+    events = [c.args[1].get("event") for c in broadcaster.broadcast.call_args_list]
+    assert "pipeline_cancelled" in events
+    assert "pipeline_failed" not in events
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_does_not_overwrite_cancelled_with_completed(
+    db_session, session_factory, storage_engine, tmp_path,
+):
+    """Cancel after the last step returns must not resurrect the job as completed."""
+    _setup_db(db_session)
+    storage_service = StorageService(storage_engine, session_factory)
+
+    class CancelAfterSuccess:
+        name = "seg"
+
+        async def run(self, ctx):
+            with session_factory() as db:
+                PipelineJobRepo(db).set_status("j1", "cancelled")
+            return StepResult(next_input_path=ctx.current_input_path, artifacts=[])
+
+    input_file = tmp_path / "input.nii"
+    input_file.write_bytes(b"data")
+    work_dir = tmp_path / "work"
+    broadcaster = AsyncMock(spec=WSBroadcaster)
+    ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, MagicMock(), MagicMock())
+
+    await run_pipeline("j1", [CancelAfterSuccess()], ctx, storage_service)
+
+    with session_factory() as db:
+        assert PipelineJobRepo(db).get("j1").status == "cancelled"
+    events = [c.args[1].get("event") for c in broadcaster.broadcast.call_args_list]
+    assert "pipeline_cancelled" in events
+    assert "pipeline_completed" not in events
+
+
+@pytest.mark.asyncio
 async def test_run_pipeline_stores_partial_artifacts_on_later_failure(
     db_session, session_factory, storage_engine, tmp_path,
 ):
