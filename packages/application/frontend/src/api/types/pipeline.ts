@@ -64,7 +64,7 @@ interface PipelineWsBase {
 
 export interface PipelineWsStepStarted extends PipelineWsBase {
   event: "step_started";
-  status: PipelineStatus.Running | "running";
+  status?: PipelineStatus.Running | "running";
   step: string;
   step_index: number;
   total_steps: number;
@@ -75,7 +75,7 @@ export interface PipelineWsStepStarted extends PipelineWsBase {
 
 export interface PipelineWsStepProgress extends PipelineWsBase {
   event: "step_progress";
-  status: PipelineStatus.Running | "running";
+  status?: PipelineStatus.Running | "running";
   step: string;
   step_index: number;
   total_steps: number;
@@ -125,23 +125,7 @@ export type PipelineMessage =
   | PipelineWsStepCompleted
   | PipelineWsCompleted
   | PipelineWsFailed
-  | PipelineWsCancelled
-  | {
-      /** Frames without a recognized event are ignored by the UI. */
-      event?: string;
-      job_id?: string;
-      status?: PipelineStatus | string;
-      step?: string;
-      progress?: number;
-      step_progress?: number;
-      error?: string;
-      failed_step?: string;
-      total_steps?: number;
-      step_index?: number;
-      chunk_index?: number;
-      total_chunks?: number;
-      artifacts?: PipelineArtifacts;
-    };
+  | PipelineWsCancelled;
 
 export function artifactFileId(
   artifacts: PipelineArtifacts | undefined,

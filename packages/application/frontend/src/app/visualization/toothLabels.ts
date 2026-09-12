@@ -288,8 +288,12 @@ export function buildLabelLut(cmap: LabelColorMap): {
   let max = I[0];
   for (let i = 1; i < I.length; i++) {
     const v = I[i];
-    if (v < min) min = v;
-    if (v > max) max = v;
+    if (v < min) {
+      min = v;
+    }
+    if (v > max) {
+      max = v;
+    }
   }
   const lut = new Uint8ClampedArray((max - min + 1) * 4);
   for (let h = 0; h < I.length; h++) {

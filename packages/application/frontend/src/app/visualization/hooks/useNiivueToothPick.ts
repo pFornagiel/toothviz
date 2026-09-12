@@ -57,7 +57,6 @@ export default function useNiivueToothPick({
       nv.removeEventListener("locationChange", onLocation);
     };
     // Re-attach when viewer becomes ready / nv instance is recreated.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewPhase, nvRef]);
 
   useEffect(() => {

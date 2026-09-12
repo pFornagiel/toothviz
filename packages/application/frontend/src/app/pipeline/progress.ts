@@ -1,4 +1,9 @@
-import type { PipelineMessage } from "@/api/types";
+import type {
+  PipelineMessage,
+  PipelineWsStepCompleted,
+  PipelineWsStepProgress,
+  PipelineWsStepStarted,
+} from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
 
 const STEP_LABELS: Record<string, string> = {
@@ -16,12 +21,12 @@ function stepLabel(step: string | undefined): string {
 }
 
 function pipelineStepStatusText(
-  msg: PipelineMessage,
+  msg: PipelineWsStepStarted | PipelineWsStepProgress | PipelineWsStepCompleted,
   completed: boolean,
   fraction: number,
 ): string {
   const label = stepLabel(msg.step);
-  const mapped = msg.step != null && msg.step in STEP_LABELS;
+  const mapped = msg.step in STEP_LABELS;
 
   if (completed) {
     return mapped ? `${label} complete` : `Finished step: ${msg.step}`;
@@ -107,15 +112,26 @@ export interface PipelineStepProgress extends StepProgress {
  * Map a non-terminal pipeline WebSocket message onto a step update.
  */
 export function pipelineStepProgress(msg: PipelineMessage): PipelineStepProgress | null {
-  if (msg.step_index == null) {
+  if (
+    msg.event !== "step_started" &&
+    msg.event !== "step_progress" &&
+    msg.event !== "step_completed"
+  ) {
+    return null;
+  }
+
+  // Guard incomplete wire payloads / test fixtures missing required fields.
+  if (typeof msg.step_index !== "number") {
     return null;
   }
 
   const completed = msg.event === "step_completed";
-  const total = msg.total_steps ?? 0;
+  const total = msg.total_steps;
+  const chunkIndex = msg.event === "step_progress" ? msg.chunk_index : undefined;
+  const totalChunks = msg.event === "step_progress" ? msg.total_chunks : undefined;
   const fraction =
-    msg.total_chunks != null && msg.chunk_index != null && msg.total_chunks > 0
-      ? clamp01(msg.chunk_index / msg.total_chunks)
+    totalChunks != null && chunkIndex != null && totalChunks > 0
+      ? clamp01(chunkIndex / totalChunks)
       : msg.progress != null && total > 0
         ? clamp01(msg.progress * total - msg.step_index)
         : completed

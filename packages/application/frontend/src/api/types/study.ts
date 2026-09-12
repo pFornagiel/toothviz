@@ -7,7 +7,7 @@ export interface StudyResponse {
   name: string;
   status: string;
   created_at: string;
-  job_id: string;
+  job_id: string | null;
   pipeline_status: string;
   steps: LoadingStepId[];
   error: string;
