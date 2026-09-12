@@ -21,6 +21,7 @@ import useNiivueViewer from "./hooks/useNiivueViewer";
 import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
 import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
 import useNiivueTileDoubleClick from "./hooks/useNiivueTileDoubleClick";
+import useNiivueToothPick from "./hooks/useNiivueToothPick";
 import useProcessingPreview from "./hooks/useProcessingPreview";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
 import { ViewPhase } from "./types";
@@ -120,6 +121,16 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     viewPhase: viewer.viewPhase,
     sliceType: viewLayout.sliceType,
     handleSliceTypeChange: viewLayout.handleSliceTypeChange,
+  });
+
+  useNiivueToothPick({
+    canvasRef,
+    nvRef,
+    viewPhase: viewer.viewPhase,
+    enabled: teeth.pickFromPreview && teeth.hasToothLabels,
+    overlayIndex: teeth.overlayIndex,
+    presentToothIds: teeth.presentToothIds,
+    toggleToothFromPreview: teeth.toggleToothFromPreview,
   });
 
   const handleBackFromError = useCallback(() => {

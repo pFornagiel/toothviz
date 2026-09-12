@@ -49,6 +49,40 @@ export function toothIdToFdi(toothId: string): string | null {
   return match ? match[1] : null;
 }
 
+export function classToToothId(classId: number): string | null {
+  const fdi = classToFdi(classId);
+  return fdi === null ? null : fdiToToothId(fdi);
+}
+
+/** Read overlay class id from a NiiVue locationChange values array. */
+export function toothClassFromLocationValues(
+  values: ReadonlyArray<{ name?: string; value: number }>,
+  overlayIndex: number,
+  overlayName: string = "overlay",
+): number | null {
+  if (values.length === 0) {
+    return null;
+  }
+  const byName = values.find(
+    (v) => (v.name ?? "").toLowerCase() === overlayName.toLowerCase(),
+  );
+  if (byName) {
+    const c = Math.round(byName.value);
+    return c >= 1 && c <= MAX_TOOTH_CLASS ? c : null;
+  }
+  if (overlayIndex >= 0 && overlayIndex < values.length) {
+    const c = Math.round(values[overlayIndex].value);
+    return c >= 1 && c <= MAX_TOOTH_CLASS ? c : null;
+  }
+  return null;
+}
+
+export function toggleToothId(selected: string[], toothId: string): string[] {
+  return selected.includes(toothId)
+    ? selected.filter((id) => id !== toothId)
+    : [...selected, toothId];
+}
+
 /** Unique tooth class IDs present in a segmentation mask (1–32 only). */
 export function presentClassesFromImg(img: ArrayLike<number>): number[] {
   const seen = new Uint8Array(MAX_TOOTH_CLASS + 1);
@@ -93,6 +127,40 @@ export function buildDetectedConditions(presentToothIds: string[]): ToothConditi
       outlineColor: "#1d4ed8",
     },
   ];
+}
+
+/** Blue = detected but not selected; green = selected (chart + preview). */
+export function buildSelectionConditions(
+  presentToothIds: string[],
+  selectedToothIds: string[],
+): ToothConditionGroup[] {
+  if (presentToothIds.length === 0) {
+    return [];
+  }
+  if (selectedToothIds.length === 0) {
+    return buildDetectedConditions(presentToothIds);
+  }
+  const selectedSet = new Set(selectedToothIds);
+  const selected = presentToothIds.filter((id) => selectedSet.has(id));
+  const rest = presentToothIds.filter((id) => !selectedSet.has(id));
+  const groups: ToothConditionGroup[] = [];
+  if (rest.length > 0) {
+    groups.push({
+      label: "detected",
+      teeth: rest,
+      fillColor: "#93c5fd",
+      outlineColor: "#1d4ed8",
+    });
+  }
+  if (selected.length > 0) {
+    groups.push({
+      label: "selected",
+      teeth: selected,
+      fillColor: "#86efac",
+      outlineColor: "#15803d",
+    });
+  }
+  return groups;
 }
 
 /** Stable RGB per tooth class for NiiVue label colormap (0 = background). */
@@ -182,6 +250,24 @@ export function buildToothLabelColormap(
   }
 
   return { R, G, B, A, I, labels };
+}
+
+/** Cheap clone that only changes alpha from a cached full colormap. */
+export function withColormapVisibility(
+  base: LabelColorMap,
+  visibleClassIds: number[] | null,
+): LabelColorMap {
+  if (visibleClassIds === null) {
+    return {
+      ...base,
+      A: base.I.map((id) => (id === 0 ? 0 : 255)),
+    };
+  }
+  const visible = new Set(visibleClassIds);
+  return {
+    ...base,
+    A: base.I.map((id) => (id !== 0 && visible.has(id) ? 255 : 0)),
+  };
 }
 
 /** Resolve which class IDs should be opaque given selection tooth IDs. */

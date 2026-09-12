@@ -29,6 +29,7 @@ vi.mock("@niivue/niivue/webgl2", () => ({
     updateGLVolume: vi.fn().mockResolvedValue(undefined),
     destroy: vi.fn(),
     addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
     view: null,
   })),
 }));

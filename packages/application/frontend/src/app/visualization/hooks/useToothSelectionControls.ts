@@ -4,11 +4,14 @@ import type { ToothDetail, ToothConditionGroup } from "react-odontogram";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
 import { DEFAULT_OVERLAY_NAME } from "../constants";
 import {
-  buildDetectedConditions,
+  buildSelectionConditions,
   buildToothLabelColormap,
   classesToToothIds,
   presentClassesFromImg,
+  toggleToothId,
   visibleClassesFromSelection,
+  withColormapVisibility,
+  type LabelColorMap,
 } from "../toothLabels";
 
 export interface ToothSelectionControls {
@@ -17,9 +20,19 @@ export interface ToothSelectionControls {
   presentToothIds: string[];
   selectedToothIds: string[];
   detectedConditions: ToothConditionGroup[];
-  /** Bump to remount uncontrolled Odontogram after Show all. */
+  /** Bump to remount uncontrolled Odontogram after external selection changes. */
   odontogramKey: number;
+  /**
+   * Pick mode: all teeth stay visible while selecting.
+   * Turning it off applies the filter (hides non-selected).
+   */
+  pickFromPreview: boolean;
+  setPickFromPreview: (enabled: boolean) => void;
   onOdontogramChange: (selected: ToothDetail[]) => void;
+  /** Toggle a tooth from a preview click; remounts chart so colors stay in sync. */
+  toggleToothFromPreview: (toothId: string) => void;
+  /** Overlay volume index in niivue (-1 if none). */
+  overlayIndex: number;
   clearSelection: () => void;
   /** Scan overlay img after volumes load; identity-stable. */
   syncFromVolumes: (nv: NiiVueGPU) => void;
@@ -48,6 +61,9 @@ function readPresentClasses(nv: NiiVueGPU, overlayIndex: number): number[] {
 /**
  * Scans the segmentation overlay for ToothSeg class labels, drives odontogram
  * selection, and filters the overlay via NiiVue label colormap alpha.
+ *
+ * Pick-mode toggles skip redundant GPU work when the overlay is already in the
+ * desired visibility state, and reuse a cached full colormap.
  */
 export default function useToothSelectionControls({
   nvRef,
@@ -59,29 +75,36 @@ export default function useToothSelectionControls({
   const [presentClassIds, setPresentClassIds] = useState<number[]>([]);
   const [selectedToothIds, setSelectedToothIds] = useState<string[]>([]);
   const [odontogramKey, setOdontogramKey] = useState(0);
+  const [pickFromPreview, setPickFromPreviewState] = useState(false);
+  const [overlayIndex, setOverlayIndex] = useState(-1);
+
   const overlayIndexRef = useRef(-1);
   const presentClassIdsRef = useRef<number[]>([]);
+  const selectedToothIdsRef = useRef<string[]>([]);
+  const pickFromPreviewRef = useRef(false);
+  const showAllCmapRef = useRef<LabelColorMap | null>(null);
+  /** Whether the overlay GPU state currently shows every present tooth. */
+  const overlayShowsAllRef = useRef(true);
 
   presentClassIdsRef.current = presentClassIds;
+  selectedToothIdsRef.current = selectedToothIds;
+  pickFromPreviewRef.current = pickFromPreview;
 
   const presentToothIds = classesToToothIds(presentClassIds);
-  const detectedConditions = buildDetectedConditions(presentToothIds);
   const hasToothLabels = presentToothIds.length > 0;
+  const detectedConditions = buildSelectionConditions(presentToothIds, selectedToothIds);
 
-  const applyColormap = useCallback(
-    (present: number[], selected: string[]) => {
+  const pushColormap = useCallback(
+    (cmap: LabelColorMap, showsAll: boolean) => {
       const nv = nvRef.current;
-      const overlayIndex = overlayIndexRef.current;
-      if (!nv || overlayIndex < 0 || present.length === 0) {
+      const idx = overlayIndexRef.current;
+      if (!nv || idx < 0) {
         return;
       }
-
-      const visible = visibleClassesFromSelection(present, selected);
-      const cmap = buildToothLabelColormap(present, visible);
-
+      overlayShowsAllRef.current = showsAll;
       queueNvUpdate(NvUpdateKey.ToothLabels, () => {
         nv.volumeIsAlphaClipDark = true;
-        void nv.setColormapLabel(overlayIndex, cmap).then(() => {
+        void nv.setColormapLabel(idx, cmap).then(() => {
           void nv.updateGLVolume();
         });
       });
@@ -89,25 +112,78 @@ export default function useToothSelectionControls({
     [nvRef, queueNvUpdate],
   );
 
-  useEffect(() => {
-    if (presentClassIds.length === 0) {
+  const showAllTeeth = useCallback(() => {
+    const base = showAllCmapRef.current;
+    if (!base) {
       return;
     }
-    applyColormap(presentClassIds, selectedToothIds);
-  }, [presentClassIds, selectedToothIds, applyColormap]);
+    if (overlayShowsAllRef.current) {
+      return;
+    }
+    pushColormap(base, true);
+  }, [pushColormap]);
+
+  const filterToSelection = useCallback(
+    (selected: string[]) => {
+      const present = presentClassIdsRef.current;
+      const base = showAllCmapRef.current;
+      if (!base || present.length === 0) {
+        return;
+      }
+      if (selected.length === 0) {
+        showAllTeeth();
+        return;
+      }
+      const visible = visibleClassesFromSelection(present, selected);
+      pushColormap(withColormapVisibility(base, visible), false);
+    },
+    [pushColormap, showAllTeeth],
+  );
+
+  // Rebuild cached full colormap when the mask changes; apply current visibility.
+  useEffect(() => {
+    if (presentClassIds.length === 0) {
+      showAllCmapRef.current = null;
+      overlayShowsAllRef.current = true;
+      return;
+    }
+    const base = buildToothLabelColormap(presentClassIds, null);
+    showAllCmapRef.current = base;
+    // Force apply after a new mask (cache identity changed).
+    overlayShowsAllRef.current = false;
+    if (pickFromPreviewRef.current || selectedToothIdsRef.current.length === 0) {
+      pushColormap(base, true);
+    } else {
+      filterToSelection(selectedToothIdsRef.current);
+    }
+    // Only re-run when the mask set changes — not on selection/pick toggles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presentClassIds, pushColormap]);
+
+  // Chart/selection changes while pick mode is off: filter immediately.
+  // Pick-mode enter/exit handles GPU visibility itself (avoids a double update).
+  useEffect(() => {
+    if (pickFromPreviewRef.current || presentClassIdsRef.current.length === 0) {
+      return;
+    }
+    filterToSelection(selectedToothIds);
+  }, [selectedToothIds, filterToSelection]);
 
   const syncFromVolumesRef = useRef<(nv: NiiVueGPU) => void>(() => {});
   syncFromVolumesRef.current = (nv: NiiVueGPU) => {
-    const overlayIndex = findOverlayIndex(nv);
-    overlayIndexRef.current = overlayIndex;
-    if (overlayIndex < 0) {
+    const nextOverlayIndex = findOverlayIndex(nv);
+    overlayIndexRef.current = nextOverlayIndex;
+    setOverlayIndex(nextOverlayIndex);
+    if (nextOverlayIndex < 0) {
       setPresentClassIds([]);
       setSelectedToothIds([]);
+      setPickFromPreviewState(false);
+      pickFromPreviewRef.current = false;
+      showAllCmapRef.current = null;
       return;
     }
-    const present = readPresentClasses(nv, overlayIndex);
+    const present = readPresentClasses(nv, nextOverlayIndex);
     setPresentClassIds(present);
-    // Drop selection that no longer exists in the new mask.
     setSelectedToothIds((prev) => {
       if (prev.length === 0) {
         return prev;
@@ -125,16 +201,42 @@ export default function useToothSelectionControls({
     setSelectedToothIds(selected.map((t) => t.id));
   }, []);
 
-  const clearSelection = useCallback(() => {
-    setSelectedToothIds([]);
+  const toggleToothFromPreview = useCallback((toothId: string) => {
+    setSelectedToothIds((prev) => toggleToothId(prev, toothId));
     setOdontogramKey((k) => k + 1);
   }, []);
 
-  const reset = useCallback(() => {
+  const setPickFromPreview = useCallback(
+    (enabled: boolean) => {
+      if (enabled === pickFromPreviewRef.current) {
+        return;
+      }
+      pickFromPreviewRef.current = enabled;
+      setPickFromPreviewState(enabled);
+
+      if (enabled) {
+        showAllTeeth();
+        return;
+      }
+
+      filterToSelection(selectedToothIdsRef.current);
+    },
+    [showAllTeeth, filterToSelection],
+  );
+
+  const clearSelection = useCallback(() => {
     setSelectedToothIds([]);
     setOdontogramKey((k) => k + 1);
-    applyColormap(presentClassIdsRef.current, []);
-  }, [applyColormap]);
+    showAllTeeth();
+  }, [showAllTeeth]);
+
+  const reset = useCallback(() => {
+    setSelectedToothIds([]);
+    setPickFromPreviewState(false);
+    pickFromPreviewRef.current = false;
+    setOdontogramKey((k) => k + 1);
+    showAllTeeth();
+  }, [showAllTeeth]);
 
   return {
     hasToothLabels,
@@ -142,7 +244,11 @@ export default function useToothSelectionControls({
     selectedToothIds,
     detectedConditions,
     odontogramKey,
+    pickFromPreview,
+    setPickFromPreview,
     onOdontogramChange,
+    toggleToothFromPreview,
+    overlayIndex,
     clearSelection,
     syncFromVolumes,
     reset,

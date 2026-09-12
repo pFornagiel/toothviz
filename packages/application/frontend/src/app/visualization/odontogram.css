@@ -1,0 +1,16 @@
+/* Keep odontogram fills readable: blue = detected, green = selected,
+   regardless of chart vs preview picking. The library's `.selected` rule
+   otherwise paints selection with --light-blue and can hide condition colors. */
+.toothviz-odontogram .Odontogram g.selected path:nth-of-type(2) {
+  fill: #86efac !important;
+  opacity: 1;
+}
+
+.toothviz-odontogram .Odontogram g.selected {
+  color: #15803d;
+}
+
+.toothviz-odontogram .Odontogram g[class^="teeth-"]:hover:not(.selected) path:nth-of-type(2) {
+  fill: #93c5fd;
+  opacity: 1;
+}

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
 import "react-odontogram/style.css";
+import "../odontogram.css";
 import { cn } from "@/lib/utils";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
@@ -254,10 +255,13 @@ export function VisualizationSidebar() {
 
             {teeth.hasToothLabels && (
               <ControlSection value="teeth" icon={Tooth} title="Tooth Selection">
-                <p className="text-xs text-muted-foreground">
-                  Detected teeth are highlighted. Select one or more to show only those in the
-                  viewer.
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-foreground">Pick from preview</span>
+                  <Switch
+                    checked={teeth.pickFromPreview}
+                    onCheckedChange={teeth.setPickFromPreview}
+                  />
+                </div>
                 <div className="toothviz-odontogram w-full overflow-x-auto">
                   <Odontogram
                     key={teeth.odontogramKey}
@@ -265,12 +269,13 @@ export function VisualizationSidebar() {
                     layout="square"
                     showTooltip
                     showLabels={false}
+                    defaultSelected={teeth.selectedToothIds}
                     teethConditions={teeth.detectedConditions}
                     onChange={teeth.onOdontogramChange}
                     colors={{
-                      darkBlue: "#005eb8",
+                      darkBlue: "#15803d",
                       baseBlue: "#93c5fd",
-                      lightBlue: "#dbeafe",
+                      lightBlue: "#86efac",
                     }}
                     className="w-full"
                   />
@@ -282,13 +287,8 @@ export function VisualizationSidebar() {
                     className="w-full bg-card"
                     onClick={teeth.clearSelection}
                   >
-                    Show all ({teeth.presentToothIds.length} detected)
+                    Clear selection
                   </Button>
-                )}
-                {teeth.selectedToothIds.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Showing all {teeth.presentToothIds.length} detected teeth.
-                  </p>
                 )}
               </ControlSection>
             )}
