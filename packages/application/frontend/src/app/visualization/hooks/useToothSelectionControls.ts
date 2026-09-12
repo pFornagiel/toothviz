@@ -33,6 +33,8 @@ export interface ToothSelectionControls {
   toggleToothFromPreview: (toothId: string) => void;
   /** Overlay volume index in niivue (-1 if none). */
   overlayIndex: number;
+  /** Sync NiiVue label color legend with mask overlay visibility. */
+  setMaskLegendVisible: (visible: boolean) => void;
   clearSelection: () => void;
   /** Scan overlay img after volumes load; identity-stable. */
   syncFromVolumes: (nv: NiiVueGPU) => void;
@@ -105,11 +107,36 @@ export default function useToothSelectionControls({
       queueNvUpdate(NvUpdateKey.ToothLabels, () => {
         nv.volumeIsAlphaClipDark = true;
         void nv.setColormapLabel(idx, cmap).then(() => {
+          // Keep the per-class color legend in sync with overlay display.
+          nv.isLegendVisible = true;
+          const vol = nv.volumes[idx] as { isLegendVisible?: boolean } | undefined;
+          if (vol) {
+            vol.isLegendVisible = true;
+          }
           void nv.updateGLVolume();
         });
       });
     },
     [nvRef, queueNvUpdate],
+  );
+
+  const setMaskLegendVisible = useCallback(
+    (visible: boolean) => {
+      const nv = nvRef.current;
+      const idx = overlayIndexRef.current;
+      if (!nv) {
+        return;
+      }
+      nv.isLegendVisible = visible;
+      if (idx >= 0) {
+        const vol = nv.volumes[idx] as { isLegendVisible?: boolean } | undefined;
+        if (vol) {
+          vol.isLegendVisible = visible;
+        }
+      }
+      void nv.updateGLVolume();
+    },
+    [nvRef],
   );
 
   const showAllTeeth = useCallback(() => {
@@ -198,7 +225,13 @@ export default function useToothSelectionControls({
   }, []);
 
   const onOdontogramChange = useCallback((selected: ToothDetail[]) => {
-    setSelectedToothIds(selected.map((t) => t.id));
+    const allowed = new Set(classesToToothIds(presentClassIdsRef.current));
+    const next = selected.map((t) => t.id).filter((id) => allowed.has(id));
+    // Reject chart picks for teeth not in the mask; remount so the chart UI snaps back.
+    if (next.length !== selected.length) {
+      setOdontogramKey((k) => k + 1);
+    }
+    setSelectedToothIds(next);
   }, []);
 
   const toggleToothFromPreview = useCallback((toothId: string) => {
@@ -249,6 +282,7 @@ export default function useToothSelectionControls({
     onOdontogramChange,
     toggleToothFromPreview,
     overlayIndex,
+    setMaskLegendVisible,
     clearSelection,
     syncFromVolumes,
     reset,

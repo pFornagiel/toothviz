@@ -10,7 +10,17 @@
   color: #15803d;
 }
 
-.toothviz-odontogram .Odontogram g[class^="teeth-"]:hover:not(.selected) path:nth-of-type(2) {
+/* Only detected (condition-colored) teeth are selectable. */
+.toothviz-odontogram .Odontogram g[class^="teeth-"]:not(:has(path[data-colored="true"])) {
+  pointer-events: none;
+  opacity: 0.32;
+  cursor: default;
+}
+
+.toothviz-odontogram
+  .Odontogram
+  g[class^="teeth-"]:has(path[data-colored="true"]):hover:not(.selected)
+  path:nth-of-type(2) {
   fill: #93c5fd;
   opacity: 1;
 }

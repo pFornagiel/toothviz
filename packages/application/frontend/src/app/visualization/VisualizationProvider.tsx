@@ -22,6 +22,7 @@ import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
 import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
 import useNiivueTileDoubleClick from "./hooks/useNiivueTileDoubleClick";
 import useNiivueToothPick from "./hooks/useNiivueToothPick";
+import useNiivueLegendCursor from "./hooks/useNiivueLegendCursor";
 import useProcessingPreview from "./hooks/useProcessingPreview";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
 import { ViewPhase } from "./types";
@@ -123,14 +124,28 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     handleSliceTypeChange: viewLayout.handleSliceTypeChange,
   });
 
+  const maskVisible =
+    teeth.overlayIndex >= 0 && (volumeDisplay.volumeVisibility[teeth.overlayIndex] ?? true);
+  const pickCursor =
+    teeth.pickFromPreview && teeth.hasToothLabels && maskVisible ? "cell" : "";
+
   useNiivueToothPick({
     canvasRef,
     nvRef,
     viewPhase: viewer.viewPhase,
-    enabled: teeth.pickFromPreview && teeth.hasToothLabels,
+    enabled: Boolean(pickCursor),
     overlayIndex: teeth.overlayIndex,
     presentToothIds: teeth.presentToothIds,
     toggleToothFromPreview: teeth.toggleToothFromPreview,
+  });
+
+  useNiivueLegendCursor({
+    canvasRef,
+    nvRef,
+    viewPhase: viewer.viewPhase,
+    enabled: teeth.hasToothLabels && maskVisible,
+    pickCursor,
+    lightBackground: scene.lightBackground,
   });
 
   const handleBackFromError = useCallback(() => {

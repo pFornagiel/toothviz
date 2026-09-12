@@ -172,11 +172,15 @@ export function VisualizationSidebar() {
 
   const ready = viewer.viewPhase === ViewPhase.Ready;
   const hasMultipleVolumes = volumes.length > 1;
+  const maskVisible =
+    teeth.overlayIndex >= 0 && (display.volumeVisibility[teeth.overlayIndex] ?? true);
+  // Only show tooth picking when a mask overlay is loaded, visible, and has labels.
+  const showToothSelection = teeth.hasToothLabels && maskVisible;
 
   // Sections open by default; clip/render appear only where a 3D tile is shown.
   const openSections = [
     "volumes",
-    ...(teeth.hasToothLabels ? ["teeth"] : []),
+    ...(showToothSelection ? ["teeth"] : []),
     "view",
     "display",
     "scene",
@@ -213,7 +217,7 @@ export function VisualizationSidebar() {
       >
         <fieldset disabled={!ready} className="m-0 min-w-0 border-0 p-0">
           <Accordion
-            key={teeth.hasToothLabels ? "with-teeth" : "no-teeth"}
+            key={showToothSelection ? "with-teeth" : "no-teeth"}
             type="multiple"
             defaultValue={openSections}
             className="w-full"
@@ -229,7 +233,12 @@ export function VisualizationSidebar() {
                     >
                       <Checkbox
                         checked={display.volumeVisibility[idx] ?? true}
-                        onCheckedChange={() => display.handleVolumeVisibilityToggle(idx)}
+                        onCheckedChange={() => {
+                          const visible = display.handleVolumeVisibilityToggle(idx);
+                          if (idx === teeth.overlayIndex) {
+                            teeth.setMaskLegendVisible(visible);
+                          }
+                        }}
                       />
                       <span className="truncate">{vol.name || `Volume ${idx}`}</span>
                     </label>
@@ -259,7 +268,7 @@ export function VisualizationSidebar() {
               </ControlSection>
             )}
 
-            {teeth.hasToothLabels && (
+            {showToothSelection && (
               <ControlSection value="teeth" icon={Tooth} title="Tooth Selection">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-1.5">
@@ -289,7 +298,7 @@ export function VisualizationSidebar() {
                 </div>
                 <p className="whitespace-pre-line text-xs text-muted-foreground">
                   {teeth.pickFromPreview
-                    ? "Click teeth in the viewer, right-side panel list or chart below to select or unselect. All other teeth stay visible until you turn this mode off."
+                    ? "Click teeth in the viewer or chart below to select or unselect. All stay visible until you turn this mode off."
                     : "Select on the chart below, or enable pick mode.\nGreen = selected, blue = detected."}
                 </p>
                 <div className="toothviz-odontogram w-full overflow-x-auto">
@@ -312,11 +321,23 @@ export function VisualizationSidebar() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {teeth.selectedToothIds.length === 0
-                    ? `No selection - showing all ${teeth.presentToothIds.length} detected teeth.`
-                    : teeth.pickFromPreview
-                      ? `${teeth.selectedToothIds.length} selected - turn pick mode off to hide the rest.`
-                      : `Showing ${teeth.selectedToothIds.length} of ${teeth.presentToothIds.length} detected teeth.`}
+                    ? `No selection — showing all ${teeth.presentToothIds.length} detected teeth.`
+                    : `Selected: ${[...teeth.selectedToothIds]
+                        .map((id) => id.replace(/^teeth-/, ""))
+                        .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+                        .join(", ")}`}
                 </p>
+                {teeth.selectedToothIds.length > 0 && !teeth.pickFromPreview && (
+                  <p className="text-xs text-muted-foreground">
+                    Showing {teeth.selectedToothIds.length} of {teeth.presentToothIds.length}{" "}
+                    detected teeth.
+                  </p>
+                )}
+                {teeth.selectedToothIds.length > 0 && teeth.pickFromPreview && (
+                  <p className="text-xs text-muted-foreground">
+                    Turn pick mode off to hide the rest.
+                  </p>
+                )}
                 {teeth.selectedToothIds.length > 0 && (
                   <Button
                     variant="outline"
