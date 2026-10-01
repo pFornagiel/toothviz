@@ -177,6 +177,8 @@ export default function useNiivueViewer({
       azimuth: DEFAULT_RENDER_AZIMUTH,
       elevation: DEFAULT_RENDER_ELEVATION,
       secondaryDragMode: DRAG_MODE.pan,
+      // The tooth legend is rendered in the DOM by ToothLegend instead.
+      isLegendVisible: false,
     });
     // Set up event listeners before canvas attach
     configureNv(nv);

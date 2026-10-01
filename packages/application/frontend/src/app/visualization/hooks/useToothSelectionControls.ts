@@ -10,6 +10,7 @@ import {
   classesToToothIds,
   presentClassesFromImg,
   toggleToothId,
+  toothIdToFdi,
   visibilityKey,
   visibleClassesFromSelection,
   withColormapVisibility,
@@ -44,10 +45,10 @@ export interface ToothSelectionControls {
   toggleToothFromChart: (toothId: string) => void;
   /** Toggle a tooth from a preview click. */
   toggleToothFromPreview: (toothId: string) => void;
+  /** Move the crosshair to a tooth's centroid (legend click). */
+  focusTooth: (toothId: string) => void;
   /** Overlay volume index in niivue (-1 if none). */
   overlayIndex: number;
-  /** Sync NiiVue label color legend with mask overlay visibility. */
-  setMaskLegendVisible: (visible: boolean) => void;
   clearSelection: () => void;
   /** Scan overlay img after volumes load; identity-stable. */
   syncFromVolumes: (nv: NiiVueGPU) => void;
@@ -106,8 +107,6 @@ export default function useToothSelectionControls({
   const appliedVisibilityKeyRef = useRef<string | null>(null);
   /** True after the initial setColormapLabel installed centroids. */
   const labelColormapInstalledRef = useRef(false);
-  /** Desired NiiVue legend visibility (follows mask overlay checkbox). */
-  const maskLegendVisibleRef = useRef(true);
   const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   presentClassIdsRef.current = presentClassIds;
@@ -141,7 +140,6 @@ export default function useToothSelectionControls({
             | {
                 colormapLabel?: RuntimeLabelColormap | null;
                 isDirty?: boolean;
-                isLegendVisible?: boolean;
               }
             | undefined;
           if (!vol) {
@@ -152,10 +150,6 @@ export default function useToothSelectionControls({
           const finish = () => {
             appliedVisibilityKeyRef.current = key;
             overlayShowsAllRef.current = showsAll;
-            // Keep legend in sync with mask visibility — do not force it back on.
-            const legendVisible = maskLegendVisibleRef.current;
-            nv.isLegendVisible = legendVisible;
-            vol.isLegendVisible = legendVisible;
             resolve();
           };
 
@@ -193,22 +187,22 @@ export default function useToothSelectionControls({
     [nvRef, queueNvUpdate],
   );
 
-  const setMaskLegendVisible = useCallback(
-    (visible: boolean) => {
+  const focusTooth = useCallback(
+    (toothId: string) => {
       const nv = nvRef.current;
       const idx = overlayIndexRef.current;
-      maskLegendVisibleRef.current = visible;
-      if (!nv) {
+      const fdi = toothIdToFdi(toothId);
+      if (!nv || idx < 0 || fdi === null) {
         return;
       }
-      nv.isLegendVisible = visible;
-      if (idx >= 0) {
-        const vol = nv.volumes[idx] as { isLegendVisible?: boolean } | undefined;
-        if (vol) {
-          vol.isLegendVisible = visible;
-        }
+      const vol = nv.volumes[idx] as
+        | { colormapLabel?: RuntimeLabelColormap | null }
+        | undefined;
+      // Label colormap entries are keyed by FDI number (see buildToothLabelColormap).
+      const centroid = vol?.colormapLabel?.centroids?.[fdi];
+      if (centroid) {
+        nv.setCrosshairPos(centroid);
       }
-      void nv.updateGLVolume();
     },
     [nvRef],
   );
@@ -297,7 +291,6 @@ export default function useToothSelectionControls({
       showAllCmapRef.current = null;
       labelColormapInstalledRef.current = false;
       appliedVisibilityKeyRef.current = null;
-      maskLegendVisibleRef.current = true;
       return;
     }
     const present = readPresentClasses(nv, nextOverlayIndex);
@@ -383,8 +376,8 @@ export default function useToothSelectionControls({
     setPickFromPreview,
     toggleToothFromChart,
     toggleToothFromPreview,
+    focusTooth,
     overlayIndex,
-    setMaskLegendVisible,
     clearSelection,
     syncFromVolumes,
     reset,

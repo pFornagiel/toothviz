@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button";
 import {
   VisualizationProvider,
   VisualizationSidebar,
+  ToothLegend,
   useVisualization,
   ViewPhase,
 } from "../visualization";
@@ -102,6 +103,8 @@ function VisualizationView() {
               <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
             </div>
           </div>
+
+          <ToothLegend />
         </>
       )}
     </PageLayout>

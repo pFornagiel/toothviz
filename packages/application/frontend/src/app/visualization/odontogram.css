@@ -1,4 +1,5 @@
-/* Selection is driven by teethConditions (blue = detected, green = selected).
+/* Selection is driven by teethConditions (label color per detected tooth;
+   unselected teeth are faded while a selection exists).
    The chart is readOnly so we handle clicks ourselves (no remount on toggle).
 
    DO NOT remove pointer-events: auto below. react-odontogram sets

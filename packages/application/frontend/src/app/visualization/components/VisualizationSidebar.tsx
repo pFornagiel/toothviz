@@ -234,12 +234,7 @@ export function VisualizationSidebar() {
                     >
                       <Checkbox
                         checked={display.volumeVisibility[idx] ?? true}
-                        onCheckedChange={() => {
-                          const visible = display.handleVolumeVisibilityToggle(idx);
-                          if (idx === teeth.overlayIndex) {
-                            teeth.setMaskLegendVisible(visible);
-                          }
-                        }}
+                        onCheckedChange={() => display.handleVolumeVisibilityToggle(idx)}
                       />
                       <span className="truncate">{vol.name || `Volume ${idx}`}</span>
                     </label>
@@ -302,7 +297,7 @@ export function VisualizationSidebar() {
                     ? "Updating overlay…"
                     : teeth.pickFromPreview
                       ? "Click teeth in 2D slices, the color legend, or the chart to select or unselect."
-                      : "Select on the chart below, or enable pick mode.\nGreen = selected, blue = detected."}
+                      : "Select on the chart below, or enable pick mode.\nColors match the labels in the viewer."}
                 </p>
                 <div
                   className="toothviz-odontogram w-full overflow-x-auto"

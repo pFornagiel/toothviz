@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   CLASS_TO_FDI,
-  buildDetectedConditions,
   buildLabelLut,
   buildSelectionConditions,
   buildToothLabelColormap,
@@ -15,6 +14,7 @@ import {
   toothIdFromOdontogramTarget,
   toothIdToFdi,
   toggleToothId,
+  toothLabelCss,
   visibilityKey,
   visibleClassesFromSelection,
   withColormapVisibility,
@@ -106,33 +106,20 @@ describe("selection visibility", () => {
     ]);
   });
 
-  it("builds selection conditions with green for selected teeth", () => {
-    expect(buildSelectionConditions(["teeth-11", "teeth-21"], ["teeth-21"])).toEqual([
-      {
-        label: "detected",
-        teeth: ["teeth-11"],
-        fillColor: "#93c5fd",
-        outlineColor: "#1d4ed8",
-      },
-      {
-        label: "selected",
-        teeth: ["teeth-21"],
-        fillColor: "#86efac",
-        outlineColor: "#15803d",
-      },
-    ]);
+  it("fades unselected teeth and keeps label color for selected ones", () => {
+    const groups = buildSelectionConditions(["teeth-11", "teeth-21"], ["teeth-21"]);
+    expect(groups.map((g) => g.teeth)).toEqual([["teeth-11"], ["teeth-21"]]);
+    expect(groups[0].fillColor).toMatch(/^rgba\(.*, 0\.25\)$/);
+    expect(groups[1].fillColor).toBe(toothLabelCss("teeth-21"));
   });
 
-  it("builds detected conditions for odontogram", () => {
-    expect(buildDetectedConditions(["teeth-11", "teeth-21"])).toEqual([
-      {
-        label: "detected",
-        teeth: ["teeth-11", "teeth-21"],
-        fillColor: "#93c5fd",
-        outlineColor: "#1d4ed8",
-      },
+  it("colors every detected tooth with its label color when nothing is selected", () => {
+    const groups = buildSelectionConditions(["teeth-11", "teeth-21"], []);
+    expect(groups.map((g) => g.fillColor)).toEqual([
+      toothLabelCss("teeth-11"),
+      toothLabelCss("teeth-21"),
     ]);
-    expect(buildDetectedConditions([])).toEqual([]);
+    expect(buildSelectionConditions([], [])).toEqual([]);
   });
 
   it("builds label colormap with alpha for hidden teeth", () => {

@@ -115,49 +115,53 @@ export type ToothConditionGroup = {
   fillColor: string;
 };
 
-export function buildDetectedConditions(presentToothIds: string[]): ToothConditionGroup[] {
-  if (presentToothIds.length === 0) {
-    return [];
-  }
-  return [
-    {
-      label: "detected",
-      teeth: presentToothIds,
-      fillColor: "#93c5fd",
-      outlineColor: "#1d4ed8",
-    },
-  ];
+/** Outline darkening factor for full-color teeth on the chart. */
+const OUTLINE_SHADE = 0.6;
+/** Alpha for teeth that are not selected while a selection exists. */
+const FADED_FILL_ALPHA = 0.25;
+const FADED_OUTLINE_ALPHA = 0.4;
+
+function rgbCss([r, g, b]: [number, number, number], shade = 1, alpha = 1): string {
+  const c = (v: number) => Math.round(v * shade);
+  // Legacy comma syntax: these strings also end up in SVG fill/stroke attributes.
+  return alpha === 1
+    ? `rgb(${c(r)}, ${c(g)}, ${c(b)})`
+    : `rgba(${c(r)}, ${c(g)}, ${c(b)}, ${alpha})`;
 }
 
-/** Blue = detected but not selected; green = selected (chart + preview). */
+/** CSS color of a tooth's segmentation label (same color as the overlay). */
+export function toothLabelCss(toothId: string): string | null {
+  const fdi = toothIdToFdi(toothId);
+  const classId = fdi === null ? null : fdiToClass(fdi);
+  return classId === null ? null : rgbCss(toothClassRgb(classId));
+}
+
+/**
+ * Odontogram conditions colored like the segmentation labels: one group per
+ * detected tooth. While a selection exists, unselected teeth are faded so the
+ * chart mirrors the filtered 3D view.
+ */
 export function buildSelectionConditions(
   presentToothIds: string[],
   selectedToothIds: string[],
 ): ToothConditionGroup[] {
-  if (presentToothIds.length === 0) {
-    return [];
-  }
-  if (selectedToothIds.length === 0) {
-    return buildDetectedConditions(presentToothIds);
-  }
   const selectedSet = new Set(selectedToothIds);
-  const selected = presentToothIds.filter((id) => selectedSet.has(id));
-  const rest = presentToothIds.filter((id) => !selectedSet.has(id));
   const groups: ToothConditionGroup[] = [];
-  if (rest.length > 0) {
+  for (const toothId of presentToothIds) {
+    const fdi = toothIdToFdi(toothId);
+    const classId = fdi === null ? null : fdiToClass(fdi);
+    if (classId === null) {
+      continue;
+    }
+    const rgb = toothClassRgb(classId);
+    const faded = selectedSet.size > 0 && !selectedSet.has(toothId);
     groups.push({
-      label: "detected",
-      teeth: rest,
-      fillColor: "#93c5fd",
-      outlineColor: "#1d4ed8",
-    });
-  }
-  if (selected.length > 0) {
-    groups.push({
-      label: "selected",
-      teeth: selected,
-      fillColor: "#86efac",
-      outlineColor: "#15803d",
+      label: toothId,
+      teeth: [toothId],
+      fillColor: faded ? rgbCss(rgb, 1, FADED_FILL_ALPHA) : rgbCss(rgb),
+      outlineColor: faded
+        ? rgbCss(rgb, OUTLINE_SHADE, FADED_OUTLINE_ALPHA)
+        : rgbCss(rgb, OUTLINE_SHADE),
     });
   }
   return groups;

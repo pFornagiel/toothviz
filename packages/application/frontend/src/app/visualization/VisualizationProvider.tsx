@@ -23,7 +23,6 @@ import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
 import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
 import useNiivueTileDoubleClick from "./hooks/useNiivueTileDoubleClick";
 import useNiivueToothPick from "./hooks/useNiivueToothPick";
-import useNiivueLegendCursor from "./hooks/useNiivueLegendCursor";
 import useProcessingPreview from "./hooks/useProcessingPreview";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
 import { ViewPhase } from "./types";
@@ -131,7 +130,6 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     teeth.overlayIndex >= 0 && (volumeDisplay.volumeVisibility[teeth.overlayIndex] ?? true);
   const pickCursor =
     teeth.pickFromPreview && teeth.hasToothLabels && maskVisible ? "cell" : "";
-  const busyCursor = teeth.pickModePending ? "wait" : "";
 
   useNiivueToothPick({
     canvasRef,
@@ -141,15 +139,6 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     overlayIndex: teeth.overlayIndex,
     presentToothIds: teeth.presentToothIds,
     toggleToothFromPreview: teeth.toggleToothFromPreview,
-  });
-
-  useNiivueLegendCursor({
-    canvasRef,
-    nvRef,
-    viewPhase: viewer.viewPhase,
-    enabled: teeth.hasToothLabels && maskVisible && !teeth.pickModePending,
-    pickCursor: busyCursor || pickCursor,
-    lightBackground: scene.lightBackground,
   });
 
   // Busy wait cursor over the app while the overlay colormap is applying.
