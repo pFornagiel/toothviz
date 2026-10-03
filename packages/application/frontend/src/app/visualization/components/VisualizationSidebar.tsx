@@ -318,11 +318,6 @@ export function VisualizationSidebar() {
                     showLabels={false}
                     readOnly
                     teethConditions={teeth.detectedConditions}
-                    colors={{
-                      darkBlue: "#15803d",
-                      baseBlue: "#93c5fd",
-                      lightBlue: "#86efac",
-                    }}
                     className="w-full"
                   />
                 </div>
