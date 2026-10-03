@@ -8,7 +8,7 @@ import {
 } from "@/app/teeth";
 import { Button } from "../../components/ui/button";
 import { useVisualization } from "../VisualizationProvider";
-import { toothIdToFdi, toothLabelCss } from "../toothLabels";
+import { toothIdToFdi, toothLabelCss, byFdiNumber } from "../toothLabels";
 
 type LegendEntry = {
   toothId: string;
@@ -23,10 +23,6 @@ type LegendColumn = {
   title: string;
   entries: LegendEntry[];
 };
-
-function byFdi(a: LegendEntry, b: LegendEntry): number {
-  return parseInt(a.fdi, 10) - parseInt(b.fdi, 10);
-}
 
 function LegendToothList({
   entries,
@@ -138,10 +134,11 @@ export function ToothLegend() {
     });
   }
 
-  const upperRight = entries.filter((e) => isUpperRightTooth(e.fdi)).sort(byFdi);
-  const upperLeft = entries.filter((e) => isUpperLeftTooth(e.fdi)).sort(byFdi);
-  const lowerRight = entries.filter((e) => isLowerRightTooth(e.fdi)).sort(byFdi);
-  const lowerLeft = entries.filter((e) => isLowerLeftTooth(e.fdi)).sort(byFdi);
+  entries.sort((a, b) => byFdiNumber(a.fdi, b.fdi));
+  const upperRight = entries.filter((e) => isUpperRightTooth(e.fdi));
+  const upperLeft = entries.filter((e) => isUpperLeftTooth(e.fdi));
+  const lowerRight = entries.filter((e) => isLowerRightTooth(e.fdi));
+  const lowerLeft = entries.filter((e) => isLowerLeftTooth(e.fdi));
 
   const handleSelect = (toothId: string) => {
     teeth.focusTooth(toothId);

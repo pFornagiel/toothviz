@@ -49,6 +49,11 @@ export function toothIdToFdi(toothId: string): string | null {
   return match ? match[1] : null;
 }
 
+/** Comparator for sorting FDI strings numerically (e.g. `"11"` before `"21"`). */
+export function byFdiNumber(a: string, b: string): number {
+  return parseInt(a, 10) - parseInt(b, 10);
+}
+
 export function classToToothId(classId: number): string | null {
   const fdi = classToFdi(classId);
   return fdi === null ? null : fdiToToothId(fdi);

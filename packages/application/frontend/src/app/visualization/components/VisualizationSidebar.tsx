@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { Tooth } from "../../components/icons/tooth";
-import { toothIdFromOdontogramTarget } from "../toothLabels";
+import { byFdiNumber, toothIdFromOdontogramTarget, toothIdToFdi } from "../toothLabels";
 import {
   SliceTypeKey,
   SLICE_TYPE_LABELS,
@@ -325,8 +325,9 @@ export function VisualizationSidebar() {
                   {teeth.selectedToothIds.length === 0
                     ? `No selection — showing all ${teeth.presentToothIds.length} detected teeth.`
                     : `Selected: ${[...teeth.selectedToothIds]
-                        .map((id) => id.replace(/^teeth-/, ""))
-                        .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+                        .map((id) => toothIdToFdi(id))
+                        .filter((fdi): fdi is string => fdi !== null)
+                        .sort(byFdiNumber)
                         .join(", ")}`}
                 </p>
                 {teeth.selectedToothIds.length > 0 && !teeth.pickFromPreview && (

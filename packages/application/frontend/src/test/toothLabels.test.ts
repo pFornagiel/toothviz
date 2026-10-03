@@ -13,6 +13,7 @@ import {
   toothClassFromLocationValues,
   toothIdFromOdontogramTarget,
   toothIdToFdi,
+  byFdiNumber,
   toggleToothId,
   toothLabelCss,
   visibilityKey,
@@ -46,6 +47,10 @@ describe("toothLabels mapping", () => {
     expect(fdiToToothId(21)).toBe("teeth-21");
     expect(toothIdToFdi("teeth-21")).toBe("21");
     expect(toothIdToFdi("bad")).toBeNull();
+  });
+
+  it("sorts FDI strings numerically", () => {
+    expect(["21", "11", "48"].sort(byFdiNumber)).toEqual(["11", "21", "48"]);
   });
 });
 
