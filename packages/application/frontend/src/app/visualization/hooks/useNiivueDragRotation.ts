@@ -1,13 +1,14 @@
 import { useEffect, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import type { ViewPhase } from "../types";
-import { RENDER_DRAG_DPR_SCALE, NATIVE_DPR_AUTO } from "../constants";
+import { RENDER_DRAG_DPR_SCALE, NATIVE_DPR_AUTO, POINTER_CLICK_SLOP_PX } from "../constants";
 
 /*
   Render-tile drag rotation.
   Left-button drags that start inside the 3D render tile are intercepted on the
   canvas's parent in the capture phase and routed through dragRotate.
-  Resolution is scaled down during the drag and restored on release for performance.
+  Resolution is scaled down once the pointer actually moves and restored on
+  release for performance; a plain click does not trigger the two canvas resizes.
 */
 export default function useNiivueDragRotation({
   canvasRef,
@@ -31,6 +32,9 @@ export default function useNiivueDragRotation({
     let pointerId: number | null = null;
     let lastX = 0;
     let lastY = 0;
+    let startX = 0;
+    let startY = 0;
+    let lowResolution = false;
 
     const beginInteractiveResolution = () => {
       const nv = nvRef.current;
@@ -72,7 +76,9 @@ export default function useNiivueDragRotation({
       pointerId = e.pointerId;
       lastX = e.clientX;
       lastY = e.clientY;
-      beginInteractiveResolution();
+      startX = e.clientX;
+      startY = e.clientY;
+      lowResolution = false;
       canvas.setPointerCapture(e.pointerId);
     };
 
@@ -81,6 +87,13 @@ export default function useNiivueDragRotation({
         return;
       }
       e.stopPropagation();
+      if (
+        !lowResolution &&
+        Math.hypot(e.clientX - startX, e.clientY - startY) > POINTER_CLICK_SLOP_PX
+      ) {
+        lowResolution = true;
+        beginInteractiveResolution();
+      }
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
       lastX = e.clientX;
@@ -97,7 +110,10 @@ export default function useNiivueDragRotation({
       e.stopPropagation();
       dragging = false;
       pointerId = null;
-      endInteractiveResolution();
+      if (lowResolution) {
+        lowResolution = false;
+        endInteractiveResolution();
+      }
       try {
         canvas.releasePointerCapture(e.pointerId);
       } catch {
@@ -115,7 +131,7 @@ export default function useNiivueDragRotation({
       container.removeEventListener("pointermove", handlePointerMove, options);
       container.removeEventListener("pointerup", endDrag, options);
       container.removeEventListener("pointercancel", endDrag, options);
-      if (dragging) {
+      if (lowResolution) {
         endInteractiveResolution();
       }
     };

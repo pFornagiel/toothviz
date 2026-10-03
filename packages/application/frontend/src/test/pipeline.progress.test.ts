@@ -116,9 +116,10 @@ describe("pipelineStepProgress", () => {
   });
 
   it("returns null for a message without a step index", () => {
-    expect(pipelineStepProgress({ event: "step_started", step: "x" })).toBeNull();
+    expect(
+      pipelineStepProgress({ event: "step_started", step: "x" } as PipelineMessage),
+    ).toBeNull();
   });
-
   it("uses friendly labels for segment_nifti", () => {
     expect(
       pipelineStepProgress({

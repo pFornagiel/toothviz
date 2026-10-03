@@ -1,5 +1,6 @@
 import hashlib
 import os
+from pathlib import Path
 
 import pytest
 
@@ -110,12 +111,12 @@ def test_link_study_file_second_file(engine):
 def test_get_cas_blob_path(engine):
     h = "abcdef" + "0" * 58
     path = engine.get_cas_blob_path(h)
-    assert str(path).endswith(f"blobs/sha256/ab/{h}")
+    assert path.relative_to(engine.root) == Path("blobs") / "sha256" / "ab" / h
 
 
 def test_get_job_workspace_dir(engine):
     path = engine.get_job_workspace_dir("job123")
-    assert str(path).endswith("tmp/jobs/job123")
+    assert path.relative_to(engine.root) == Path("tmp") / "jobs" / "job123"
 
 
 def test_abort_upload(engine):

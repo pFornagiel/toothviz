@@ -120,7 +120,7 @@ describe("applyWsMessage - non-terminal events", () => {
 
   it("ignores a non-terminal message with no step index", () => {
     const opts = makeOptions();
-    applyWsMessage({ event: "step_started", step: "x" }, opts);
+    applyWsMessage({ event: "step_started", step: "x" } as PipelineMessage, opts);
     expect(opts.dispatch).not.toHaveBeenCalled();
   });
 });

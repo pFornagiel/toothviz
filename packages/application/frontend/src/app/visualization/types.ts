@@ -7,6 +7,7 @@ import type { VolumeDisplayControls } from "./hooks/useVolumeDisplayControls";
 import type { SceneControls } from "./hooks/useSceneControls";
 import type { ClipPlaneControls } from "./hooks/useClipPlaneControls";
 import type { RenderControls } from "./hooks/useRenderControls";
+import type { ToothSelectionControls } from "./hooks/useToothSelectionControls";
 
 // Lifecycle phase of the visualization view
 export enum ViewPhase {
@@ -39,10 +40,12 @@ export interface ViewerInfo extends NiivueViewerState {
   onReturnToProgress: () => void;
 }
 
-/** Sidebar show/hide, owned by the provider. */
+/** Sidebar / legend show/hide, owned by the provider. */
 export interface LayoutControls {
   sidebarVisible: boolean;
   setSidebarVisible: Dispatch<SetStateAction<boolean>>;
+  legendVisible: boolean;
+  setLegendVisible: Dispatch<SetStateAction<boolean>>;
 }
 
 /**
@@ -57,6 +60,7 @@ export interface VisualizationContextValue {
   volumes: VolumeInfo[];
   view: ViewLayoutControls;
   display: VolumeDisplayControls;
+  teeth: ToothSelectionControls;
   scene: SceneControls;
   clip: ClipPlaneControls;
   render: RenderControls;
