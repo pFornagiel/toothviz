@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation, useNavigate, useParams, useLoaderData } from "react-router";
-import { deleteStudy, getStudy, listFiles, retryStudyPipeline } from "@/api/studies";
+import { deleteStudy, getStudy, listFiles, retryStudyPipeline, cancelStudyPipeline } from "@/api/studies";
 import { uploadFile } from "@/api/upload";
 import { establishWebsocketConnection } from "@/api/ws";
 import type { StudyResponse } from "@/api/types";
@@ -33,6 +33,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
 
   const [state, dispatch] = useReducer(pipelineReducer, initialState);
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const engineRef = useRef<PipelineEngine | null>(null);
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     const api: PipelineApi = {
       getStudy,
       deleteStudy,
+      cancelStudyPipeline,
       uploadFile,
       listFiles,
       establishWebsocketConnection,
@@ -62,6 +64,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
           state: { from },
           replace: true,
         }),
+      onNavigateAfterCancel: () => navigate("/browse", { replace: true }),
     });
     engineRef.current = engine;
     engine.start({ studyId, study, routeState });
@@ -117,7 +120,25 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       .finally(() => setRetrying(false));
   }, [studyId, retrying, navigate, routeState.from]);
 
+  const cancelPipeline = useCallback(() => {
+    if (cancelling || retrying || state.error || state.pipelineFinished) {
+      return;
+    }
+    setCancelling(true);
+    engineRef.current?.requestCancel();
+  }, [cancelling, retrying, state.error, state.pipelineFinished]);
+
+  // Clear cancelling once the engine reaches a terminal UI state.
+  useEffect(() => {
+    if (state.error || state.pipelineFinished) {
+      setCancelling(false);
+    }
+  }, [state.error, state.pipelineFinished]);
+
   const canRetry = Boolean(state.error && study.source_file_id);
+  // Hide Cancel while retry is in flight (EnterPipeline runs before the API returns).
+  const canCancel =
+    !state.error && !state.pipelineFinished && state.pipelineActive && !retrying;
 
   return (
     <PipelineContext.Provider
@@ -126,6 +147,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
         canRetry,
         retryFailedPipeline: canRetry ? retryFailedPipeline : undefined,
         retrying,
+        cancelPipeline: canCancel ? cancelPipeline : undefined,
+        cancelling,
       }}
     >
       {children}

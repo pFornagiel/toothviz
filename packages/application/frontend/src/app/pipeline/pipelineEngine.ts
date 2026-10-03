@@ -13,7 +13,7 @@ import type { UploadProgress } from "@/api/upload";
 import { FromPage, type LocationState, type UploadPayload, type ViewerNavigationOptions } from "./types";
 import { FinishMode, PipelineActionType, type PipelineAction } from "./reducer";
 import { createLoadingSteps as getLoadingSteps } from "./steps";
-import { CANCELLED_HINTS, errorHints } from "./errorHints";
+import { errorHints } from "./errorHints";
 import { uploadStepProgress, type UploadStepLayout } from "./progress";
 import { applyWsMessage } from "./wsMessage";
 import { watchStudyUntilTerminal, STUDY_TERMINAL_POLL_MS } from "./studyWatch";
@@ -26,6 +26,7 @@ const WS_RECONNECT_BASE_MS = 1_000;
 export interface PipelineApi {
   getStudy: (studyId: string) => Promise<StudyResponse>;
   deleteStudy: (studyId: string) => Promise<void>;
+  cancelStudyPipeline: (studyId: string) => Promise<StudyResponse>;
   listFiles: (studyId: string, viewerPurpose?: string) => Promise<FileRecordResponse[]>;
   uploadFile: (
     studyId: string,
@@ -45,6 +46,8 @@ export interface PipelineEngineDeps {
   dispatch: Dispatch<PipelineAction>;
   api: PipelineApi;
   onNavigateToViewer: (studyId: string, options: ViewerNavigationOptions) => void;
+  /** After a successful cancel (or opening an already-cancelled study). */
+  onNavigateAfterCancel: () => void;
 }
 
 export interface PipelineStartParams {
@@ -57,8 +60,11 @@ export class PipelineEngine {
   private readonly dispatch: Dispatch<PipelineAction>;
   private readonly api: PipelineApi;
   private readonly onNavigateToViewer: (studyId: string, options: ViewerNavigationOptions) => void;
+  private readonly onNavigateAfterCancel: () => void;
 
   private cancelled = false;
+  /** Prevents double-submit of cancel while the API / terminal path runs. */
+  private cancelInFlight = false;
   private finished = false;
   private disconnect: (() => void) | null = null;
   private stopTerminalPoll: (() => void) | null = null;
@@ -70,10 +76,11 @@ export class PipelineEngine {
   private studyId = "";
   private routeState: LocationState = {};
 
-  constructor({ dispatch, api, onNavigateToViewer }: PipelineEngineDeps) {
+  constructor({ dispatch, api, onNavigateToViewer, onNavigateAfterCancel }: PipelineEngineDeps) {
     this.dispatch = dispatch;
     this.api = api;
     this.onNavigateToViewer = onNavigateToViewer;
+    this.onNavigateAfterCancel = onNavigateAfterCancel;
   }
 
   /** Resolve which lifecycle to run for this study and kick it off. */
@@ -81,15 +88,13 @@ export class PipelineEngine {
     this.studyId = studyId;
     this.routeState = routeState;
 
-    if (study.status === "failed" || study.status === "cancelled") {
-      let detail: string;
-      if (study.error) {
-        detail = study.error;
-      } else if (study.status === "cancelled") {
-        detail = "Processing was cancelled.";
-      } else {
-        detail = "Processing failed.";
-      }
+    if (study.status === "cancelled") {
+      this.leaveAfterCancel();
+      return;
+    }
+
+    if (study.status === "failed") {
+      const detail = study.error || "Processing failed.";
       this.goError("Study is not available", detail, errorHints(null));
       return;
     }
@@ -129,6 +134,43 @@ export class PipelineEngine {
     this.disconnect?.();
     this.disconnect = null;
     this.intentionalClose = false;
+  }
+
+  /**
+   * Ask the backend to stop the in-flight server pipeline (keeps the study for retry).
+   * Only offered after upload (`pipelineActive`); waits for WS / poll / cancel response.
+   */
+  requestCancel(): void {
+    if (this.finished || this.cancelled || this.cancelInFlight || !this.studyId) {
+      return;
+    }
+    this.cancelInFlight = true;
+    this.dispatch({
+      type: PipelineActionType.Progress,
+      stepIndex: null,
+      fraction: null,
+      statusText: "Cancelling…",
+    });
+
+    void this.api
+      .cancelStudyPipeline(this.studyId)
+      .then((fresh) => {
+        if (this.cancelled || this.finished) {
+          return;
+        }
+        // cancelled → Browse; ready → viewer; failed → error screen.
+        if (this.applyTerminalStudy(fresh)) {
+          return;
+        }
+        this.startTerminalPoll();
+      })
+      .catch((err: unknown) => {
+        if (this.cancelled || this.finished) {
+          return;
+        }
+        const msg = err instanceof Error ? err.message : String(err);
+        this.goError("Cancel failed", msg, errorHints(null));
+      });
   }
 
   private async runUpload(payload: UploadPayload): Promise<void> {
@@ -175,7 +217,11 @@ export class PipelineEngine {
         });
       }
 
-      if (!jobId) {
+        if (this.cancelled) {
+          return;
+        }
+
+        if (!jobId) {
         this.dispatch({
           type: PipelineActionType.Finish,
           mode: FinishMode.NoPipeline,
@@ -304,7 +350,7 @@ export class PipelineEngine {
             );
           },
           onPipelineCancelled: () => {
-            this.goError("Processing cancelled", "The pipeline was cancelled.", CANCELLED_HINTS);
+            this.leaveAfterCancel();
           },
         });
       },
@@ -395,18 +441,15 @@ export class PipelineEngine {
       return true;
     }
 
-    if (fresh.status === "failed" || fresh.status === "cancelled") {
+    if (fresh.status === "cancelled") {
+      this.leaveAfterCancel();
+      return true;
+    }
+
+    if (fresh.status === "failed") {
       this.finished = true;
-      const detail =
-        fresh.error ??
-        (fresh.status === "cancelled"
-          ? "The pipeline was cancelled."
-          : "The pipeline reported a failure.");
-      this.goError(
-        fresh.status === "cancelled" ? "Processing cancelled" : "Processing failed",
-        detail,
-        fresh.status === "cancelled" ? CANCELLED_HINTS : errorHints(null),
-      );
+      const detail = fresh.error ?? "The pipeline reported a failure.";
+      this.goError("Processing failed", detail, errorHints(null));
       return true;
     }
 
@@ -489,6 +532,17 @@ export class PipelineEngine {
     } catch {
       /* preview is optional */
     }
+  }
+
+  private leaveAfterCancel(): void {
+    this.finished = true;
+    this.clearReconnectTimer();
+    this.clearTerminalPoll();
+    this.intentionalClose = true;
+    this.disconnect?.();
+    this.disconnect = null;
+    this.intentionalClose = false;
+    this.onNavigateAfterCancel();
   }
 
   private goError(title: string, message: string, hints: string[]): void {

@@ -87,3 +87,14 @@ def retry_pipeline(request: Request, study_id: str):
         pipeline_svc.retry(study_id, db)
         s = StudyRepo(db).get_with_pipeline_job(study_id)
     return _study_response(s, s.pipeline_job)
+
+
+@router.post("/{study_id}/pipeline:cancel", response_model=StudyResponse)
+def cancel_pipeline(request: Request, study_id: str):
+    """Stop an in-flight (or not-yet-started) pipeline; keeps the study for retry."""
+    storage_svc = request.app.state.storage_service
+    pipeline_svc = request.app.state.job_pipeline_service
+    with storage_svc.session_factory() as db:
+        pipeline_svc.cancel_for_study(study_id, db)
+        s = StudyRepo(db).get_with_pipeline_job(study_id)
+    return _study_response(s, s.pipeline_job)
