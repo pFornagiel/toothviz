@@ -7,7 +7,7 @@ export interface VolumeDisplayControls {
   selectedVolume: number;
   handleVolumeChange: (index: number) => void;
   volumeVisibility: boolean[];
-  handleVolumeVisibilityToggle: (index: number) => boolean;
+  handleVolumeVisibilityToggle: (index: number) => void;
 
   // Display (active volume)
   opacity: number;
@@ -213,10 +213,10 @@ export default function useVolumeDisplayControls({
     setCalMax(value);
   };
 
-  const handleVolumeVisibilityToggle = (index: number): boolean => {
+  const handleVolumeVisibilityToggle = (index: number): void => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[index]) {
-      return volumeVisibility[index] ?? true;
+      return;
     }
 
     const newVisibility = [...volumeVisibility];
@@ -236,7 +236,6 @@ export default function useVolumeDisplayControls({
       // Hide by setting opacity to 0
       void nv.setVolume(index, { opacity: HIDDEN_OPACITY });
     }
-    return newVisibility[index];
   };
 
   /**
