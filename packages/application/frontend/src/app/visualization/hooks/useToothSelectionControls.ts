@@ -77,10 +77,6 @@ function readPresentClasses(nv: NiiVueGPU, overlayIndex: number): number[] {
 /**
  * Scans the segmentation overlay for ToothSeg class labels, drives odontogram
  * selection, and filters the overlay via NiiVue label colormap alpha.
- *
- * Hot path: after the first `setColormapLabel` (centroids computed once),
- * visibility toggles only swap LUT alphas + one `updateGLVolume` — no volume
- * rescan and no duplicate GPU refresh.
  */
 export default function useToothSelectionControls({
   nvRef,
@@ -153,7 +149,9 @@ export default function useToothSelectionControls({
             resolve();
           };
 
-          // Fast path: keep centroids, swap LUT identity, single GPU update.
+          // Hot path: after the first `setColormapLabel` (centroids computed once),
+          // visibility toggles only swap LUT alphas + one `updateGLVolume` 
+          // — no volume rescan and no duplicate GPU refresh.
           if (labelColormapInstalledRef.current && vol.colormapLabel?.lut) {
             const prev = vol.colormapLabel;
             const { lut, min, max } = buildLabelLut(cmap);
