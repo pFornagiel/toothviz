@@ -55,6 +55,9 @@ export const PAN2D_ZOOM_RANGE = { min: 0.1, max: 10, step: 0.1 };
 export const RENDER_DRAG_DPR_SCALE = 0.8;
 export const NATIVE_DPR_AUTO = 0;
 
+/** Max pointer travel (CSS px) treated as click-slop vs an intentional drag. */
+export const POINTER_CLICK_SLOP_PX = 6;
+
 // useViewLayoutControls - initial slice type on load
 export const DEFAULT_SLICE_TYPE = SliceTypeKey.Multiplanar;
 

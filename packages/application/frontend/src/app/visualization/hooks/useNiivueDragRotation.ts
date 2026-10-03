@@ -1,10 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import type { ViewPhase } from "../types";
-import { RENDER_DRAG_DPR_SCALE, NATIVE_DPR_AUTO } from "../constants";
-
-/** Pointer travel (CSS px) before a press counts as a drag and lowers resolution. */
-const DRAG_START_THRESHOLD_PX = 4;
+import { RENDER_DRAG_DPR_SCALE, NATIVE_DPR_AUTO, POINTER_CLICK_SLOP_PX } from "../constants";
 
 /*
   Render-tile drag rotation.
@@ -92,7 +89,7 @@ export default function useNiivueDragRotation({
       e.stopPropagation();
       if (
         !lowResolution &&
-        Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_START_THRESHOLD_PX
+        Math.hypot(e.clientX - startX, e.clientY - startY) > POINTER_CLICK_SLOP_PX
       ) {
         lowResolution = true;
         beginInteractiveResolution();

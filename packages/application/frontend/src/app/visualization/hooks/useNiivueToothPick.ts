@@ -2,14 +2,11 @@ import { useEffect, useRef, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import type { NiiVueLocation } from "@niivue/niivue";
 import type { ViewPhase } from "../types";
-import { DEFAULT_OVERLAY_NAME } from "../constants";
+import { DEFAULT_OVERLAY_NAME, POINTER_CLICK_SLOP_PX } from "../constants";
 import {
   classToToothId,
   toothClassFromLocationValues,
 } from "../toothLabels";
-
-/** Max pointer travel (CSS px) to treat pointerUp as a click, not a drag. */
-const CLICK_MOVE_THRESHOLD_PX = 6;
 
 /**
  * When pick-from-preview mode is on, a short click on the viewer toggles the
@@ -88,7 +85,7 @@ export default function useNiivueToothPick({
         return;
       }
       const dist = Math.hypot(e.clientX - down.x, e.clientY - down.y);
-      if (dist > CLICK_MOVE_THRESHOLD_PX) {
+      if (dist > POINTER_CLICK_SLOP_PX) {
         return;
       }
 
