@@ -49,6 +49,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
 
   // UI state
   const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [legendVisible, setLegendVisible] = useState(true);
 
   // Single queue instance shared by every hook 
   const queueNvUpdate = useNvUpdateQueue();
@@ -201,7 +202,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
       processingNotice,
       onReturnToProgress: handleReturnToProgress,
     },
-    layout: { sidebarVisible, setSidebarVisible },
+    layout: { sidebarVisible, setSidebarVisible, legendVisible, setLegendVisible },
     volumes: volumeList.map((v) => ({ name: v.name })),
     view: viewLayout,
     display: volumeDisplay,

@@ -1,14 +1,29 @@
 /**
- * FDI permanent teeth (ISO 3950): 1x/2x = upper, 3x/4x = lower.
- * Accepts numeric or string FDI (e.g. 21 or "21").
+ * FDI permanent teeth (ISO 3950):
+ * 1x upper right · 2x upper left · 3x lower left · 4x lower right.
  */
 
-export function isUpperTooth(fdi: string | number): boolean {
+function fdiQuadrantDigit(fdi: string | number): string | null {
   const s = String(fdi);
-  return s.startsWith("1") || s.startsWith("2");
+  // Permanent FDI is two digits; reject bare "1" / "10" etc.
+  if (!/^[1-4]\d$/.test(s)) {
+    return null;
+  }
+  return s[0];
 }
 
-export function isLowerTooth(fdi: string | number): boolean {
-  const s = String(fdi);
-  return s.startsWith("3") || s.startsWith("4");
+export function isUpperRightTooth(fdi: string | number): boolean {
+  return fdiQuadrantDigit(fdi) === "1";
+}
+
+export function isUpperLeftTooth(fdi: string | number): boolean {
+  return fdiQuadrantDigit(fdi) === "2";
+}
+
+export function isLowerLeftTooth(fdi: string | number): boolean {
+  return fdiQuadrantDigit(fdi) === "3";
+}
+
+export function isLowerRightTooth(fdi: string | number): boolean {
+  return fdiQuadrantDigit(fdi) === "4";
 }

@@ -40,10 +40,12 @@ export interface ViewerInfo extends NiivueViewerState {
   onReturnToProgress: () => void;
 }
 
-/** Sidebar show/hide, owned by the provider. */
+/** Sidebar / legend show/hide, owned by the provider. */
 export interface LayoutControls {
   sidebarVisible: boolean;
   setSidebarVisible: Dispatch<SetStateAction<boolean>>;
+  legendVisible: boolean;
+  setLegendVisible: Dispatch<SetStateAction<boolean>>;
 }
 
 /**

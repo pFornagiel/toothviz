@@ -1,1 +1,6 @@
-export { isLowerTooth, isUpperTooth } from "./jaw";
+export {
+  isLowerLeftTooth,
+  isLowerRightTooth,
+  isUpperLeftTooth,
+  isUpperRightTooth,
+} from "./jaw";
