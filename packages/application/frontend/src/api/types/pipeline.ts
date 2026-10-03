@@ -119,13 +119,26 @@ export interface PipelineWsCancelled extends PipelineWsBase {
   status?: PipelineStatus.Cancelled | "cancelled";
 }
 
-export type PipelineMessage =
+export type PipelineWsStepMessage =
   | PipelineWsStepStarted
   | PipelineWsStepProgress
-  | PipelineWsStepCompleted
+  | PipelineWsStepCompleted;
+
+export type PipelineMessage =
+  | PipelineWsStepMessage
   | PipelineWsCompleted
   | PipelineWsFailed
   | PipelineWsCancelled;
+
+export function isPipelineStepMessage(
+  msg: PipelineMessage,
+): msg is PipelineWsStepMessage {
+  return (
+    msg.event === "step_started" ||
+    msg.event === "step_progress" ||
+    msg.event === "step_completed"
+  );
+}
 
 export function artifactFileId(
   artifacts: PipelineArtifacts | undefined,

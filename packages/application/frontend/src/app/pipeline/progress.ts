@@ -1,8 +1,7 @@
-import type {
-  PipelineMessage,
-  PipelineWsStepCompleted,
-  PipelineWsStepProgress,
-  PipelineWsStepStarted,
+import {
+  isPipelineStepMessage,
+  type PipelineMessage,
+  type PipelineWsStepMessage,
 } from "@/api/types";
 import type { UploadProgress } from "@/api/upload";
 
@@ -21,7 +20,7 @@ function stepLabel(step: string | undefined): string {
 }
 
 function pipelineStepStatusText(
-  msg: PipelineWsStepStarted | PipelineWsStepProgress | PipelineWsStepCompleted,
+  msg: PipelineWsStepMessage,
   completed: boolean,
   fraction: number,
 ): string {
@@ -112,11 +111,7 @@ export interface PipelineStepProgress extends StepProgress {
  * Map a non-terminal pipeline WebSocket message onto a step update.
  */
 export function pipelineStepProgress(msg: PipelineMessage): PipelineStepProgress | null {
-  if (
-    msg.event !== "step_started" &&
-    msg.event !== "step_progress" &&
-    msg.event !== "step_completed"
-  ) {
+  if (!isPipelineStepMessage(msg)) {
     return null;
   }
 
