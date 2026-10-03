@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { isLowerTooth, isUpperTooth } from "@/app/teeth";
 import { useVisualization } from "../VisualizationProvider";
 import { ViewPhase } from "../types";
 import { toothIdToFdi, toothLabelCss } from "../toothLabels";
@@ -96,8 +97,8 @@ export function ToothLegend() {
     });
   }
 
-  const upper = entries.filter((e) => e.fdi.startsWith("1") || e.fdi.startsWith("2"));
-  const lower = entries.filter((e) => e.fdi.startsWith("3") || e.fdi.startsWith("4"));
+  const upper = entries.filter((e) => isUpperTooth(e.fdi));
+  const lower = entries.filter((e) => isLowerTooth(e.fdi));
 
   const handleSelect = (toothId: string) => {
     teeth.focusTooth(toothId);
