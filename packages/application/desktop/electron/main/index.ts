@@ -37,7 +37,9 @@ async function createWindow(): Promise<void> {
     height: 800,
     minWidth: 1024,
     minHeight: 700,
-    title: "Tooth",
+    title: "ToothViz",
+    // Without this the window and taskbar show Electron's default icon in dev.
+    icon: path.join(app.getAppPath(), "resources", "icon.png"),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -92,7 +94,7 @@ async function bootstrap(): Promise<void> {
       err instanceof Error ? err.message : "Failed to start application";
     console.error(message, err);
     dialog.showErrorBox(
-      "Tooth - startup failed",
+      "ToothViz - startup failed",
       `${message}\n\nEnsure Python 3.11+, uv, and backend dependencies are installed (see setup.md).`,
     );
     app.quit();
