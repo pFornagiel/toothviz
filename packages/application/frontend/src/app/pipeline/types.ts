@@ -47,6 +47,8 @@ export interface PipelineState {
   volumePreviewFileId: string | null;
   /** True after pipeline_completed until navigation away. */
   pipelineFinished: boolean;
+  /** True once the server pipeline starts (after upload / on resume). */
+  pipelineActive: boolean;
 }
 
 /** What `usePipeline()` returns from the pipeline reducer. */
@@ -55,6 +57,10 @@ export type PipelineContextValue = PipelineState & {
   canRetry?: boolean;
   /** True while a retry request is in flight. */
   retrying?: boolean;
+  /** Stop in-flight server processing; keeps the study for retry. */
+  cancelPipeline?: () => void;
+  /** True while a cancel request is in flight. */
+  cancelling?: boolean;
 };
 
 export const initialState: PipelineState = {
@@ -66,4 +72,5 @@ export const initialState: PipelineState = {
   error: null,
   volumePreviewFileId: null,
   pipelineFinished: false,
+  pipelineActive: false,
 };

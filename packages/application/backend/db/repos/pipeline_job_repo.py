@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from backend.db.models import PipelineJob
@@ -85,6 +86,36 @@ class PipelineJobRepo:
         self._db.commit()
         self._db.refresh(job)
         return job
+
+    def update_status_if(
+        self,
+        job_id: str,
+        new_status: str,
+        *,
+        from_statuses: tuple[str, ...],
+        error: str | None = None,
+    ) -> str:
+        """Atomically set status only when the current status is in ``from_statuses``.
+
+        Returns the resulting status (``new_status`` on success, otherwise the
+        unchanged row status). Used for race-safe transitions such as
+        queued/running → running when cancel may have won first.
+        """
+        values: dict = {"status": new_status}
+        if error is not None:
+            values["error"] = error
+        result = self._db.execute(
+            update(PipelineJob)
+            .where(
+                PipelineJob.id == job_id,
+                PipelineJob.status.in_(from_statuses),
+            )
+            .values(**values)
+        )
+        self._db.commit()
+        if result.rowcount:
+            return new_status
+        return self.get(job_id).status
 
     def set_status(
         self,

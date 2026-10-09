@@ -26,5 +26,3 @@ export function errorHints(failedStep?: string | null): string[] {
   }
   return [validFormat, dicomArchive, precomputedMask, newStudy];
 }
-
-export const CANCELLED_HINTS = ["Open another study or start again from the home page."];

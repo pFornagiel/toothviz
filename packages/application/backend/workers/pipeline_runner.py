@@ -16,6 +16,7 @@ from backend.schemas import (
 )
 from backend.services.storage_service import StorageService
 from backend.workers.steps.base import OutputArtifact, PipelineStep, StepContext
+from backend.workers.ws_broadcaster import WSBroadcaster
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,74 @@ def _extract_failed_step(exc: BaseException) -> str | None:
     if m:
         return m.group(1)
     return None
+
+
+def _format_error(exc: BaseException) -> str:
+    error_text = str(exc)
+    if exc.__cause__ is not None:
+        error_text = f"{error_text}. Cause: {exc.__cause__}"
+    return error_text
+
+
+async def _broadcast_cancelled(job_id: str, broadcaster: WSBroadcaster) -> None:
+    await broadcaster.broadcast(
+        job_id,
+        PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
+    )
+
+
+async def _commit_terminal(
+    job_id: str,
+    storage_service: StorageService,
+    broadcaster: WSBroadcaster,
+    *,
+    new_status: str,
+    from_statuses: tuple[str, ...],
+    error: str | None = None,
+    failed_step: str | None = None,
+) -> str:
+    """Atomically write a terminal status and broadcast the matching WS event.
+
+    If another writer already set ``cancelled``, broadcasts cancelled and returns
+    that status without applying ``new_status``. If the row is already in some
+    other unexpected terminal state, skips the success/failure broadcast.
+    """
+    with storage_service.session_factory() as db:
+        status = PipelineJobRepo(db).update_status_if(
+            job_id,
+            new_status,
+            from_statuses=from_statuses,
+            error=error,
+        )
+
+    if status == "cancelled":
+        await _broadcast_cancelled(job_id, broadcaster)
+        return status
+
+    if status != new_status:
+        logger.info(
+            "Pipeline %s intended %s but status is %s; skipping broadcast",
+            job_id,
+            new_status,
+            status,
+        )
+        return status
+
+    if new_status == "completed":
+        await broadcaster.broadcast(
+            job_id,
+            PipelineWsCompletedMessage(job_id=job_id).model_dump(mode="json"),
+        )
+    elif new_status == "failed":
+        await broadcaster.broadcast(
+            job_id,
+            PipelineWsFailedMessage(
+                job_id=job_id,
+                error=error or "",
+                failed_step=failed_step,
+            ).model_dump(mode="json"),
+        )
+    return status
 
 
 async def run_pipeline(
@@ -45,7 +114,25 @@ async def run_pipeline(
     ctx.work_dir.mkdir(parents=True, exist_ok=True)
 
     with storage_service.session_factory() as db:
-        PipelineJobRepo(db).set_status(job_id, "running")
+        # Policy: only enter running from an active job. Atomic so cancel that
+        # already wrote ``cancelled`` is not overwritten by a plain set_status.
+        status = PipelineJobRepo(db).update_status_if(
+            job_id,
+            "running",
+            from_statuses=("queued", "running"),
+        )
+
+    if status == "cancelled":
+        await _broadcast_cancelled(job_id, ctx.broadcaster)
+        return
+
+    if status != "running":
+        logger.info(
+            "Pipeline %s not starting (status=%s after begin-run transition)",
+            job_id,
+            status,
+        )
+        return
 
     total = len(steps)
 
@@ -68,6 +155,8 @@ async def run_pipeline(
                 )
             try:
                 result = await step.run(step_ctx)
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:
                 raise RuntimeError(
                     f"Pipeline step {step.name!r} failed"
@@ -113,39 +202,40 @@ async def run_pipeline(
                     ).model_dump(mode="json"),
                 )
 
-        with storage_service.session_factory() as db:
-            PipelineJobRepo(db).set_status(job_id, "completed")
-
-        await ctx.broadcaster.broadcast(
+        await _commit_terminal(
             job_id,
-            PipelineWsCompletedMessage(job_id=job_id).model_dump(mode="json"),
+            storage_service,
+            ctx.broadcaster,
+            new_status="completed",
+            from_statuses=("running",),
         )
 
     except asyncio.CancelledError:
-        with storage_service.session_factory() as db:
-            PipelineJobRepo(db).set_status(job_id, "cancelled")
-        await ctx.broadcaster.broadcast(
+        # Do not overwrite completed/failed if cancel lost the race.
+        await _commit_terminal(
             job_id,
-            PipelineWsCancelledMessage(job_id=job_id).model_dump(mode="json"),
+            storage_service,
+            ctx.broadcaster,
+            new_status="cancelled",
+            from_statuses=("queued", "running", "created"),
         )
         raise
 
     except Exception as exc:
-        logger.exception("Pipeline %s failed", job_id)
-        failed_step = _extract_failed_step(exc)
-        error_text = str(exc)
-        if exc.__cause__ is not None:
-            error_text = f"{error_text}. Cause: {exc.__cause__}"
-        with storage_service.session_factory() as db:
-            PipelineJobRepo(db).set_status(job_id, "failed", error=error_text)
-        await ctx.broadcaster.broadcast(
+        # force_stop can surface as a normal Exception if CancelledError lost a
+        # race; never overwrite an intentional cancel with failed.
+        error_text = _format_error(exc)
+        status = await _commit_terminal(
             job_id,
-            PipelineWsFailedMessage(
-                job_id=job_id,
-                error=error_text,
-                failed_step=failed_step,
-            ).model_dump(mode="json"),
+            storage_service,
+            ctx.broadcaster,
+            new_status="failed",
+            from_statuses=("queued", "running"),
+            error=error_text,
+            failed_step=_extract_failed_step(exc),
         )
+        if status == "failed":
+            logger.exception("Pipeline %s failed", job_id)
 
     finally:
         shutil.rmtree(ctx.work_dir, ignore_errors=True)
