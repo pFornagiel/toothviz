@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from backend.db.models import Study
@@ -44,6 +45,14 @@ class StudyRepo:
         if name is not None:
             q = q.filter(Study.name == name)
         return q.order_by(Study.created_at.desc()).all()
+
+    def find_name_conflict(self, name: str, exclude_id: str | None = None) -> str | None:
+        """Return the stored name of another study matching ``name`` case-insensitively."""
+        q = self._db.query(Study.name).filter(func.lower(Study.name) == name.lower())
+        if exclude_id is not None:
+            q = q.filter(Study.id != exclude_id)
+        row = q.first()
+        return row.name if row is not None else None
 
     def rename(self, study_id: str, name: str) -> Study:
         study = self.get(study_id)

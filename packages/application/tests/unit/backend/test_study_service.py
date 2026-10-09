@@ -1,6 +1,7 @@
 import pytest
 
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
+from backend.exceptions import ConflictError, ValidationError
 from backend.services.study_service import StudyService
 
 
@@ -40,6 +41,38 @@ def test_rename_study(study_service):
     study = study_service.create(name="Old")
     renamed = study_service.rename(study.id, "New")
     assert renamed.name == "New"
+
+
+def test_create_study_rejects_duplicate_name(study_service):
+    study_service.create(name="Scan_1")
+
+    with pytest.raises(ConflictError, match=r'^A scan named "Scan_1" already exists\.$'):
+        study_service.create(name="Scan_1")
+    with pytest.raises(ConflictError, match='"Scan_1" already exists. Names are not case-sensitive'):
+        study_service.create(name="  scan_1 ")
+
+    assert len(study_service.list()) == 1
+
+
+def test_create_study_rejects_blank_name(study_service):
+    with pytest.raises(ValidationError):
+        study_service.create(name="   ")
+
+
+def test_rename_study_rejects_name_of_other_study(study_service):
+    study_service.create(name="Taken")
+    study = study_service.create(name="Mine")
+
+    with pytest.raises(ConflictError, match='"Taken" already exists'):
+        study_service.rename(study.id, "taken")
+
+    assert study_service.list(name="Mine")[0].id == study.id
+
+
+def test_rename_study_to_own_name_is_allowed(study_service):
+    study = study_service.create(name="Mine")
+    renamed = study_service.rename(study.id, "MINE")
+    assert renamed.name == "MINE"
 
 
 def test_delete_study_removes_files_and_dirs(

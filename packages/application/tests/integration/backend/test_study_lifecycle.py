@@ -54,6 +54,20 @@ def test_create_list_rename_delete(client):
     assert not any(s["id"] == study_id for s in resp.json())
 
 
+def test_duplicate_study_name_returns_conflict(client):
+    resp = client.post("/storage/studies", json={"name": "Dup"})
+    assert resp.status_code == 201
+    other_id = client.post("/storage/studies", json={"name": "Other"}).json()["id"]
+
+    resp = client.post("/storage/studies", json={"name": "Dup"})
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+    resp = client.patch(f"/storage/studies/{other_id}", json={"name": "Dup"})
+    assert resp.status_code == 409
+    assert client.get(f"/storage/studies/{other_id}").json()["name"] == "Other"
+
+
 def test_delete_study_cleans_up_files(client, created_study):
     study_id = created_study["id"]
     _upload_file(client, study_id)
