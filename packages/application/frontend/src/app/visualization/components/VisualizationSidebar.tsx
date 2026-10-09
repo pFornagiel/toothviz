@@ -9,11 +9,20 @@ import {
   RotateCcw,
   Minus,
   Plus,
+  CircleHelp,
 } from "lucide-react";
+import { Odontogram } from "react-odontogram";
+import "react-odontogram/style.css";
+import "../odontogram.css";
 import { cn } from "@/lib/utils";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Checkbox } from "../../components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../components/ui/tooltip";
 import {
   Accordion,
   AccordionContent,
@@ -27,6 +36,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { Tooth } from "../../components/icons/tooth";
+import { byFdiNumber, toothIdFromOdontogramTarget, toothIdToFdi } from "../toothLabels";
 import {
   SliceTypeKey,
   SLICE_TYPE_LABELS,
@@ -157,15 +168,20 @@ function ZoomControl({
 }
 
 export function VisualizationSidebar() {
-  const { viewer, layout, volumes, view, display, scene, clip, render, onReset } =
+  const { viewer, layout, volumes, view, display, teeth, scene, clip, render, onReset } =
     useVisualization();
 
   const ready = viewer.viewPhase === ViewPhase.Ready;
   const hasMultipleVolumes = volumes.length > 1;
+  const maskVisible =
+    teeth.overlayIndex >= 0 && (display.volumeVisibility[teeth.overlayIndex] ?? true);
+  // Only show tooth picking when a mask overlay is loaded, visible, and has labels.
+  const showToothSelection = teeth.hasToothLabels && maskVisible;
 
   // Sections open by default; clip/render appear only where a 3D tile is shown.
   const openSections = [
     "volumes",
+    ...(showToothSelection ? ["teeth"] : []),
     "view",
     "display",
     "scene",
@@ -173,7 +189,7 @@ export function VisualizationSidebar() {
   ];
 
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-r border-border bg-secondary">
+    <aside className="flex h-full min-h-0 w-full min-w-0 flex-col bg-secondary">
       {/* Header */}
       <div className="flex items-start justify-between gap-2 border-b border-border px-4 py-4">
         <div className="min-w-0">
@@ -201,7 +217,12 @@ export function VisualizationSidebar() {
         )}
       >
         <fieldset disabled={!ready} className="m-0 min-w-0 border-0 p-0">
-          <Accordion type="multiple" defaultValue={openSections} className="w-full">
+          <Accordion
+            key={showToothSelection ? "with-teeth" : "no-teeth"}
+            type="multiple"
+            defaultValue={openSections}
+            className="w-full"
+          >
             {/* Volume selection */}
             {volumes.length > 0 && (
               <ControlSection value="volumes" icon={Layers} title="Volume Selection">
@@ -239,6 +260,96 @@ export function VisualizationSidebar() {
                       </SelectContent>
                     </Select>
                   </div>
+                )}
+              </ControlSection>
+            )}
+
+            {showToothSelection && (
+              <ControlSection value="teeth" icon={Tooth} title="Tooth Selection">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-foreground">Pick from preview</span>
+                    {!teeth.pickFromPreview && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="rounded-sm text-muted-foreground hover:text-foreground"
+                            aria-label="About pick from preview"
+                          >
+                            <CircleHelp className="size-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-60 text-balance">
+                          This mode enables selecting teeth also by clicking 2D slice views or the color legend.
+                          All other teeth stay visible until you turn this mode off.
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <Switch
+                    checked={teeth.pickFromPreview}
+                    onCheckedChange={teeth.setPickFromPreview}
+                  />
+                </div>
+                <p className="whitespace-pre-line text-xs text-muted-foreground">
+                  {teeth.pickModePending
+                    ? "Updating overlay…"
+                    : teeth.pickFromPreview
+                      ? "Click teeth in 2D slices, the color legend, or the chart to select or unselect."
+                      : "Select on the chart below, or enable pick mode.\nColors match the labels in the viewer."}
+                </p>
+                <div
+                  className="toothviz-odontogram w-full overflow-x-auto"
+                  onClick={(e) => {
+                    if (teeth.pickModePending) {
+                      return;
+                    }
+                    const toothId = toothIdFromOdontogramTarget(e.target);
+                    if (toothId) {
+                      teeth.toggleToothFromChart(toothId);
+                    }
+                  }}
+                >
+                  <Odontogram
+                    notation="FDI"
+                    layout="square"
+                    showTooltip
+                    showLabels={false}
+                    readOnly
+                    teethConditions={teeth.detectedConditions}
+                    className="w-full"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {teeth.selectedToothIds.length === 0
+                    ? `No selection — showing all ${teeth.presentToothIds.length} detected teeth.`
+                    : `Selected: ${[...teeth.selectedToothIds]
+                        .map((id) => toothIdToFdi(id))
+                        .filter((fdi): fdi is string => fdi !== null)
+                        .sort(byFdiNumber)
+                        .join(", ")}`}
+                </p>
+                {teeth.selectedToothIds.length > 0 && !teeth.pickFromPreview && (
+                  <p className="text-xs text-muted-foreground">
+                    Showing {teeth.selectedToothIds.length} of {teeth.presentToothIds.length}{" "}
+                    detected teeth.
+                  </p>
+                )}
+                {teeth.selectedToothIds.length > 0 && teeth.pickFromPreview && (
+                  <p className="text-xs text-muted-foreground">
+                    Turn pick mode off to hide the rest.
+                  </p>
+                )}
+                {teeth.selectedToothIds.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full bg-card"
+                    onClick={teeth.clearSelection}
+                  >
+                    Clear selection
+                  </Button>
                 )}
               </ControlSection>
             )}

@@ -8,6 +8,7 @@ export enum NvUpdateKey {
   Opacity = "opacity",
   RenderZoom = "render_zoom",
   ClipPlane = "clip_plane",
+  ToothLabels = "tooth_labels",
 }
 
 export type QueueNvUpdate = (key: NvUpdateKey, apply: () => void) => void;

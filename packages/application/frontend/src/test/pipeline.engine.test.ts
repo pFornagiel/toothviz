@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { PipelineEngine, type PipelineApi } from "@/app/pipeline/pipelineEngine";
 
 import { PipelineActionType, FinishMode, type PipelineAction } from "@/app/pipeline/reducer";
@@ -12,14 +12,31 @@ import {
   type PipelineMessage,
 } from "@/api/types";
 
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+/** Flush microtasks and (when fake timers are on) pending zero-delay timers. */
+const flush = async () => {
+  await Promise.resolve();
+  if (vi.isFakeTimers()) {
+    await vi.advanceTimersByTimeAsync(0);
+  } else {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+};
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function makeStudy(overrides: Partial<StudyResponse> = {}): StudyResponse {
   return {
     id: "s1",
-    name: null,
+    name: "",
     status: "processing",
     created_at: "2026-01-01T00:00:00Z",
+    job_id: "job1",
+    pipeline_status: "running",
+    steps: [],
+    error: "",
+    source_file_id: null,
     ...overrides,
   };
 }

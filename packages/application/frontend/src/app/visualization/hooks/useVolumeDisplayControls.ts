@@ -213,7 +213,7 @@ export default function useVolumeDisplayControls({
     setCalMax(value);
   };
 
-  const handleVolumeVisibilityToggle = (index: number) => {
+  const handleVolumeVisibilityToggle = (index: number): void => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[index]) {
       return;
