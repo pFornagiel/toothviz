@@ -12,6 +12,7 @@ import {
   DialogDescription,
 } from "./ui/dialog";
 import { Button } from "./ui/button";
+import { ApiError } from "@/api/client";
 
 export interface CreateStudyData {
   studyName: string;
@@ -24,7 +25,8 @@ export interface CreateStudyData {
 interface CreateStudyModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateStudyData) => void;
+  /** Rejects with an `ApiError` (409) when the name is taken; the modal stays open. */
+  onSubmit: (data: CreateStudyData) => Promise<void>;
 }
 
 function generateDefaultStudyName(): string {
@@ -42,6 +44,15 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
   const [segmentationType, setSegmentationType] = useState<SegmentationType>(SegmentationType.None);
   const [segmentationFile, setSegmentationFile] = useState<File | null>(null);
   const [segmentationFileError, setSegmentationFileError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleClose = () => {
+    setNameError(null);
+    setSubmitError(null);
+    onClose();
+  };
 
   const selectedMode = STUDY_MODES[segmentationType];
   const requiresMask = selectedMode.maskInput === MaskInput.Required;
@@ -84,21 +95,35 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (studyName && baseImageFile && !missingMask) {
-      onSubmit({
+    if (!studyName || !baseImageFile || missingMask || submitting) {
+      return;
+    }
+    setSubmitting(true);
+    setNameError(null);
+    setSubmitError(null);
+    try {
+      await onSubmit({
         studyName,
         baseImageFile,
         fileType,
         segmentationType,
         segmentationFile: requiresMask ? (segmentationFile ?? undefined) : undefined,
       });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setNameError(err.detail);
+      } else {
+        setSubmitError(err instanceof Error ? err.message : "Scan creation failed");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="h-auto overflow-y-aut min-w-4xl">
         <DialogHeader>
           <DialogTitle>Load New Scan</DialogTitle>
@@ -119,15 +144,26 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                 id="studyName"
                 type="text"
                 value={studyName}
-                onChange={(e) => setStudyName(e.target.value)}
+                onChange={(e) => {
+                  setStudyName(e.target.value);
+                  setNameError(null);
+                }}
                 required
+                aria-invalid={nameError != null}
+                aria-describedby={nameError ? "studyNameError" : undefined}
                 placeholder="e.g., Patient_Scan_2023_Axial"
-                className="w-full px-4 py-2 bg-background border border-border rounded text-base text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all peer placeholder:text-muted-foreground"
+                className={`w-full px-4 py-2 bg-background border rounded text-base text-foreground focus:ring-1 outline-none transition-all peer placeholder:text-muted-foreground ${nameError ? "border-destructive focus:border-destructive focus:ring-destructive" : "border-border focus:border-primary focus:ring-primary"}`}
               />
             </div>
-            <p className="text-xs text-muted-foreground peer-focus:text-primary transition-colors">
-              Use alphanumeric characters and underscores only.
-            </p>
+            {nameError ? (
+              <p id="studyNameError" role="alert" className="text-xs text-destructive">
+                {nameError}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground peer-focus:text-primary transition-colors">
+                Use alphanumeric characters and underscores only.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -278,18 +314,28 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
           </div>
 
           <DialogFooter className="items-center sm:justify-between mt-4">
-            <span className="text-xs text-muted-foreground flex-1">
-              {!studyName || !baseImageFile || missingMask
-                ? "Status: Waiting for required inputs"
-                : "Status: Ready"}
-            </span>
+            {submitError ? (
+              <span role="alert" className="text-xs text-destructive flex-1">
+                {submitError}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground flex-1">
+                {!studyName || !baseImageFile || missingMask
+                  ? "Status: Waiting for required inputs"
+                  : "Status: Ready"}
+              </span>
+            )}
             <div className="flex gap-4">
-              <Button type="button" className="cursor-pointer" variant="outline" onClick={onClose}>
+              <Button type="button" className="cursor-pointer" variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button type="submit" className="cursor-pointer" disabled={!studyName || !baseImageFile || missingMask}>
+              <Button
+                type="submit"
+                className="cursor-pointer"
+                disabled={!studyName || !baseImageFile || missingMask || submitting}
+              >
                 <SquarePlus size={18} />
-                Create
+                {submitting ? "Creating…" : "Create"}
               </Button>
             </div>
           </DialogFooter>

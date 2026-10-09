@@ -6,6 +6,7 @@ from backend.db.models import Study
 from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.db.repos.study_repo import StudyRepo
+from backend.exceptions import ConflictError, ValidationError
 from backend.services.storage_service import StorageService
 
 if TYPE_CHECKING:
@@ -26,7 +27,10 @@ class StudyService:
         name: str | None = None,
     ) -> Study:
         with self._storage.session_factory() as db:
-            study = StudyRepo(db).create(name=name)
+            repo = StudyRepo(db)
+            if name is not None:
+                name = self._validated_name(repo, name)
+            study = repo.create(name=name)
             PipelineJobRepo(db).create_for_study(study.id)
             return study
 
@@ -36,7 +40,26 @@ class StudyService:
 
     def rename(self, study_id: str, name: str) -> Study:
         with self._storage.session_factory() as db:
-            return StudyRepo(db).rename(study_id, name)
+            repo = StudyRepo(db)
+            repo.get(study_id)
+            name = self._validated_name(repo, name, exclude_id=study_id)
+            return repo.rename(study_id, name)
+
+    @staticmethod
+    def _validated_name(
+        repo: StudyRepo, name: str, exclude_id: str | None = None,
+    ) -> str:
+        name = name.strip()
+        if not name:
+            raise ValidationError("scan name must not be empty")
+        existing = repo.find_name_conflict(name, exclude_id=exclude_id)
+        if existing is not None:
+            if existing == name:
+                raise ConflictError(f'A scan named "{existing}" already exists.')
+            raise ConflictError(
+                f'A scan named "{existing}" already exists. Names are not case-sensitive.'
+            )
+        return name
 
     def delete(self, study_id: str) -> None:
         with self._storage.session_factory() as db:

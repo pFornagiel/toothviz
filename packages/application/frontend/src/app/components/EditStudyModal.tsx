@@ -13,6 +13,7 @@ import { Button } from "./ui/button";
 import { StudyStatusIndicator } from "./StudyStatusIndicator";
 import { StudyResponse } from "@/api/types";
 import { renameStudy } from "@/api/studies";
+import { ApiError } from "@/api/client";
 
 export interface EditStudyData {
   studyName: string;
@@ -51,11 +52,31 @@ export function EditStudyModal({
   onRequestDelete,
 }: EditStudyModalProps) {
   const [studyName, setStudyName] = useState(study.name);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (saving) {
+      return;
+    }
     if (studyName && studyName !== study.name) {
-      await renameStudy(study.id, studyName);
+      setSaving(true);
+      setNameError(null);
+      try {
+        await renameStudy(study.id, studyName);
+      } catch (err) {
+        setNameError(
+          err instanceof ApiError && err.status === 409
+            ? err.detail
+            : err instanceof Error
+              ? err.message
+              : "Rename failed",
+        );
+        return;
+      } finally {
+        setSaving(false);
+      }
       onSave();
     }
     onClose();
@@ -84,14 +105,25 @@ export function EditStudyModal({
                 id="studyName"
                 type="text"
                 value={studyName}
-                onChange={(e) => setStudyName(e.target.value)}
+                onChange={(e) => {
+                  setStudyName(e.target.value);
+                  setNameError(null);
+                }}
                 required
+                aria-invalid={nameError != null}
+                aria-describedby={nameError ? "studyNameError" : undefined}
                 placeholder="e.g., Patient_Scan_2023_Axial"
-                className="w-full rounded border border-border bg-muted/50 px-4 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary placeholder:text-muted-foreground peer"
+                className={`w-full rounded border bg-muted/50 px-4 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 placeholder:text-muted-foreground peer ${nameError ? "border-destructive focus:border-destructive focus:ring-destructive" : "border-border focus:border-primary focus:ring-primary"}`}
               />
-              <p className="text-xs text-muted-foreground transition-colors peer-focus:text-primary">
-                Use alphanumeric characters and underscores only.
-              </p>
+              {nameError ? (
+                <p id="studyNameError" role="alert" className="text-xs text-destructive">
+                  {nameError}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground transition-colors peer-focus:text-primary">
+                  Use alphanumeric characters and underscores only.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 rounded-lg bg-muted/50 p-4">
@@ -134,7 +166,7 @@ export function EditStudyModal({
               <Button type="button" className="cursor-pointer px-6" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" className="cursor-pointer px-6" disabled={!studyName}>
+              <Button type="submit" className="cursor-pointer px-6" disabled={!studyName || saving}>
                 <Save size={18} />
                 Save Changes
               </Button>
