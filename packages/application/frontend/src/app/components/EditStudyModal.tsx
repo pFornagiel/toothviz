@@ -12,7 +12,7 @@ import {
 import { Button } from "./ui/button";
 import { StudyStatusIndicator } from "./StudyStatusIndicator";
 import { StudyResponse } from "@/api/types";
-import { renameStudy, deleteStudy } from "@/api/studies";
+import { renameStudy } from "@/api/studies";
 
 export interface EditStudyData {
   studyName: string;
@@ -27,6 +27,8 @@ interface EditStudyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
+  /** Close edit and open the shared delete confirm (avoids nested modal body-lock). */
+  onRequestDelete: () => void;
 }
 
 function formatCreatedAt(value: string): string {
@@ -41,7 +43,13 @@ function formatCreatedAt(value: string): string {
   );
 }
 
-export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModalProps) {
+export function EditStudyModal({
+  study,
+  isOpen,
+  onClose,
+  onSave,
+  onRequestDelete,
+}: EditStudyModalProps) {
   const [studyName, setStudyName] = useState(study.name);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -50,15 +58,6 @@ export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModa
       await renameStudy(study.id, studyName);
       onSave();
     }
-    onClose();
-  };
-
-  const handleDelete = async () => {
-    if (!confirm("Delete this study?")) {
-      return;
-    }
-    await deleteStudy(study.id);
-    onSave();
     onClose();
   };
 
@@ -74,7 +73,6 @@ export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModa
 
         <form onSubmit={handleSubmit} className="contents">
           <div className="flex flex-col gap-6 p-6">
-            {/* Study Identifier Field */}
             <div className="flex flex-col gap-2">
               <label
                 className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
@@ -96,7 +94,6 @@ export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModa
               </p>
             </div>
 
-            {/* Metadata Display */}
             <div className="grid grid-cols-2 gap-4 rounded-lg bg-muted/50 p-4">
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -128,7 +125,7 @@ export function EditStudyModal({ study, isOpen, onClose, onSave }: EditStudyModa
               type="button"
               variant="ghost"
               className="w-fit cursor-pointer gap-2 px-4 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={handleDelete}
+              onClick={onRequestDelete}
             >
               <Trash2 size={18} />
               Delete Scan
