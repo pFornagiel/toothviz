@@ -407,22 +407,6 @@ export function VisualizationSidebar() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">Colormap</span>
-                <Select value={display.colormap} onValueChange={display.handleColormapChange}>
-                  <SelectTrigger className="w-full bg-card">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {display.colormaps.map((cm) => (
-                      <SelectItem key={cm} value={cm}>
-                        {cm}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               <SliderRow
                 label="Opacity"
                 valueLabel={display.opacity.toFixed(2)}
@@ -516,7 +500,7 @@ export function VisualizationSidebar() {
             )}
 
 
-            {/* Scene (crosshair + background) */}
+            {/* Scene (crosshair) */}
             <ControlSection value="scene" icon={Crosshair} title="Scene">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground">Crosshair</span>
@@ -532,10 +516,6 @@ export function VisualizationSidebar() {
                 onChange={scene.handleCrosshairWidthChange}
                 disabled={!scene.showCrosshair}
               />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-foreground">Light background</span>
-                <Switch checked={scene.lightBackground} onCheckedChange={scene.handleBackgroundToggle} />
-              </div>
             </ControlSection>
           </Accordion>
         </fieldset>

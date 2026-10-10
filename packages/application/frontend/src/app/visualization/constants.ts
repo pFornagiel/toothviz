@@ -25,7 +25,6 @@ export const DEFAULT_VISIBLE_OPACITY = 1.0;
 
 // Niivue init / display defaults
 export const DEFAULT_BACK_COLOR_DARK: [number, number, number, number] = [0, 0, 0, 1];
-export const DEFAULT_BACK_COLOR_LIGHT: [number, number, number, number] = [1, 1, 1, 1];
 export const DEFAULT_SHOW_3D_CROSSHAIR = true;
 export const DEFAULT_CROSSHAIR_WIDTH = 0.2;
 

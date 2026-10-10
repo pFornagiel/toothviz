@@ -12,9 +12,6 @@ export interface VolumeDisplayControls {
   // Display (active volume)
   opacity: number;
   handleOpacityChange: (value: number) => void;
-  colormap: string;
-  colormaps: string[];
-  handleColormapChange: (value: string) => void;
   cal_min: number;
   cal_max: number;
   cal_minGlobal: number;
@@ -30,12 +27,12 @@ export interface VolumeDisplayControls {
 
 /**
  * Volume selection plus the active volume's display parameters (opacity,
- * colormap, cal_min/max windowing). These two concerns share state — switching
- * the active volume mirrors that volume's display params into the controls, and
- * the opacity slider writes back into the per-volume opacity store used for
- * show/hide — so they live in one hook. niivue updates flow through the shared
- * per-frame queue; instance lifecycle/loading lives in `useNiivueViewer`, which
- * talks back only through the identity-stable `syncFromVolumes` bridge.
+ * cal_min/max windowing). These two concerns share state — switching the active
+ * volume mirrors that volume's display params into the controls, and the opacity
+ * slider writes back into the per-volume opacity store used for show/hide — so
+ * they live in one hook. niivue updates flow through the shared per-frame queue;
+ * instance lifecycle/loading lives in `useNiivueViewer`, which talks back only
+ * through the identity-stable `syncFromVolumes` bridge.
  */
 export default function useVolumeDisplayControls({
   nvRef,
@@ -49,8 +46,6 @@ export default function useVolumeDisplayControls({
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
   const [opacity, setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
-  const [colormap, _setColormap] = useState(DEFAULT_COLORMAP);
-  const [colormaps, setColormaps] = useState<string[]>([]);
   const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
   const [cal_minGlobal, _setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
@@ -151,10 +146,6 @@ export default function useVolumeDisplayControls({
     _setCalMaxGlobal(value);
   };
 
-  const setColormap = (value: string | undefined) => {
-    _setColormap(value || DEFAULT_COLORMAP);
-  };
-
   const handleVolumeChange = (index: number) => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[index]) {
@@ -164,7 +155,6 @@ export default function useVolumeDisplayControls({
     setSelectedVolume(index);
     const vol = nv.volumes[index];
     setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
-    setColormap(vol.colormap);
     setCalMin(vol.calMin);
     setCalMax(vol.calMax);
   };
@@ -184,16 +174,6 @@ export default function useVolumeDisplayControls({
       newOpacities[selectedVolume] = value;
       setVolumeOpacities(newOpacities);
     }
-  };
-
-  const handleColormapChange = (value: string) => {
-    const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume]) {
-      return;
-    }
-
-    setColormap(value);
-    nv.setVolume(selectedVolume, { colormap: value });
   };
 
   const handleCalMinChange = (value: number) => {
@@ -252,7 +232,6 @@ export default function useVolumeDisplayControls({
     }
     const vol = nv.volumes[0];
     setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
-    setColormap(vol.colormap);
     setCalMinGlobal(vol.globalMin);
     setCalMaxGlobal(vol.globalMax);
     setCalMin(vol.calMin, true);
@@ -260,7 +239,6 @@ export default function useVolumeDisplayControls({
     // Initialize visibility and store opacities for all volumes
     setVolumeVisibility(nv.volumes.map(() => true));
     setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
-    setColormaps(nv.colormaps);
   };
   
   const syncFromVolumes = useCallback((nv: NiiVueGPU) => syncFromVolumesRef.current(nv), []);
@@ -277,7 +255,6 @@ export default function useVolumeDisplayControls({
     setCalMin(restoredCalMin);
     setCalMax(restoredCalMax);
     setOpacity(DEFAULT_VISIBLE_OPACITY);
-    setColormap(DEFAULT_COLORMAP);
     setVolumeVisibility(nv.volumes.map(() => true));
 
     const opacities = nv.volumes.map((_, i) =>
@@ -307,9 +284,6 @@ export default function useVolumeDisplayControls({
     handleVolumeVisibilityToggle,
     opacity,
     handleOpacityChange,
-    colormap,
-    colormaps,
-    handleColormapChange,
     cal_min,
     cal_max,
     cal_minGlobal,

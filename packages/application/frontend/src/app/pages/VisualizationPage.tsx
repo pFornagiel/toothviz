@@ -78,7 +78,7 @@ export function VisualizationPage() {
 }
 
 function VisualizationView() {
-  const { canvasRef, viewer, layout, scene, display, teeth, pickFlash } = useVisualization();
+  const { canvasRef, viewer, layout, display, teeth, pickFlash } = useVisualization();
 
   const {
     viewPhase,
@@ -92,7 +92,6 @@ function VisualizationView() {
     onReturnToProgress,
   } = viewer;
   const { sidebarVisible, setSidebarVisible, legendVisible, setLegendVisible } = layout;
-  const { lightBackground } = scene;
   const maskVisible =
     teeth.overlayIndex >= 0 && (display.volumeVisibility[teeth.overlayIndex] ?? true);
   const legendAvailable =
@@ -133,10 +132,7 @@ function VisualizationView() {
           )}
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div
-              className="relative min-h-0 flex-1 overflow-hidden"
-              style={{ backgroundColor: lightBackground ? "#ffffff" : "#000000" }}
-            >
+            <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
               <canvas ref={canvasRef} className="absolute inset-0 z-0 h-full w-full" />
               {!sidebarVisible && (
                 <Button
