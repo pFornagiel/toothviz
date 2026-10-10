@@ -3,6 +3,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
 import { StudyErrorScreen } from "./screens/StudyErrorScreen";
 import { ProcessingNoticeBar } from "./screens/ProcessingNoticeBar";
+import { PickModeNoticeBar } from "./screens/PickModeNoticeBar";
 import { getStudy } from "@/api/studies";
 import { PageLayout } from "../components/layout/page-layout";
 import { Button } from "../components/ui/button";
@@ -13,6 +14,7 @@ import {
   useVisualization,
   ViewPhase,
 } from "../visualization";
+import { PickModeExitDialog } from "../visualization/components/PickModeExitDialog";
 
 /** Pixel widths — hide/show one panel does not change the other. */
 const SIDEBAR = { default: 320, min: 240, max: 480 };
@@ -76,7 +78,7 @@ export function VisualizationPage() {
 }
 
 function VisualizationView() {
-  const { canvasRef, viewer, layout, scene, display, teeth } = useVisualization();
+  const { canvasRef, viewer, layout, scene, display, teeth, pickFlash } = useVisualization();
 
   const {
     viewPhase,
@@ -135,6 +137,7 @@ function VisualizationView() {
               className="relative min-h-0 flex-1 overflow-hidden"
               style={{ backgroundColor: lightBackground ? "#ffffff" : "#000000" }}
             >
+              <canvas ref={canvasRef} className="absolute inset-0 z-0 h-full w-full" />
               {!sidebarVisible && (
                 <Button
                   variant="secondary"
@@ -146,16 +149,39 @@ function VisualizationView() {
                   <PanelLeftOpen className="size-5" />
                 </Button>
               )}
-              {processingNotice !== "none" && (
-                <div className="absolute top-3 left-14 z-30">
-                  <ProcessingNoticeBar
-                    notice={processingNotice}
-                    showReturnLink={processingNotice !== "artifacts-ready"}
-                    onReturnToProgress={onReturnToProgress}
-                    placement="overlay"
-                  />
+              {(processingNotice !== "none" || teeth.pickFromPreview) && (
+                <div
+                  className={`absolute top-3 z-30 flex flex-col gap-2 ${
+                    sidebarVisible ? "left-3" : "left-14"
+                  }`}
+                >
+                  {processingNotice !== "none" && (
+                    <ProcessingNoticeBar
+                      notice={processingNotice}
+                      showReturnLink={processingNotice !== "artifacts-ready"}
+                      onReturnToProgress={onReturnToProgress}
+                      placement="overlay"
+                    />
+                  )}
+                  {teeth.pickFromPreview && (
+                    <PickModeNoticeBar
+                      pending={teeth.pickModePending}
+                      selectedCount={teeth.selectedToothIds.length}
+                      onApply={() => teeth.requestPickModeExit("apply")}
+                      onDiscard={() => teeth.requestPickModeExit("discard")}
+                      placement="overlay"
+                    />
+                  )}
                 </div>
               )}
+              <PickModeExitDialog
+                intent={teeth.pickModeExitIntent}
+                selectedToothIds={teeth.selectedToothIds}
+                baselineToothIds={teeth.pickModeBaselineToothIds}
+                presentCount={teeth.presentToothIds.length}
+                onCancel={teeth.cancelPickModeExit}
+                onConfirm={teeth.confirmPickModeExit}
+              />
               {legendAvailable && !legendVisible && (
                 <Button
                   variant="secondary"
@@ -176,7 +202,16 @@ function VisualizationView() {
                   <p className="text-sm font-medium text-muted-foreground">{statusText}</p>
                 </div>
               )}
-              <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+              {pickFlash && (
+                <div
+                  key={pickFlash.id}
+                  className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 animate-in fade-in-0 zoom-in-95 rounded-full border border-primary/30 bg-background/90 px-2.5 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md duration-150"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {pickFlash.message}
+                </div>
+              )}
             </div>
           </div>
 

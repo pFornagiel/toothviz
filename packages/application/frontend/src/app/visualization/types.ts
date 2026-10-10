@@ -65,4 +65,7 @@ export interface VisualizationContextValue {
   clip: ClipPlaneControls;
   render: RenderControls;
   onReset: () => void;
+  /** Ephemeral feedback after a pick-mode toggle (slice or chart). */
+  pickFlash: { id: number; message: string } | null;
+  showPickFlash: (message: string) => void;
 }

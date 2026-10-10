@@ -27,6 +27,9 @@ type RuntimeLabelColormap = {
   centroids?: Record<string, [number, number, number]>;
 };
 
+export type PickModeExitIntent = "apply" | "discard" | "choose";
+export type PickModeExitConfirmIntent = Exclude<PickModeExitIntent, "choose">;
+
 export interface ToothSelectionControls {
   /** True when the loaded overlay has at least one tooth class. */
   hasToothLabels: boolean;
@@ -35,21 +38,39 @@ export interface ToothSelectionControls {
   detectedConditions: ToothConditionGroup[];
   /**
    * Pick mode: all teeth stay visible while selecting.
-   * Turning it off applies the filter (hides non-selected).
+   * Leaving asks for confirmation only when the selection changed while picking.
    */
   pickFromPreview: boolean;
   /** True while applying colormap after a pick-mode toggle. */
   pickModePending: boolean;
+  /** Selection from when pick mode was entered (for discard summary / restore). */
+  pickModeBaselineToothIds: string[];
+  /** Pending leave confirmation; `null` when no dialog is open. */
+  pickModeExitIntent: PickModeExitIntent | null;
   setPickFromPreview: (enabled: boolean) => void;
-  /** Toggle a detected tooth from the chart (no odontogram remount). */
-  toggleToothFromChart: (toothId: string) => void;
+  /**
+   * Leave pick mode. Opens confirmation only if picks changed; otherwise exits immediately.
+   */
+  requestPickModeExit: (intent: PickModeExitIntent) => void;
+  /** Confirm leaving pick mode with apply or discard. */
+  confirmPickModeExit: (intent: PickModeExitConfirmIntent) => void;
+  /** Dismiss the leave confirmation without changing pick mode. */
+  cancelPickModeExit: () => void;
+  /**
+   * Toggle a detected tooth from the chart (no odontogram remount).
+   * Returns false when the tooth is not in the present set and selection is unchanged.
+   */
+  toggleToothFromChart: (toothId: string) => boolean;
   /** Toggle a tooth from a preview click. */
   toggleToothFromPreview: (toothId: string) => void;
   /** Move the crosshair to a tooth's centroid (legend click). */
   focusTooth: (toothId: string) => void;
   /** Overlay volume index in niivue (-1 if none). */
   overlayIndex: number;
+  /** Deselect every tooth (show none outside pick mode). */
   clearSelection: () => void;
+  /** Select every detected tooth. */
+  selectAll: () => void;
   /** Scan overlay img after volumes load; identity-stable. */
   syncFromVolumes: (nv: NiiVueGPU) => void;
   reset: () => void;
@@ -74,9 +95,19 @@ function readPresentClasses(nv: NiiVueGPU, overlayIndex: number): number[] {
   return presentClassesFromImg(img);
 }
 
+function sameToothSelection(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const other = new Set(b);
+  return a.every((id) => other.has(id));
+}
+
 /**
  * Scans the segmentation overlay for ToothSeg class labels, drives odontogram
  * selection, and filters the overlay via NiiVue label colormap alpha.
+ *
+ * Empty selection means show none. Default / reset selects every present tooth.
  */
 export default function useToothSelectionControls({
   nvRef,
@@ -89,6 +120,8 @@ export default function useToothSelectionControls({
   const [selectedToothIds, setSelectedToothIds] = useState<string[]>([]);
   const [pickFromPreview, setPickFromPreviewState] = useState(false);
   const [pickModePending, setPickModePending] = useState(false);
+  const [pickModeBaselineToothIds, setPickModeBaselineToothIds] = useState<string[]>([]);
+  const [pickModeExitIntent, setPickModeExitIntent] = useState<PickModeExitIntent | null>(null);
   const [overlayIndex, setOverlayIndex] = useState(-1);
 
   const overlayIndexRef = useRef(-1);
@@ -96,6 +129,10 @@ export default function useToothSelectionControls({
   const selectedToothIdsRef = useRef<string[]>([]);
   const pickFromPreviewRef = useRef(false);
   const pickModePendingGenRef = useRef(0);
+  /** Selection snapshot taken when pick mode was entered (for discard). */
+  const selectionBeforePickRef = useRef<string[]>([]);
+  /** True after a non-empty mask has been synced (so empty selection can mean cleared). */
+  const hadMaskRef = useRef(false);
   const showAllCmapRef = useRef<LabelColorMap | null>(null);
   /** Whether the overlay GPU state currently shows every present tooth. */
   const overlayShowsAllRef = useRef(true);
@@ -150,7 +187,7 @@ export default function useToothSelectionControls({
           };
 
           // Hot path: after the first `setColormapLabel` (centroids computed once),
-          // visibility toggles only swap LUT alphas + one `updateGLVolume` 
+          // visibility toggles only swap LUT alphas + one `updateGLVolume`
           // — no volume rescan and no duplicate GPU refresh.
           if (labelColormapInstalledRef.current && vol.colormapLabel?.lut) {
             const prev = vol.colormapLabel;
@@ -219,9 +256,12 @@ export default function useToothSelectionControls({
         return Promise.resolve();
       }
       if (selected.length === 0) {
-        return showAllTeeth();
+        return pushVisibility([], false);
       }
       const visible = visibleClassesFromSelection(present, selected);
+      if (visible.length === present.length) {
+        return showAllTeeth();
+      }
       return pushVisibility(visible, false);
     },
     [pushVisibility, showAllTeeth],
@@ -242,7 +282,7 @@ export default function useToothSelectionControls({
     labelColormapInstalledRef.current = false;
     appliedVisibilityKeyRef.current = null;
     overlayShowsAllRef.current = false;
-    if (pickFromPreviewRef.current || selectedToothIdsRef.current.length === 0) {
+    if (pickFromPreviewRef.current) {
       void pushVisibility(null, true);
     } else {
       void filterToSelection(selectedToothIdsRef.current);
@@ -286,18 +326,28 @@ export default function useToothSelectionControls({
       setSelectedToothIds([]);
       setPickFromPreviewState(false);
       pickFromPreviewRef.current = false;
+      selectionBeforePickRef.current = [];
+      setPickModeBaselineToothIds([]);
+      setPickModeExitIntent(null);
+      hadMaskRef.current = false;
       showAllCmapRef.current = null;
       labelColormapInstalledRef.current = false;
       appliedVisibilityKeyRef.current = null;
       return;
     }
     const present = readPresentClasses(nv, nextOverlayIndex);
+    const allIds = classesToToothIds(present);
+    const firstMask = !hadMaskRef.current && present.length > 0;
+    hadMaskRef.current = present.length > 0;
     setPresentClassIds(present);
     setSelectedToothIds((prev) => {
+      if (firstMask) {
+        return allIds;
+      }
       if (prev.length === 0) {
         return prev;
       }
-      const allowed = new Set(classesToToothIds(present));
+      const allowed = new Set(allIds);
       return prev.filter((id) => allowed.has(id));
     });
   };
@@ -306,17 +356,37 @@ export default function useToothSelectionControls({
     syncFromVolumesRef.current(nv);
   }, []);
 
-  const toggleToothFromChart = useCallback((toothId: string) => {
+  const toggleToothFromChart = useCallback((toothId: string): boolean => {
     const allowed = new Set(classesToToothIds(presentClassIdsRef.current));
     if (!allowed.has(toothId)) {
-      return;
+      return false;
     }
     setSelectedToothIds((prev) => toggleToothId(prev, toothId));
+    return true;
   }, []);
 
   const toggleToothFromPreview = useCallback((toothId: string) => {
     setSelectedToothIds((prev) => toggleToothId(prev, toothId));
   }, []);
+
+  const beginPickModeTransition = useCallback(
+    (apply: () => Promise<void>) => {
+      const gen = ++pickModePendingGenRef.current;
+      setPickModePending(true);
+
+      if (filterDebounceRef.current) {
+        clearTimeout(filterDebounceRef.current);
+        filterDebounceRef.current = null;
+      }
+
+      void apply().finally(() => {
+        if (gen === pickModePendingGenRef.current) {
+          setPickModePending(false);
+        }
+      });
+    },
+    [],
+  );
 
   const setPickFromPreview = useCallback(
     (enabled: boolean) => {
@@ -326,41 +396,89 @@ export default function useToothSelectionControls({
       if (enabled === pickFromPreviewRef.current) {
         return;
       }
+
+      if (enabled) {
+        const baseline = [...selectedToothIdsRef.current];
+        selectionBeforePickRef.current = baseline;
+        setPickModeBaselineToothIds(baseline);
+        setPickModeExitIntent(null);
+      }
+
       pickFromPreviewRef.current = enabled;
       setPickFromPreviewState(enabled);
 
-      const gen = ++pickModePendingGenRef.current;
-      setPickModePending(true);
-
-      if (filterDebounceRef.current) {
-        clearTimeout(filterDebounceRef.current);
-        filterDebounceRef.current = null;
-      }
-
-      const apply = enabled
-        ? showAllTeeth()
-        : filterToSelection(selectedToothIdsRef.current);
-
-      void apply.finally(() => {
-        if (gen === pickModePendingGenRef.current) {
-          setPickModePending(false);
-        }
-      });
+      beginPickModeTransition(() =>
+        enabled ? showAllTeeth() : filterToSelection(selectedToothIdsRef.current),
+      );
     },
-    [showAllTeeth, filterToSelection, pickModePending],
+    [showAllTeeth, filterToSelection, pickModePending, beginPickModeTransition],
+  );
+
+  const discardPickMode = useCallback(() => {
+    if (pickModePending || !pickFromPreviewRef.current) {
+      return;
+    }
+
+    const restored = [...selectionBeforePickRef.current];
+    pickFromPreviewRef.current = false;
+    setPickFromPreviewState(false);
+    selectedToothIdsRef.current = restored;
+    setSelectedToothIds(restored);
+    setPickModeExitIntent(null);
+
+    beginPickModeTransition(() => filterToSelection(restored));
+  }, [pickModePending, filterToSelection, beginPickModeTransition]);
+
+  const requestPickModeExit = useCallback(
+    (intent: PickModeExitIntent) => {
+      if (pickModePending || !pickFromPreviewRef.current) {
+        return;
+      }
+      // No confirmation when nothing changed — apply and discard are the same.
+      if (sameToothSelection(selectedToothIdsRef.current, selectionBeforePickRef.current)) {
+        setPickFromPreview(false);
+        return;
+      }
+      setPickModeExitIntent(intent);
+    },
+    [pickModePending, setPickFromPreview],
+  );
+
+  const cancelPickModeExit = useCallback(() => {
+    setPickModeExitIntent(null);
+  }, []);
+
+  const confirmPickModeExit = useCallback(
+    (intent: PickModeExitConfirmIntent) => {
+      setPickModeExitIntent(null);
+      if (intent === "apply") {
+        setPickFromPreview(false);
+      } else {
+        discardPickMode();
+      }
+    },
+    [setPickFromPreview, discardPickMode],
   );
 
   const clearSelection = useCallback(() => {
     setSelectedToothIds([]);
-    void showAllTeeth();
-  }, [showAllTeeth]);
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedToothIds(classesToToothIds(presentClassIdsRef.current));
+  }, []);
 
   const reset = useCallback(() => {
     pickModePendingGenRef.current += 1;
     setPickModePending(false);
-    setSelectedToothIds([]);
+    const allIds = classesToToothIds(presentClassIdsRef.current);
+    selectedToothIdsRef.current = allIds;
+    setSelectedToothIds(allIds);
     setPickFromPreviewState(false);
     pickFromPreviewRef.current = false;
+    selectionBeforePickRef.current = [];
+    setPickModeBaselineToothIds([]);
+    setPickModeExitIntent(null);
     void showAllTeeth();
   }, [showAllTeeth]);
 
@@ -371,12 +489,18 @@ export default function useToothSelectionControls({
     detectedConditions,
     pickFromPreview,
     pickModePending,
+    pickModeBaselineToothIds,
+    pickModeExitIntent,
     setPickFromPreview,
+    requestPickModeExit,
+    confirmPickModeExit,
+    cancelPickModeExit,
     toggleToothFromChart,
     toggleToothFromPreview,
     focusTooth,
     overlayIndex,
     clearSelection,
+    selectAll,
     syncFromVolumes,
     reset,
   };

@@ -101,8 +101,8 @@ describe("selection visibility", () => {
     expect(classesToToothIds([1, 9, 25])).toEqual(["teeth-11", "teeth-21", "teeth-41"]);
   });
 
-  it("empty selection means show all (null visible filter)", () => {
-    expect(visibleClassesFromSelection([1, 9], [])).toBeNull();
+  it("empty selection means hide all (empty visible filter)", () => {
+    expect(visibleClassesFromSelection([1, 9], [])).toEqual([]);
   });
 
   it("filters to selected subset that are present", () => {
@@ -118,13 +118,21 @@ describe("selection visibility", () => {
     expect(groups[1].fillColor).toBe(toothLabelCss("teeth-21"));
   });
 
-  it("colors every detected tooth with its label color when nothing is selected", () => {
+  it("fades every detected tooth when nothing is selected", () => {
     const groups = buildSelectionConditions(["teeth-11", "teeth-21"], []);
+    expect(groups.every((g) => g.fillColor?.match(/^rgba\(.*, 0\.25\)$/))).toBe(true);
+    expect(buildSelectionConditions([], [])).toEqual([]);
+  });
+
+  it("colors every detected tooth when all are selected", () => {
+    const groups = buildSelectionConditions(
+      ["teeth-11", "teeth-21"],
+      ["teeth-11", "teeth-21"],
+    );
     expect(groups.map((g) => g.fillColor)).toEqual([
       toothLabelCss("teeth-11"),
       toothLabelCss("teeth-21"),
     ]);
-    expect(buildSelectionConditions([], [])).toEqual([]);
   });
 
   it("builds label colormap with alpha for hidden teeth", () => {

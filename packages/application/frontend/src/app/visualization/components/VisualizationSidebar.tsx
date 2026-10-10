@@ -9,7 +9,6 @@ import {
   RotateCcw,
   Minus,
   Plus,
-  CircleHelp,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
 import "react-odontogram/style.css";
@@ -51,6 +50,16 @@ import {
   RENDER_ZOOM_RANGE,
   RENDER_ZOOM_BUTTON_FACTOR,
 } from "../constants";
+import {
+  PICK_MODE_HELP,
+  PICK_MODE_HELP_SHORT,
+  PICK_MODE_LABEL,
+  PICK_MODE_PENDING,
+  slicePickMessage,
+} from "../pickModeCopy";
+import { ClearSelectionDialog } from "./ClearSelectionDialog";
+import { ResetViewDialog } from "./ResetViewDialog";
+import { SelectAllDialog } from "./SelectAllDialog";
 import { useVisualization } from "../VisualizationProvider";
 import { ViewPhase } from "../types";
 
@@ -168,8 +177,11 @@ function ZoomControl({
 }
 
 export function VisualizationSidebar() {
-  const { viewer, layout, volumes, view, display, teeth, scene, clip, render, onReset } =
+  const { viewer, layout, volumes, view, display, teeth, scene, clip, render, onReset, showPickFlash } =
     useVisualization();
+  const [clearSelectionOpen, setClearSelectionOpen] = React.useState(false);
+  const [selectAllOpen, setSelectAllOpen] = React.useState(false);
+  const [resetViewOpen, setResetViewOpen] = React.useState(false);
 
   const ready = viewer.viewPhase === ViewPhase.Ready;
   const hasMultipleVolumes = volumes.length > 1;
@@ -267,47 +279,58 @@ export function VisualizationSidebar() {
             {showToothSelection && (
               <ControlSection value="teeth" icon={Tooth} title="Tooth Selection">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm text-foreground">Pick from preview</span>
-                    {!teeth.pickFromPreview && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="rounded-sm text-muted-foreground hover:text-foreground"
-                            aria-label="About pick from preview"
-                          >
-                            <CircleHelp className="size-3.5" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-60 text-balance">
-                          This mode enables selecting teeth also by clicking 2D slice views or the color legend.
-                          All other teeth stay visible until you turn this mode off.
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                  <Switch
-                    checked={teeth.pickFromPreview}
-                    onCheckedChange={teeth.setPickFromPreview}
-                  />
+                  <span className="text-sm text-foreground">{PICK_MODE_LABEL}</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Switch
+                          checked={teeth.pickFromPreview}
+                          disabled={teeth.pickModePending}
+                          aria-label={PICK_MODE_LABEL}
+                          onCheckedChange={(enabled) => {
+                            if (enabled) {
+                              teeth.setPickFromPreview(true);
+                            } else {
+                              teeth.requestPickModeExit("choose");
+                            }
+                          }}
+                        />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-60 text-balance">
+                      {PICK_MODE_HELP}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <p className="whitespace-pre-line text-xs text-muted-foreground">
                   {teeth.pickModePending
-                    ? "Updating overlay…"
+                    ? PICK_MODE_PENDING
                     : teeth.pickFromPreview
-                      ? "Click teeth in 2D slices, the color legend, or the chart to select or unselect."
+                      ? PICK_MODE_HELP_SHORT
                       : "Select on the chart below, or enable pick mode.\nColors match the labels in the viewer."}
                 </p>
                 <div
-                  className="toothviz-odontogram w-full overflow-x-auto"
+                  className={cn(
+                    "toothviz-odontogram w-full overflow-x-auto",
+                    teeth.pickModePending && "toothviz-odontogram--pending",
+                  )}
                   onClick={(e) => {
                     if (teeth.pickModePending) {
                       return;
                     }
                     const toothId = toothIdFromOdontogramTarget(e.target);
-                    if (toothId) {
-                      teeth.toggleToothFromChart(toothId);
+                    if (!toothId) {
+                      return;
+                    }
+                    const changed = teeth.toggleToothFromChart(toothId);
+                    if (!changed || !teeth.pickFromPreview) {
+                      return;
+                    }
+                    const fdi = toothIdToFdi(toothId);
+                    if (fdi) {
+                      showPickFlash(
+                        slicePickMessage(fdi, !teeth.selectedToothIds.includes(toothId)),
+                      );
                     }
                   }}
                 >
@@ -323,34 +346,46 @@ export function VisualizationSidebar() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {teeth.selectedToothIds.length === 0
-                    ? `No selection — showing all ${teeth.presentToothIds.length} detected teeth.`
-                    : `Selected: ${[...teeth.selectedToothIds]
-                        .map((id) => toothIdToFdi(id))
-                        .filter((fdi): fdi is string => fdi !== null)
-                        .sort(byFdiNumber)
-                        .join(", ")}`}
+                    ? "No teeth selected."
+                    : teeth.selectedToothIds.length === teeth.presentToothIds.length
+                      ? `All ${teeth.presentToothIds.length} detected teeth selected.`
+                      : `Selected: ${[...teeth.selectedToothIds]
+                          .map((id) => toothIdToFdi(id))
+                          .filter((fdi): fdi is string => fdi !== null)
+                          .sort(byFdiNumber)
+                          .join(", ")}`}
                 </p>
-                {teeth.selectedToothIds.length > 0 && !teeth.pickFromPreview && (
-                  <p className="text-xs text-muted-foreground">
-                    Showing {teeth.selectedToothIds.length} of {teeth.presentToothIds.length}{" "}
-                    detected teeth.
-                  </p>
-                )}
-                {teeth.selectedToothIds.length > 0 && teeth.pickFromPreview && (
-                  <p className="text-xs text-muted-foreground">
-                    Turn pick mode off to hide the rest.
-                  </p>
-                )}
-                {teeth.selectedToothIds.length > 0 && (
+                {teeth.selectedToothIds.length > 0 &&
+                  teeth.selectedToothIds.length < teeth.presentToothIds.length &&
+                  !teeth.pickFromPreview && (
+                    <p className="text-xs text-muted-foreground">
+                      Showing {teeth.selectedToothIds.length} of {teeth.presentToothIds.length}{" "}
+                      detected teeth.
+                    </p>
+                  )}
+                <div className="flex flex-col gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     className="w-full bg-card"
-                    onClick={teeth.clearSelection}
+                    disabled={
+                      teeth.pickModePending ||
+                      teeth.selectedToothIds.length === teeth.presentToothIds.length
+                    }
+                    onClick={() => setSelectAllOpen(true)}
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full bg-card"
+                    disabled={teeth.pickModePending || teeth.selectedToothIds.length === 0}
+                    onClick={() => setClearSelectionOpen(true)}
                   >
                     Clear selection
                   </Button>
-                )}
+                </div>
               </ControlSection>
             )}
 
@@ -508,11 +543,39 @@ export function VisualizationSidebar() {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-border p-3">
-        <Button variant="default" className="w-full" disabled={!ready} onClick={onReset}>
+        <Button
+          variant="default"
+          className="w-full"
+          disabled={!ready}
+          onClick={() => setResetViewOpen(true)}
+        >
           <RotateCcw className="size-4" />
           Reset View
         </Button>
       </div>
+
+      <ClearSelectionDialog
+        open={clearSelectionOpen}
+        presentCount={teeth.presentToothIds.length}
+        pickMode={teeth.pickFromPreview}
+        onOpenChange={setClearSelectionOpen}
+        onConfirm={teeth.clearSelection}
+      />
+      <SelectAllDialog
+        open={selectAllOpen}
+        presentCount={teeth.presentToothIds.length}
+        pickMode={teeth.pickFromPreview}
+        onOpenChange={setSelectAllOpen}
+        onConfirm={teeth.selectAll}
+      />
+      <ResetViewDialog
+        open={resetViewOpen}
+        selectedCount={teeth.selectedToothIds.length}
+        presentCount={teeth.presentToothIds.length}
+        pickMode={teeth.pickFromPreview}
+        onOpenChange={setResetViewOpen}
+        onConfirm={onReset}
+      />
     </aside>
   );
 }
