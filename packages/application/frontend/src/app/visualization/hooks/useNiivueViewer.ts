@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import NiiVueGPU from "@niivue/niivue/webgl2";
-import { SLICE_TYPE, MULTIPLANAR_TYPE, DRAG_MODE } from "@niivue/niivue";
+import { SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER, DRAG_MODE } from "@niivue/niivue";
 import { listFiles, fileContentUrl } from "@/api/studies";
 import { resolveViewerFileIds } from "../../pipeline/viewerFiles";
 import { ViewPhase, type VisualizationLocationState } from "../types";
@@ -114,8 +114,9 @@ export default function useNiivueViewer({
 
         // Update UI state based on loaded volume
         onVolumesLoaded(nv);
+        nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
+        nv.showRender = SHOW_RENDER.ALWAYS;
         nv.sliceType = SLICE_TYPE.MULTIPLANAR;
-        nv.multiplanarType = MULTIPLANAR_TYPE.AUTO;
       } else {
         setStatusText("No viewable files found for this study");
         throw new Error("No viewable volume or overlay files are available yet.");
@@ -156,8 +157,9 @@ export default function useNiivueViewer({
       setStatusText(`Volatile mode - ${primary.name}`);
 
       onVolumesLoaded(nv);
+      nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
+      nv.showRender = SHOW_RENDER.ALWAYS;
       nv.sliceType = SLICE_TYPE.MULTIPLANAR;
-      nv.multiplanarType = MULTIPLANAR_TYPE.AUTO;
     },
     [primary, mask, onVolumesLoaded],
   );

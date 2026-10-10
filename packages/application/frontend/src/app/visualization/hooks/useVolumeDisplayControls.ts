@@ -1,7 +1,26 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
-import { DEFAULT_COLORMAP, DEFAULT_VISIBLE_OPACITY, CAL_MIN_GLOBAL_VAL, CAL_MAX_GLOBAL_VAL, HIDDEN_OPACITY, DEFAULT_OVERLAY_OPACITY } from "../constants";
+import {
+  DEFAULT_COLORMAP,
+  DEFAULT_VISIBLE_OPACITY,
+  CAL_MIN_GLOBAL_VAL,
+  CAL_MAX_GLOBAL_VAL,
+  HIDDEN_OPACITY,
+  DEFAULT_OVERLAY_OPACITY,
+  DEFAULT_OVERLAY_NAME,
+} from "../constants";
+
+/** Same resolution as tooth-selection overlay lookup. */
+function isOverlayVolumeIndex(nv: NiiVueGPU, index: number): boolean {
+  const byName = nv.volumes.findIndex(
+    (v) => (v.name ?? "").toLowerCase() === DEFAULT_OVERLAY_NAME,
+  );
+  if (byName >= 0) {
+    return index === byName;
+  }
+  return nv.volumes.length > 1 && index === 1;
+}
 export interface VolumeDisplayControls {
   // Volumes
   selectedVolume: number;
@@ -12,9 +31,6 @@ export interface VolumeDisplayControls {
   // Display (active volume)
   opacity: number;
   handleOpacityChange: (value: number) => void;
-  colormap: string;
-  colormaps: string[];
-  handleColormapChange: (value: string) => void;
   cal_min: number;
   cal_max: number;
   cal_minGlobal: number;
@@ -30,12 +46,12 @@ export interface VolumeDisplayControls {
 
 /**
  * Volume selection plus the active volume's display parameters (opacity,
- * colormap, cal_min/max windowing). These two concerns share state — switching
- * the active volume mirrors that volume's display params into the controls, and
- * the opacity slider writes back into the per-volume opacity store used for
- * show/hide — so they live in one hook. niivue updates flow through the shared
- * per-frame queue; instance lifecycle/loading lives in `useNiivueViewer`, which
- * talks back only through the identity-stable `syncFromVolumes` bridge.
+ * cal_min/max windowing). These two concerns share state — switching the active
+ * volume mirrors that volume's display params into the controls, and the opacity
+ * slider writes back into the per-volume opacity store used for show/hide — so
+ * they live in one hook. niivue updates flow through the shared per-frame queue;
+ * instance lifecycle/loading lives in `useNiivueViewer`, which talks back only
+ * through the identity-stable `syncFromVolumes` bridge.
  */
 export default function useVolumeDisplayControls({
   nvRef,
@@ -49,8 +65,6 @@ export default function useVolumeDisplayControls({
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
   const [opacity, setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
-  const [colormap, _setColormap] = useState(DEFAULT_COLORMAP);
-  const [colormaps, setColormaps] = useState<string[]>([]);
   const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
   const [cal_minGlobal, _setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
@@ -111,7 +125,7 @@ export default function useVolumeDisplayControls({
 
   useEffect(() => {
     const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume]) {
+    if (!nv || !nv.volumes[selectedVolume] || isOverlayVolumeIndex(nv, selectedVolume)) {
       return;
     }
 
@@ -125,7 +139,7 @@ export default function useVolumeDisplayControls({
 
   useEffect(() => {
     const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume]) {
+    if (!nv || !nv.volumes[selectedVolume] || isOverlayVolumeIndex(nv, selectedVolume)) {
       return;
     }
 
@@ -151,11 +165,7 @@ export default function useVolumeDisplayControls({
     _setCalMaxGlobal(value);
   };
 
-  const setColormap = (value: string | undefined) => {
-    _setColormap(value || DEFAULT_COLORMAP);
-  };
-
-  const handleVolumeChange = (index: number) => {
+  const activateVolume = (index: number, opacityOverride?: number) => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[index]) {
       return;
@@ -163,10 +173,17 @@ export default function useVolumeDisplayControls({
 
     setSelectedVolume(index);
     const vol = nv.volumes[index];
-    setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
-    setColormap(vol.colormap);
+    setOpacity(opacityOverride ?? vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
     setCalMin(vol.calMin);
     setCalMax(vol.calMax);
+  };
+
+  const handleVolumeChange = (index: number) => {
+    // Hidden volumes cannot become the active volume
+    if (!(volumeVisibility[index] ?? true)) {
+      return;
+    }
+    activateVolume(index);
   };
 
   const handleOpacityChange = (value: number) => {
@@ -174,31 +191,29 @@ export default function useVolumeDisplayControls({
     if (!nv || !nv.volumes[selectedVolume]) {
       return;
     }
+    // Do not write opacity to a hidden volume (would unhide it without the checkbox).
+    if (!(volumeVisibility[selectedVolume] ?? true)) {
+      return;
+    }
 
     setOpacity(value);
     queueNvUpdate(NvUpdateKey.Opacity, () => nv.setVolume(selectedVolume, { opacity: value }));
 
-    // Update stored opacity if volume is visible
-    if (volumeVisibility[selectedVolume]) {
-      const newOpacities = [...volumeOpacities];
-      newOpacities[selectedVolume] = value;
-      setVolumeOpacities(newOpacities);
-    }
-  };
-
-  const handleColormapChange = (value: string) => {
-    const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume]) {
-      return;
-    }
-
-    setColormap(value);
-    nv.setVolume(selectedVolume, { colormap: value });
+    const newOpacities = [...volumeOpacities];
+    newOpacities[selectedVolume] = value;
+    setVolumeOpacities(newOpacities);
   };
 
   const handleCalMinChange = (value: number) => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[selectedVolume]) {
+      return;
+    }
+    if (!(volumeVisibility[selectedVolume] ?? true)) {
+      return;
+    }
+    // Label mask: discrete class IDs — intensity windowing does not apply.
+    if (isOverlayVolumeIndex(nv, selectedVolume)) {
       return;
     }
     setCalMin(value);
@@ -207,6 +222,12 @@ export default function useVolumeDisplayControls({
   const handleCalMaxChange = (value: number) => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[selectedVolume]) {
+      return;
+    }
+    if (!(volumeVisibility[selectedVolume] ?? true)) {
+      return;
+    }
+    if (isOverlayVolumeIndex(nv, selectedVolume)) {
       return;
     }
 
@@ -228,6 +249,11 @@ export default function useVolumeDisplayControls({
       // Restore the stored opacity
       const opacityToRestore = volumeOpacities[index] ?? DEFAULT_VISIBLE_OPACITY;
       void nv.setVolume(index, { opacity: opacityToRestore });
+
+      // If active is still on a hidden volume, move it to the one just shown.
+      if (!newVisibility[selectedVolume]) {
+        activateVolume(index, opacityToRestore);
+      }
     } else {
       // Store current opacity before hiding
       const newOpacities = [...volumeOpacities];
@@ -235,6 +261,14 @@ export default function useVolumeDisplayControls({
       setVolumeOpacities(newOpacities);
       // Hide by setting opacity to 0
       void nv.setVolume(index, { opacity: HIDDEN_OPACITY });
+
+      // Active volume must stay on a visible volume when possible
+      if (index === selectedVolume) {
+        const nextVisible = newVisibility.findIndex((visible) => visible);
+        if (nextVisible >= 0) {
+          activateVolume(nextVisible);
+        }
+      }
     }
   };
 
@@ -252,7 +286,6 @@ export default function useVolumeDisplayControls({
     }
     const vol = nv.volumes[0];
     setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
-    setColormap(vol.colormap);
     setCalMinGlobal(vol.globalMin);
     setCalMaxGlobal(vol.globalMax);
     setCalMin(vol.calMin, true);
@@ -260,7 +293,6 @@ export default function useVolumeDisplayControls({
     // Initialize visibility and store opacities for all volumes
     setVolumeVisibility(nv.volumes.map(() => true));
     setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
-    setColormaps(nv.colormaps);
   };
   
   const syncFromVolumes = useCallback((nv: NiiVueGPU) => syncFromVolumesRef.current(nv), []);
@@ -277,7 +309,6 @@ export default function useVolumeDisplayControls({
     setCalMin(restoredCalMin);
     setCalMax(restoredCalMax);
     setOpacity(DEFAULT_VISIBLE_OPACITY);
-    setColormap(DEFAULT_COLORMAP);
     setVolumeVisibility(nv.volumes.map(() => true));
 
     const opacities = nv.volumes.map((_, i) =>
@@ -307,9 +338,6 @@ export default function useVolumeDisplayControls({
     handleVolumeVisibilityToggle,
     opacity,
     handleOpacityChange,
-    colormap,
-    colormaps,
-    handleColormapChange,
     cal_min,
     cal_max,
     cal_minGlobal,

@@ -143,8 +143,7 @@ export function toothLabelCss(toothId: string): string | null {
 
 /**
  * Odontogram conditions colored like the segmentation labels: one group per
- * detected tooth. While a selection exists, unselected teeth are faded so the
- * chart mirrors the filtered 3D view.
+ * detected tooth. Unselected teeth are faded so the chart mirrors the filter.
  */
 export function buildSelectionConditions(
   presentToothIds: string[],
@@ -159,7 +158,7 @@ export function buildSelectionConditions(
       continue;
     }
     const rgb = toothClassRgb(classId);
-    const faded = selectedSet.size > 0 && !selectedSet.has(toothId);
+    const faded = !selectedSet.has(toothId);
     groups.push({
       label: toothId,
       teeth: [toothId],
@@ -326,14 +325,15 @@ export function visibilityKey(visibleClassIds: number[] | null): string {
   return [...visibleClassIds].sort((a, b) => a - b).join(",");
 }
 
-/** Resolve which class IDs should be opaque given selection tooth IDs. */
+/**
+ * Resolve which class IDs should be opaque given selection tooth IDs.
+ * Empty selection → empty visible list (hide all). Callers that want “show all”
+ * pass `null` to `withColormapVisibility` / `pushVisibility` instead.
+ */
 export function visibleClassesFromSelection(
   presentClassIds: number[],
   selectedToothIds: string[],
-): number[] | null {
-  if (selectedToothIds.length === 0) {
-    return null;
-  }
+): number[] {
   const presentSet = new Set(presentClassIds);
   const visible: number[] = [];
   for (const toothId of selectedToothIds) {
