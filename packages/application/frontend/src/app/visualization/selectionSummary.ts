@@ -1,5 +1,14 @@
 import { byFdiNumber, toothIdToFdi } from "./toothLabels";
 
+/** True when both lists contain the same tooth ids (order ignored). */
+export function sameToothSelection(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const other = new Set(b);
+  return a.every((id) => other.has(id));
+}
+
 /** Comma-separated FDI numbers for a tooth-id list. */
 export function formatFdiList(toothIds: string[]): string {
   return toothIds

@@ -16,6 +16,7 @@ import {
   withColormapVisibility,
   type LabelColorMap,
 } from "../toothLabels";
+import { sameToothSelection } from "../selectionSummary";
 
 const FILTER_DEBOUNCE_MS = 80;
 
@@ -95,13 +96,6 @@ function readPresentClasses(nv: NiiVueGPU, overlayIndex: number): number[] {
   return presentClassesFromImg(img);
 }
 
-function sameToothSelection(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  const other = new Set(b);
-  return a.every((id) => other.has(id));
-}
 
 /**
  * Scans the segmentation overlay for ToothSeg class labels, drives odontogram

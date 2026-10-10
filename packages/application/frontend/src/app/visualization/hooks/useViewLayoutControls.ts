@@ -26,18 +26,14 @@ export default function useViewLayoutControls({
 }): ViewLayoutControls {
   const [sliceType, setSliceType] = useState<SliceTypeKey>(DEFAULT_SLICE_TYPE);
 
-  // Slice types that include a 3D render tile and therefore expose render controls
   const showsRender =
-    sliceType === SliceTypeKey.Render ||
-    sliceType === SliceTypeKey.Multiplanar ||
-    sliceType === SliceTypeKey.Multiplanar4View;
+    sliceType === SliceTypeKey.Render || sliceType === SliceTypeKey.Multiplanar;
 
   const showsSlices =
     sliceType === SliceTypeKey.Axial ||
     sliceType === SliceTypeKey.Coronal ||
     sliceType === SliceTypeKey.Sagittal ||
-    sliceType === SliceTypeKey.Multiplanar ||
-    sliceType === SliceTypeKey.Multiplanar4View;
+    sliceType === SliceTypeKey.Multiplanar;
 
   const handleSliceTypeChange = (type: SliceTypeKey) => {
     const nv = nvRef.current;
@@ -48,14 +44,9 @@ export default function useViewLayoutControls({
 
     switch (type) {
       case SliceTypeKey.Multiplanar:
-        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
-        nv.multiplanarType = MULTIPLANAR_TYPE.AUTO;
-        nv.showRender = SHOW_RENDER.AUTO;
-        break;
-      case SliceTypeKey.Multiplanar4View:
-        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
         nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
         nv.showRender = SHOW_RENDER.ALWAYS;
+        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
         break;
       case SliceTypeKey.Axial:
         nv.sliceType = SLICE_TYPE.AXIAL;
@@ -73,15 +64,13 @@ export default function useViewLayoutControls({
   };
 
   useEffect(() => {
-    // Update multiplanar layout when switching to multiplanar_4view
     const nv = nvRef.current;
-    if (!nv) {
+    if (!nv || sliceType !== SliceTypeKey.Multiplanar) {
       return;
     }
 
-    if (sliceType === SliceTypeKey.Multiplanar4View) {
-      nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
-    }
+    nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
+    nv.showRender = SHOW_RENDER.ALWAYS;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sliceType]);
 

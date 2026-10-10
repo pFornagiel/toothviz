@@ -1,7 +1,6 @@
 // Slice-type identifiers used by the slice-type selector and niivue layout switching
 export enum SliceTypeKey {
   Multiplanar = "multiplanar",
-  Multiplanar4View = "multiplanar_4view",
   Axial = "axial",
   Coronal = "coronal",
   Sagittal = "sagittal",
@@ -11,7 +10,6 @@ export enum SliceTypeKey {
 // Human-readable labels for the slice-type selector
 export const SLICE_TYPE_LABELS: Record<SliceTypeKey, string> = {
   [SliceTypeKey.Multiplanar]: "Multiplanar",
-  [SliceTypeKey.Multiplanar4View]: "Multiplanar (4 Views)",
   [SliceTypeKey.Axial]: "Axial",
   [SliceTypeKey.Coronal]: "Coronal",
   [SliceTypeKey.Sagittal]: "Sagittal",
@@ -57,7 +55,7 @@ export const NATIVE_DPR_AUTO = 0;
 /** Max pointer travel (CSS px) treated as click-slop vs an intentional drag. */
 export const POINTER_CLICK_SLOP_PX = 6;
 
-// useViewLayoutControls - initial slice type on load
+// useViewLayoutControls - initial slice type on load (4-pane: A/C/S + 3D)
 export const DEFAULT_SLICE_TYPE = SliceTypeKey.Multiplanar;
 
 // useClipPlaneControls - initial clip depth

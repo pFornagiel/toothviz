@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Minus,
   Plus,
+  type LucideIcon,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
 import "react-odontogram/style.css";
@@ -36,7 +37,8 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { Tooth } from "../../components/icons/tooth";
-import { byFdiNumber, toothIdFromOdontogramTarget, toothIdToFdi } from "../toothLabels";
+import { toothIdFromOdontogramTarget, toothIdToFdi } from "../toothLabels";
+import { formatFdiList, sameToothSelection } from "../selectionSummary";
 import {
   SliceTypeKey,
   SLICE_TYPE_LABELS,
@@ -51,8 +53,10 @@ import {
   RENDER_ZOOM_BUTTON_FACTOR,
 } from "../constants";
 import {
+  PICK_MODE_HELP_OFF,
+  PICK_MODE_HELP_ON,
+  PICK_MODE_HELP_ON_DIRTY,
   PICK_MODE_HELP,
-  PICK_MODE_HELP_SHORT,
   PICK_MODE_LABEL,
   PICK_MODE_PENDING,
   slicePickMessage,
@@ -62,6 +66,72 @@ import { ResetViewDialog } from "./ResetViewDialog";
 import { SelectAllDialog } from "./SelectAllDialog";
 import { useVisualization } from "../VisualizationProvider";
 import { ViewPhase } from "../types";
+
+function MultiplanarIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="1.25" y="1.25" width="6" height="6" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="8.75" y="1.25" width="6" height="6" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="1.25" y="8.75" width="6" height="6" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="8.75" y="8.75" width="6" height="6" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+type SliceTypeOption = {
+  key: SliceTypeKey;
+  icon?: LucideIcon | React.ComponentType<{ className?: string }>;
+  glyph?: string;
+};
+
+const SLICE_LAYOUT_OPTIONS: SliceTypeOption[] = [
+  { key: SliceTypeKey.Multiplanar, icon: MultiplanarIcon },
+  { key: SliceTypeKey.Render, icon: Box },
+];
+
+const SLICE_PLANE_OPTIONS: SliceTypeOption[] = [
+  { key: SliceTypeKey.Axial, glyph: "A" },
+  { key: SliceTypeKey.Coronal, glyph: "C" },
+  { key: SliceTypeKey.Sagittal, glyph: "S" },
+];
+
+function SliceTypeButton({
+  option,
+  selected,
+  onSelect,
+  onHover,
+}: {
+  option: SliceTypeOption;
+  selected: boolean;
+  onSelect: (key: SliceTypeKey) => void;
+  onHover: (key: SliceTypeKey | null) => void;
+}) {
+  const { key, icon: Icon, glyph } = option;
+  const label = SLICE_TYPE_LABELS[key];
+
+  return (
+    <Button
+      type="button"
+      variant={selected ? "default" : "outline"}
+      size="icon"
+      className={cn("h-9 w-full", !selected && "bg-card")}
+      aria-label={label}
+      aria-pressed={selected}
+      title={label}
+      onMouseEnter={() => onHover(key)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(key)}
+      onBlur={() => onHover(null)}
+      onClick={() => onSelect(key)}
+    >
+      {Icon ? (
+        <Icon className="size-4" />
+      ) : (
+        <span className="text-xs font-semibold tracking-wide">{glyph}</span>
+      )}
+    </Button>
+  );
+}
 
 /** Collapsible, icon-headed control group matching the clinical sidebar design. */
 function ControlSection({
@@ -182,22 +252,30 @@ export function VisualizationSidebar() {
   const [clearSelectionOpen, setClearSelectionOpen] = React.useState(false);
   const [selectAllOpen, setSelectAllOpen] = React.useState(false);
   const [resetViewOpen, setResetViewOpen] = React.useState(false);
+  const [hoveredSliceType, setHoveredSliceType] = React.useState<SliceTypeKey | null>(null);
 
   const ready = viewer.viewPhase === ViewPhase.Ready;
   const hasMultipleVolumes = volumes.length > 1;
+  const visibleVolumeIndices = volumes
+    .map((_, idx) => idx)
+    .filter((idx) => display.volumeVisibility[idx] ?? true);
+  const hasActiveVolume = visibleVolumeIndices.includes(display.selectedVolume);
+  const isMaskActive =
+    teeth.overlayIndex >= 0 && display.selectedVolume === teeth.overlayIndex;
   const maskVisible =
     teeth.overlayIndex >= 0 && (display.volumeVisibility[teeth.overlayIndex] ?? true);
   // Only show tooth picking when a mask overlay is loaded, visible, and has labels.
   const showToothSelection = teeth.hasToothLabels && maskVisible;
 
-  // Sections open by default; clip/render appear only where a 3D tile is shown.
+  // Sections open by default; clip appears only where a 3D tile is shown.
+  // Render View (slice type + zoom) stays available for every slice type.
   const openSections = [
     "volumes",
     ...(showToothSelection ? ["teeth"] : []),
-    "view",
+    "render",
     "display",
     "scene",
-    ...(view.showsRender ? ["clip", "render"] : []),
+    ...(view.showsRender ? ["clip"] : []),
   ];
 
   return (
@@ -252,27 +330,6 @@ export function VisualizationSidebar() {
                     </label>
                   ))}
                 </div>
-
-                {hasMultipleVolumes && (
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">Active volume</span>
-                    <Select
-                      value={String(display.selectedVolume)}
-                      onValueChange={(v) => display.handleVolumeChange(parseInt(v))}
-                    >
-                      <SelectTrigger className="w-full bg-card">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {volumes.map((vol, idx) => (
-                          <SelectItem key={idx} value={String(idx)}>
-                            {vol.name || `Volume ${idx}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </ControlSection>
             )}
 
@@ -298,7 +355,14 @@ export function VisualizationSidebar() {
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-60 text-balance">
-                      {PICK_MODE_HELP}
+                      {!teeth.pickFromPreview
+                        ? PICK_MODE_HELP_OFF
+                        : sameToothSelection(
+                              teeth.selectedToothIds,
+                              teeth.pickModeBaselineToothIds,
+                            )
+                          ? PICK_MODE_HELP_ON
+                          : PICK_MODE_HELP_ON_DIRTY}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -306,7 +370,7 @@ export function VisualizationSidebar() {
                   {teeth.pickModePending
                     ? PICK_MODE_PENDING
                     : teeth.pickFromPreview
-                      ? PICK_MODE_HELP_SHORT
+                      ? PICK_MODE_HELP
                       : "Select on the chart below, or enable pick mode.\nColors match the labels in the viewer."}
                 </p>
                 <div
@@ -344,25 +408,13 @@ export function VisualizationSidebar() {
                     className="w-full"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="whitespace-pre-line text-xs text-muted-foreground tabular-nums text-balance">
                   {teeth.selectedToothIds.length === 0
                     ? "No teeth selected."
                     : teeth.selectedToothIds.length === teeth.presentToothIds.length
                       ? `All ${teeth.presentToothIds.length} detected teeth selected.`
-                      : `Selected: ${[...teeth.selectedToothIds]
-                          .map((id) => toothIdToFdi(id))
-                          .filter((fdi): fdi is string => fdi !== null)
-                          .sort(byFdiNumber)
-                          .join(", ")}`}
+                      : `Selected ${teeth.selectedToothIds.length} of ${teeth.presentToothIds.length}:\n${formatFdiList(teeth.selectedToothIds)}`}
                 </p>
-                {teeth.selectedToothIds.length > 0 &&
-                  teeth.selectedToothIds.length < teeth.presentToothIds.length &&
-                  !teeth.pickFromPreview && (
-                    <p className="text-xs text-muted-foreground">
-                      Showing {teeth.selectedToothIds.length} of {teeth.presentToothIds.length}{" "}
-                      detected teeth.
-                    </p>
-                  )}
                 <div className="flex flex-col gap-2">
                   <Button
                     variant="outline"
@@ -389,23 +441,87 @@ export function VisualizationSidebar() {
               </ControlSection>
             )}
 
-            {/* Display (active volume) */}
-            <ControlSection value="display" icon={SlidersHorizontal} title="Display">
-            <div className="space-y-1.5">
+            {/* Render view — always shown for slice type + zoom */}
+            <ControlSection value="render" icon={Box} title="Render View">
+              <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Slice type</span>
-                <Select value={view.sliceType} onValueChange={(v) => view.handleSliceTypeChange(v as SliceTypeKey)}>
-                  <SelectTrigger className="w-full bg-card">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.values(SliceTypeKey).map((key) => (
-                      <SelectItem key={key} value={key}>
-                        {SLICE_TYPE_LABELS[key]}
-                      </SelectItem>
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {SLICE_LAYOUT_OPTIONS.map((option) => (
+                      <SliceTypeButton
+                        key={option.key}
+                        option={option}
+                        selected={view.sliceType === option.key}
+                        onSelect={view.handleSliceTypeChange}
+                        onHover={setHoveredSliceType}
+                      />
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {SLICE_PLANE_OPTIONS.map((option) => (
+                      <SliceTypeButton
+                        key={option.key}
+                        option={option}
+                        selected={view.sliceType === option.key}
+                        onSelect={view.handleSliceTypeChange}
+                        onHover={setHoveredSliceType}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {SLICE_TYPE_LABELS[hoveredSliceType ?? view.sliceType]}
+                </p>
               </div>
+
+              {view.showsRender && (
+                <>
+                  <SliderRow
+                    label="Azimuth"
+                    valueLabel={`${render.renderAzimuth.toFixed(0)}°`}
+                    value={render.renderAzimuth}
+                    min={RENDER_AZIMUTH_RANGE.min}
+                    max={RENDER_AZIMUTH_RANGE.max}
+                    step={RENDER_AZIMUTH_RANGE.step}
+                    onChange={render.handleRenderAzimuthChange}
+                  />
+                  <SliderRow
+                    label="Elevation"
+                    valueLabel={`${render.renderElevation.toFixed(0)}°`}
+                    value={render.renderElevation}
+                    min={RENDER_ELEVATION_RANGE.min}
+                    max={RENDER_ELEVATION_RANGE.max}
+                    step={RENDER_ELEVATION_RANGE.step}
+                    onChange={render.handleRenderElevationChange}
+                  />
+                </>
+              )}
+              <ZoomControl zoom={render.renderZoom} onChange={render.handleRenderZoomChange} />
+            </ControlSection>
+
+            {/* Display: volume appearance */}
+            <ControlSection value="display" icon={SlidersHorizontal} title="Display">
+              {hasMultipleVolumes && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Settings for</span>
+                  <Select
+                    value={String(display.selectedVolume)}
+                    onValueChange={(v) => display.handleVolumeChange(parseInt(v))}
+                    disabled={visibleVolumeIndices.length === 0}
+                  >
+                    <SelectTrigger className="w-full bg-card">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {visibleVolumeIndices.map((idx) => (
+                        <SelectItem key={idx} value={String(idx)}>
+                          {volumes[idx]?.name || `Volume ${idx}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <SliderRow
                 label="Opacity"
@@ -415,58 +531,35 @@ export function VisualizationSidebar() {
                 max={OPACITY_RANGE.max}
                 step={OPACITY_RANGE.step}
                 onChange={display.handleOpacityChange}
+                disabled={!hasActiveVolume}
               />
-              <SliderRow
-                label="Cal min"
-                valueLabel={display.cal_min.toFixed(0)}
-                value={display.cal_min}
-                min={display.cal_minGlobal}
-                max={display.cal_maxGlobal}
-                step={1}
-                onChange={display.handleCalMinChange}
-              />
-              <SliderRow
-                label="Cal max"
-                valueLabel={display.cal_max.toFixed(0)}
-                value={display.cal_max}
-                min={display.cal_minGlobal}
-                max={display.cal_maxGlobal}
-                step={1}
-                onChange={display.handleCalMaxChange}
-              />
-
-              {/* Zoom for 2D-only layouts (Render View section not shown). */}
-              {view.showsSlices && !view.showsRender && (
-                <ZoomControl zoom={render.renderZoom} onChange={render.handleRenderZoomChange} />
+              {!isMaskActive && (
+                <>
+                  <SliderRow
+                    label="Cal min"
+                    valueLabel={display.cal_min.toFixed(0)}
+                    value={display.cal_min}
+                    min={display.cal_minGlobal}
+                    max={display.cal_maxGlobal}
+                    step={1}
+                    onChange={display.handleCalMinChange}
+                    disabled={!hasActiveVolume}
+                  />
+                  <SliderRow
+                    label="Cal max"
+                    valueLabel={display.cal_max.toFixed(0)}
+                    value={display.cal_max}
+                    min={display.cal_minGlobal}
+                    max={display.cal_maxGlobal}
+                    step={1}
+                    onChange={display.handleCalMaxChange}
+                    disabled={!hasActiveVolume}
+                  />
+                </>
               )}
             </ControlSection>
 
-            {/* Render view (3D only) */}
-            {view.showsRender && (
-              <ControlSection value="render" icon={Box} title="Render View">
-                <SliderRow
-                  label="Azimuth"
-                  valueLabel={`${render.renderAzimuth.toFixed(0)}°`}
-                  value={render.renderAzimuth}
-                  min={RENDER_AZIMUTH_RANGE.min}
-                  max={RENDER_AZIMUTH_RANGE.max}
-                  step={RENDER_AZIMUTH_RANGE.step}
-                  onChange={render.handleRenderAzimuthChange}
-                />
-                <SliderRow
-                  label="Elevation"
-                  valueLabel={`${render.renderElevation.toFixed(0)}°`}
-                  value={render.renderElevation}
-                  min={RENDER_ELEVATION_RANGE.min}
-                  max={RENDER_ELEVATION_RANGE.max}
-                  step={RENDER_ELEVATION_RANGE.step}
-                  onChange={render.handleRenderElevationChange}
-                />
-                <ZoomControl zoom={render.renderZoom} onChange={render.handleRenderZoomChange} />
-              </ControlSection>
-            )}
-
-                        {/* Clip plane (3D only) */}
+            {/* Clip plane (3D only) */}
             {view.showsRender && (
               <ControlSection value="clip" icon={Scissors} title="3D Clip Plane">
                 <SliderRow

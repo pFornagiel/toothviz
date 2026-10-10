@@ -12,12 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../components/ui/tooltip";
-import {
-  PICK_MODE_LABEL,
-  PICK_MODE_LEGEND_CENTER,
-  PICK_MODE_LEGEND_HINT,
-  PICK_MODE_PENDING,
-} from "../pickModeCopy";
+import { PICK_MODE_LEGEND_CENTER, PICK_MODE_PENDING } from "../pickModeCopy";
 import { useVisualization } from "../VisualizationProvider";
 import { toothIdToFdi, toothLabelCss, byFdiNumber } from "../toothLabels";
 
@@ -165,7 +160,6 @@ export function ToothLegend() {
   };
 
   const pickMode = teeth.pickFromPreview;
-  const hint = teeth.pickModePending ? PICK_MODE_PENDING : PICK_MODE_LEGEND_HINT;
 
   return (
     <aside
@@ -178,12 +172,6 @@ export function ToothLegend() {
           <h2 className="text-base font-semibold tracking-tight text-foreground">Legend</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {entries.length} {entries.length === 1 ? "tooth" : "teeth"}
-            {pickMode && (
-              <>
-                {" · "}
-                <span className="font-medium text-foreground">{PICK_MODE_LABEL}</span>
-              </>
-            )}
           </p>
         </div>
         <Button
@@ -198,7 +186,9 @@ export function ToothLegend() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
-        <p className="text-xs text-muted-foreground">{hint}</p>
+        {teeth.pickModePending && (
+          <p className="text-xs text-muted-foreground">{PICK_MODE_PENDING}</p>
+        )}
         <LegendArch
           title="Upper"
           columns={[
