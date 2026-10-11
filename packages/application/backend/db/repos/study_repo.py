@@ -40,11 +40,37 @@ class StudyRepo:
             raise NotFoundError(f"study not found: {study_id}")
         return study_with_job
 
-    def list(self, name: str | None = None) -> list[Study]:
-        q = self._db.query(Study).options(selectinload(Study.pipeline_job))
+    @staticmethod
+    def _escape_like(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+    def list(
+        self,
+        name: str | None = None,
+        *,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[Study], int]:
+        """Return a page of studies and the total matching count.
+
+        ``name`` matches as a case-insensitive substring when provided.
+        """
+        q = self._db.query(Study)
         if name is not None:
-            q = q.filter(Study.name == name)
-        return q.order_by(Study.created_at.desc()).all()
+            trimmed = name.strip()
+            if trimmed:
+                pattern = f"%{self._escape_like(trimmed)}%"
+                q = q.filter(Study.name.ilike(pattern, escape="\\"))
+
+        total = q.count()
+        items = (
+            q.options(selectinload(Study.pipeline_job))
+            .order_by(Study.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return items, total
 
     def find_name_conflict(self, name: str, exclude_id: str | None = None) -> str | None:
         """Return the stored name of another study matching ``name`` case-insensitively."""

@@ -14,6 +14,19 @@ export interface StudyResponse {
   source_file_id: string | null;
 }
 
+export interface StudyListResponse {
+  items: StudyResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ListStudiesParams {
+  name?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 // --- Requests ---
 
 export interface CreateStudyRequest {

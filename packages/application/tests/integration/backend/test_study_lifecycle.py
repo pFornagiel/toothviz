@@ -41,7 +41,9 @@ def test_create_list_rename_delete(client):
 
     resp = client.get("/storage/studies")
     assert resp.status_code == 200
-    assert any(s["id"] == study_id for s in resp.json())
+    body = resp.json()
+    assert "items" in body and "total" in body
+    assert any(s["id"] == study_id for s in body["items"])
 
     resp = client.patch(f"/storage/studies/{study_id}", json={"name": "Renamed"})
     assert resp.status_code == 200
@@ -51,7 +53,7 @@ def test_create_list_rename_delete(client):
     assert resp.status_code == 204
 
     resp = client.get("/storage/studies")
-    assert not any(s["id"] == study_id for s in resp.json())
+    assert not any(s["id"] == study_id for s in resp.json()["items"])
 
 
 def test_duplicate_study_name_returns_conflict(client):
@@ -76,7 +78,27 @@ def test_delete_study_cleans_up_files(client, created_study):
     assert resp.status_code == 204
 
     resp = client.get("/storage/studies")
-    assert not any(s["id"] == study_id for s in resp.json())
+    assert not any(s["id"] == study_id for s in resp.json()["items"])
+
+
+def test_list_studies_search_and_pagination(client):
+    for name in ("Alpha", "Beta", "Alphabet", "Gamma", "Alpine"):
+        assert client.post("/storage/studies", json={"name": name}).status_code == 201
+
+    resp = client.get("/storage/studies", params={"name": "alp", "page": 1, "page_size": 2})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert len(body["items"]) == 2
+    assert all("alp" in s["name"].lower() for s in body["items"])
+
+    resp = client.get("/storage/studies", params={"name": "alp", "page": 2, "page_size": 2})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3
+    assert len(body["items"]) == 1
 
 
 def test_list_files_purpose_filter(client, created_study):

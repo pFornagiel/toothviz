@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from backend.db.repos.study_repo import StudyRepo
 from backend.utils.status import study_workflow_display_status
 from backend.schemas import (
     CreateStudyRequest,
     RenameStudyRequest,
+    StudyListResponse,
     StudyResponse,
 )
 
@@ -46,13 +47,20 @@ def get_study(request: Request, study_id: str):
     return _study_response(s, s.pipeline_job)
 
 
-@router.get("", response_model=list[StudyResponse])
-def list_studies(request: Request, name: str | None = None):
-    studies = _svc(request).list(name=name)
-    return [
-        _study_response(s, s.pipeline_job)
-        for s in studies
-    ]
+@router.get("", response_model=StudyListResponse)
+def list_studies(
+    request: Request,
+    name: str | None = Query(None, description="Case-insensitive substring filter on study name"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+):
+    studies, total = _svc(request).list(name=name, page=page, page_size=page_size)
+    return StudyListResponse(
+        items=[_study_response(s, s.pipeline_job) for s in studies],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post("", response_model=StudyResponse, status_code=201)

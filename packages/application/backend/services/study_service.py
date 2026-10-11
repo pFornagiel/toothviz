@@ -34,9 +34,21 @@ class StudyService:
             PipelineJobRepo(db).create_for_study(study.id)
             return study
 
-    def list(self, name: str | None = None) -> list[Study]:
+    def list(
+        self,
+        name: str | None = None,
+        *,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[Study], int]:
+        if page < 1:
+            raise ValidationError("page must be >= 1")
+        if page_size < 1:
+            raise ValidationError("page_size must be >= 1")
+        if page_size > 100:
+            raise ValidationError("page_size must be <= 100")
         with self._storage.session_factory() as db:
-            return StudyRepo(db).list(name=name)
+            return StudyRepo(db).list(name=name, page=page, page_size=page_size)
 
     def rename(self, study_id: str, name: str) -> Study:
         with self._storage.session_factory() as db:

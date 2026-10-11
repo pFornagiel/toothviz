@@ -18,7 +18,8 @@ def test_study_crud(db_session):
     fetched = repo.get(study.id)
     assert fetched.name == "S1"
 
-    listed = repo.list()
+    listed, total = repo.list()
+    assert total == 1
     assert len(listed) == 1
 
     renamed = repo.rename(study.id, "S2")
@@ -31,12 +32,27 @@ def test_study_crud(db_session):
 
 def test_study_list_filter_name(db_session):
     repo = StudyRepo(db_session)
-    repo.create(name="A")
-    repo.create(name="B")
+    repo.create(name="Alpha")
+    repo.create(name="Beta")
+    repo.create(name="Alphabet")
 
-    results = repo.list(name="A")
-    assert len(results) == 1
-    assert results[0].name == "A"
+    results, total = repo.list(name="alp")
+    assert total == 2
+    assert {s.name for s in results} == {"Alpha", "Alphabet"}
+
+
+def test_study_list_pagination(db_session):
+    repo = StudyRepo(db_session)
+    for i in range(5):
+        repo.create(name=f"Scan_{i}")
+
+    page1, total = repo.list(page=1, page_size=2)
+    assert total == 5
+    assert len(page1) == 2
+
+    page3, total = repo.list(page=3, page_size=2)
+    assert total == 5
+    assert len(page3) == 1
 
 
 # -- UploadSession --

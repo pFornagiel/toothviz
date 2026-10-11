@@ -75,6 +75,15 @@ class StudyResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class StudyListResponse(BaseModel):
+    """Paginated study archive listing."""
+
+    items: list[StudyResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 # ---------------------------------------------------------------------------
 # File
 # ---------------------------------------------------------------------------

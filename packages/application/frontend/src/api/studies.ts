@@ -1,10 +1,20 @@
 import { fetchJson } from "./client";
 import { apiUrl } from "./baseUrl";
-import type { StudyResponse, FileRecordResponse } from "./types";
+import type { StudyResponse, StudyListResponse, ListStudiesParams, FileRecordResponse } from "./types";
 
-export async function listStudies(name?: string): Promise<StudyResponse[]> {
-  const qs = name ? `?name=${encodeURIComponent(name)}` : "";
-  return fetchJson<StudyResponse[]>(`/storage/studies${qs}`);
+export async function listStudies(params: ListStudiesParams = {}): Promise<StudyListResponse> {
+  const qs = new URLSearchParams();
+  if (params.name?.trim()) {
+    qs.set("name", params.name.trim());
+  }
+  if (params.page != null) {
+    qs.set("page", String(params.page));
+  }
+  if (params.pageSize != null) {
+    qs.set("page_size", String(params.pageSize));
+  }
+  const query = qs.toString();
+  return fetchJson<StudyListResponse>(`/storage/studies${query ? `?${query}` : ""}`);
 }
 
 export async function getStudy(studyId: string): Promise<StudyResponse> {
