@@ -101,6 +101,53 @@ def test_list_studies_search_and_pagination(client):
     assert len(body["items"]) == 1
 
 
+def test_list_studies_date_filter_and_sort(client, integration_app):
+    from datetime import datetime
+
+    from backend.db.models import Study
+
+    names = ("Zebra", "alpha", "Beta")
+    ids = []
+    for name in names:
+        resp = client.post("/storage/studies", json={"name": name})
+        assert resp.status_code == 201
+        ids.append(resp.json()["id"])
+
+    with integration_app.state.storage_service.session_factory() as db:
+        db.get(Study, ids[0]).created_at = datetime(2024, 6, 1, 12, 0, 0)
+        db.get(Study, ids[1]).created_at = datetime(2024, 6, 15, 12, 0, 0)
+        db.get(Study, ids[2]).created_at = datetime(2024, 6, 30, 12, 0, 0)
+        db.commit()
+
+    resp = client.get(
+        "/storage/studies",
+        params={
+            "created_from": "2024-06-15",
+            "created_to": "2024-06-30",
+            "sort_by": "name",
+            "order": "asc",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert [s["name"] for s in body["items"]] == ["alpha", "Beta"]
+
+    resp = client.get("/storage/studies", params={"sort_by": "created", "order": "asc"})
+    assert resp.status_code == 200
+    assert [s["id"] for s in resp.json()["items"]] == ids
+
+    resp = client.get("/storage/studies", params={"sort_by": "status", "order": "asc"})
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+
+    resp = client.get(
+        "/storage/studies",
+        params={"created_from": "2024-07-01", "created_to": "2024-06-01"},
+    )
+    assert resp.status_code == 422
+
+
 def test_list_files_purpose_filter(client, created_study):
     study_id = created_study["id"]
     _upload_file(client, study_id, kind="nifti_raw", filename="vol.nii", data=b"volume")

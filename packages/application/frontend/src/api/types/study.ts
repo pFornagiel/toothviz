@@ -21,10 +21,28 @@ export interface StudyListResponse {
   page_size: number;
 }
 
+export enum StudySortField {
+  Created = "created",
+  Name = "name",
+  Status = "status",
+}
+
+export enum StudySortOrder {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export type StudySort = readonly [StudySortField, StudySortOrder];
+
+export const DEFAULT_STUDY_SORT: StudySort = [StudySortField.Created, StudySortOrder.Desc];
+
 export interface ListStudiesParams {
   name?: string;
   page?: number;
   pageSize?: number;
+  createdFrom?: string;
+  createdTo?: string;
+  sort?: StudySort;
 }
 
 // --- Requests ---

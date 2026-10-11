@@ -1,6 +1,12 @@
 import { fetchJson } from "./client";
 import { apiUrl } from "./baseUrl";
-import type { StudyResponse, StudyListResponse, ListStudiesParams, FileRecordResponse } from "./types";
+import {
+  DEFAULT_STUDY_SORT,
+  type StudyResponse,
+  type StudyListResponse,
+  type ListStudiesParams,
+  type FileRecordResponse,
+} from "./types";
 
 export async function listStudies(params: ListStudiesParams = {}): Promise<StudyListResponse> {
   const qs = new URLSearchParams();
@@ -12,6 +18,19 @@ export async function listStudies(params: ListStudiesParams = {}): Promise<Study
   }
   if (params.pageSize != null) {
     qs.set("page_size", String(params.pageSize));
+  }
+  if (params.createdFrom) {
+    qs.set("created_from", params.createdFrom);
+  }
+  if (params.createdTo) {
+    qs.set("created_to", params.createdTo);
+  }
+  if (params.sort) {
+    const [sortBy, order] = params.sort;
+    if (sortBy !== DEFAULT_STUDY_SORT[0] || order !== DEFAULT_STUDY_SORT[1]) {
+      qs.set("sort_by", sortBy);
+      qs.set("order", order);
+    }
   }
   const query = qs.toString();
   return fetchJson<StudyListResponse>(`/storage/studies${query ? `?${query}` : ""}`);

@@ -1,7 +1,7 @@
 import pytest
 
 from backend.db.models import Study, FileRecord
-from backend.db.repos.study_repo import StudyRepo
+from backend.db.repos.study_repo import StudyRepo, StudySortField, StudySortOrder
 from backend.db.repos.upload_session_repo import UploadSessionRepo
 from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
@@ -53,6 +53,70 @@ def test_study_list_pagination(db_session):
     page3, total = repo.list(page=3, page_size=2)
     assert total == 5
     assert len(page3) == 1
+
+
+def test_study_list_date_filter_and_sort(db_session):
+    from datetime import date, datetime
+
+    repo = StudyRepo(db_session)
+    early = repo.create(name="Zebra")
+    mid = repo.create(name="alpha")
+    late = repo.create(name="Beta")
+
+    early.created_at = datetime(2024, 1, 10, 12, 0, 0)
+    mid.created_at = datetime(2024, 1, 15, 8, 0, 0)
+    late.created_at = datetime(2024, 1, 20, 18, 0, 0)
+    db_session.commit()
+
+    results, total = repo.list(
+        created_from=date(2024, 1, 15),
+        created_to=date(2024, 1, 15),
+    )
+    assert total == 1
+    assert results[0].id == mid.id
+
+    results, total = repo.list(
+        created_from=date(2024, 1, 10),
+        created_to=date(2024, 1, 20),
+        sort=(StudySortField.NAME, StudySortOrder.ASC),
+    )
+    assert total == 3
+    assert [s.name for s in results] == ["alpha", "Beta", "Zebra"]
+
+    results, _ = repo.list(sort=(StudySortField.NAME, StudySortOrder.DESC))
+    assert [s.name for s in results] == ["Zebra", "Beta", "alpha"]
+
+    results, _ = repo.list(sort=(StudySortField.CREATED, StudySortOrder.ASC))
+    assert [s.id for s in results] == [early.id, mid.id, late.id]
+
+    results, _ = repo.list(sort=(StudySortField.CREATED, StudySortOrder.DESC))
+    assert [s.id for s in results] == [late.id, mid.id, early.id]
+
+
+def test_study_list_sort_by_status(db_session):
+    study_repo = StudyRepo(db_session)
+    job_repo = PipelineJobRepo(db_session)
+
+    ready = study_repo.create(name="Ready")
+    failed = study_repo.create(name="Failed")
+    processing = study_repo.create(name="Processing")
+    cancelled = study_repo.create(name="Cancelled")
+
+    for study, status in (
+        (ready, "completed"),
+        (failed, "failed"),
+        (processing, "running"),
+        (cancelled, "cancelled"),
+    ):
+        job = job_repo.create_for_study(study.id)
+        job_repo.set_status(job.id, status)
+
+    results, total = study_repo.list(sort=(StudySortField.STATUS, StudySortOrder.ASC))
+    assert total == 4
+    assert [s.name for s in results] == ["Cancelled", "Failed", "Processing", "Ready"]
+
+    results, _ = study_repo.list(sort=(StudySortField.STATUS, StudySortOrder.DESC))
+    assert [s.name for s in results] == ["Ready", "Processing", "Failed", "Cancelled"]
 
 
 # -- UploadSession --

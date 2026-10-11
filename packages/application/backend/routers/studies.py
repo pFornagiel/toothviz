@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Query, Request
 
-from backend.db.repos.study_repo import StudyRepo
+from backend.db.repos.study_repo import (
+    DEFAULT_STUDY_SORT,
+    StudyRepo,
+    StudySortField,
+    StudySortOrder,
+)
 from backend.utils.status import study_workflow_display_status
 from backend.schemas import (
     CreateStudyRequest,
@@ -53,8 +60,29 @@ def list_studies(
     name: str | None = Query(None, description="Case-insensitive substring filter on study name"),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
+    created_from: date | None = Query(
+        None, description="Inclusive start date (YYYY-MM-DD) on study created_at"
+    ),
+    created_to: date | None = Query(
+        None, description="Inclusive end date (YYYY-MM-DD) on study created_at"
+    ),
+    sort_by: StudySortField = Query(
+        DEFAULT_STUDY_SORT[0],
+        description="Sort field: created, name, or status",
+    ),
+    order: StudySortOrder = Query(
+        DEFAULT_STUDY_SORT[1],
+        description="Sort direction: asc or desc",
+    ),
 ):
-    studies, total = _svc(request).list(name=name, page=page, page_size=page_size)
+    studies, total = _svc(request).list(
+        name=name,
+        page=page,
+        page_size=page_size,
+        created_from=created_from,
+        created_to=created_to,
+        sort=(sort_by, order),
+    )
     return StudyListResponse(
         items=[_study_response(s, s.pipeline_job) for s in studies],
         total=total,
