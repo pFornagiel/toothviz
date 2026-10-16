@@ -26,9 +26,9 @@ class _ProgressQueueResources:
 
 def _open_progress_queue() -> _ProgressQueueResources:
     try:
-        import multiprocessing
+        from backend.workers.worker_pool import MP_CONTEXT
 
-        manager = multiprocessing.Manager()
+        manager = MP_CONTEXT.Manager()
         return _ProgressQueueResources(queue=manager.Queue(), manager=manager)
     except Exception:
         logger.debug("Progress queue unavailable; intra-step progress disabled", exc_info=True)
