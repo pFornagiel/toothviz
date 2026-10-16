@@ -28,10 +28,9 @@ EOF
 )
   python3 "$py"
   # PDF (vector, cropped) and PNG (scale 3 = ~2500 px wide, ~400 dpi at full text width)
-  for fmt in "pdf --crop" "png --scale 3 --border 4"; do
-    docker run --rm --shm-size=1g -u "$(id -u):$(id -g)" -e HOME=/tmp \
-      -v "$FONTS":/usr/share/fonts/truetype/robotomono:ro -v "$PWD":/data \
-      rlespinasse/drawio-desktop-headless -x -f $fmt \
-      -o "/data/${out%.drawio}.${fmt%% *}" "/data/$out" 2>&1 | grep -- '->' || { echo "export failed: $out" >&2; exit 1; }
-  done
+  fmt="png --scale 3 --border 4"
+  docker run --rm --shm-size=1g -u "$(id -u):$(id -g)" -e HOME=/tmp \
+    -v "$FONTS":/usr/share/fonts/truetype/robotomono:ro -v "$PWD":/data \
+    rlespinasse/drawio-desktop-headless -x -f $fmt \
+    -o "/data/${out%.drawio}.${fmt%% *}" "/data/$out" 2>&1 | grep -- '->' || { echo "export failed: $out" >&2; exit 1; }
 done
