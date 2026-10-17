@@ -8,7 +8,9 @@ _REPO_ROOT = _APPLICATION_ROOT.parent.parent
 DEFAULT_CHUNK_SIZE: int = 16 * 1024 * 1024  # 16 MB
 
 _DEFAULT_DATA_ROOT = _APPLICATION_ROOT / "data"
-_DEFAULT_MODEL_PATH = _REPO_ROOT / "packages" / "models" / "tooth_seg_semantic.onnx"
+_DEFAULT_MODEL_PATH = (
+    _REPO_ROOT / "packages" / "models" / "mobile_unet" / "exports" / "mobile_unet.onnx"
+)
 _DEFAULT_FRONTEND_DIST = _APPLICATION_ROOT / "frontend" / "dist"
 
 DATA_ROOT: Path = Path(os.getenv("TOOTH_DATA_ROOT", str(_DEFAULT_DATA_ROOT)))

@@ -55,10 +55,12 @@
         "to": "application/backend"
       },
       {
-        "from": "../../../packages/models",
+        "from": "../../../packages/models/mobile_unet/exports",
         "to": "models",
         "filter": [
-          "*.onnx"
+          "*.onnx",
+          "*.onnx.data",
+          "*.json"
         ]
       }
     ],

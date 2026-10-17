@@ -56,8 +56,8 @@ export class BackendManager {
     const frontendDist = path.join(applicationRoot, "frontend", "dist");
 
     const modelPath = app.isPackaged
-      ? path.join(process.resourcesPath, "models", "tooth_seg_semantic.onnx")
-      : path.join(repoRoot, "packages", "models", "tooth_seg_semantic.onnx");
+      ? path.join(process.resourcesPath, "models", "mobile_unet.onnx")
+      : path.join(repoRoot, "packages", "models", "mobile_unet", "exports", "mobile_unet.onnx");
 
     const serveFrontend =
       app.isPackaged || process.env.TOOTH_SERVE_FRONTEND === "1";

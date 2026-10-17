@@ -96,8 +96,8 @@ make desktop-dev
 `make desktop-dev` installs the frontend and Electron dependencies when needed,
 starts the local FastAPI backend, and opens the Electron window.
 
-The automatic mode requires the Git LFS object at
-`packages/models/tooth_seg_semantic.onnx`. If the model is unavailable, raw
+The automatic mode requires the Git LFS objects in
+`packages/models/mobile_unet/exports/`. If the model is unavailable, raw
 volume viewing and precomputed masks can still be used.
 
 ### Run without the model
