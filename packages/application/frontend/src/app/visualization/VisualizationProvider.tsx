@@ -50,6 +50,30 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   // UI state
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [legendVisible, setLegendVisible] = useState(true);
+  const [pickFlash, setPickFlash] = useState<{ id: number; message: string } | null>(null);
+  const pickFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pickFlashIdRef = useRef(0);
+
+  const showPickFlash = useCallback((message: string) => {
+    pickFlashIdRef.current += 1;
+    setPickFlash({ id: pickFlashIdRef.current, message });
+    if (pickFlashTimerRef.current != null) {
+      clearTimeout(pickFlashTimerRef.current);
+    }
+    pickFlashTimerRef.current = setTimeout(() => {
+      setPickFlash(null);
+      pickFlashTimerRef.current = null;
+    }, 1200);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (pickFlashTimerRef.current != null) {
+        clearTimeout(pickFlashTimerRef.current);
+      }
+    },
+    [],
+  );
 
   // Single queue instance shared by every hook 
   const queueNvUpdate = useNvUpdateQueue();
@@ -130,7 +154,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   const maskVisible =
     teeth.overlayIndex >= 0 && (volumeDisplay.volumeVisibility[teeth.overlayIndex] ?? true);
   const pickCursor =
-    teeth.pickFromPreview && teeth.hasToothLabels && maskVisible ? "cell" : "";
+    teeth.pickFromPreview && teeth.hasToothLabels && maskVisible ? "pointer" : "";
 
   useNiivueToothPick({
     canvasRef,
@@ -139,7 +163,9 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     enabled: Boolean(pickCursor) && !teeth.pickModePending,
     overlayIndex: teeth.overlayIndex,
     presentToothIds: teeth.presentToothIds,
+    selectedToothIds: teeth.selectedToothIds,
     toggleToothFromPreview: teeth.toggleToothFromPreview,
+    onSlicePickFeedback: showPickFlash,
   });
 
   // Busy wait cursor over the app while the overlay colormap is applying.
@@ -211,6 +237,8 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     clip: clipPlane,
     render,
     onReset: resetSettings,
+    pickFlash,
+    showPickFlash,
   };
 
   return <VisualizationContext.Provider value={value}>{children}</VisualizationContext.Provider>;

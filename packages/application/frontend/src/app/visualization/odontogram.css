@@ -16,10 +16,26 @@
   cursor: default;
 }
 
+/* Clickable detected teeth pointer cursor */— 
 .toothviz-odontogram
   .Odontogram
-  g[class^="teeth-"]:has(path[data-colored="true"]) {
+  g[class^="teeth-"]:has(path[data-colored="true"]),
+.toothviz-odontogram
+  .Odontogram
+  g[class^="teeth-"]:has(path[data-colored="true"])
+  path {
   cursor: pointer;
+}
+
+.toothviz-odontogram--pending,
+.toothviz-odontogram--pending
+  .Odontogram
+  g[class^="teeth-"]:has(path[data-colored="true"]),
+.toothviz-odontogram--pending
+  .Odontogram
+  g[class^="teeth-"]:has(path[data-colored="true"])
+  path {
+  cursor: wait;
 }
 
 .toothviz-odontogram

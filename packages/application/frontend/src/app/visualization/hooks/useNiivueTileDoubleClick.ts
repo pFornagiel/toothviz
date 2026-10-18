@@ -67,11 +67,7 @@ export default function useNiivueTileDoubleClick({
       e.preventDefault();
       e.stopPropagation();
 
-      const isMulti =
-        sliceType === SliceTypeKey.Multiplanar ||
-        sliceType === SliceTypeKey.Multiplanar4View;
-
-      if (isMulti) {
+      if (sliceType === SliceTypeKey.Multiplanar) {
         handleSliceTypeChange(target);
         return;
       }

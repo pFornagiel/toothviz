@@ -20,7 +20,6 @@ vi.mock("@niivue/niivue/webgl2", () => ({
     crosshairWidth: 0.2,
     backgroundColor: [0, 0, 0, 1],
     devicePixelRatio: 1,
-    colormaps: ["Gray", "Red", "Green"],
     volumes: [],
     volumeIsAlphaClipDark: false,
     setClipPlane: vi.fn(),
