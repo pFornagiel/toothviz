@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import TYPE_CHECKING
 
 from backend.db.models import Study
 from backend.db.repos.file_repo import FileRepo
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
-from backend.db.repos.study_repo import StudyRepo
+from backend.db.repos.study_repo import (
+    DEFAULT_STUDY_SORT,
+    StudyRepo,
+    StudySort,
+    StudySortField,
+    StudySortOrder,
+)
 from backend.exceptions import ConflictError, ValidationError
 from backend.services.storage_service import StorageService
 
@@ -34,9 +41,42 @@ class StudyService:
             PipelineJobRepo(db).create_for_study(study.id)
             return study
 
-    def list(self, name: str | None = None) -> list[Study]:
+    def list(
+        self,
+        name: str | None = None,
+        *,
+        page: int = 1,
+        page_size: int = 10,
+        created_from: date | None = None,
+        created_to: date | None = None,
+        sort: StudySort = DEFAULT_STUDY_SORT,
+    ) -> tuple[list[Study], int]:
+        if page < 1:
+            raise ValidationError("page must be >= 1")
+        if page_size < 1:
+            raise ValidationError("page_size must be >= 1")
+        if page_size > 100:
+            raise ValidationError("page_size must be <= 100")
+        try:
+            field, order = sort
+            sort = (StudySortField(field), StudySortOrder(order))
+        except (TypeError, ValueError):
+            raise ValidationError(
+                "sort must be a (field, order) pair with "
+                f"field in {[f.value for f in StudySortField]} and "
+                f"order in {[o.value for o in StudySortOrder]}"
+            ) from None
+        if created_from is not None and created_to is not None and created_from > created_to:
+            raise ValidationError("created_from must be <= created_to")
         with self._storage.session_factory() as db:
-            return StudyRepo(db).list(name=name)
+            return StudyRepo(db).list(
+                name=name,
+                page=page,
+                page_size=page_size,
+                created_from=created_from,
+                created_to=created_to,
+                sort=sort,
+            )
 
     def rename(self, study_id: str, name: str) -> Study:
         with self._storage.session_factory() as db:

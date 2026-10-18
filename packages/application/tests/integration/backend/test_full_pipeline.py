@@ -158,4 +158,4 @@ async def test_segmentation_failure_keeps_study(integration_app, created_study):
     transport2 = ASGITransport(app=integration_app)
     async with AsyncClient(transport=transport2, base_url="http://test") as ac2:
         listed = (await ac2.get("/storage/studies")).json()
-    assert any(s["id"] == study_id for s in listed), "study should still exist to allow retries"
+    assert any(s["id"] == study_id for s in listed["items"]), "study should still exist to allow retries"
