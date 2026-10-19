@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import multiprocessing
 import threading
 from concurrent.futures import CancelledError as FuturesCancelledError
 from concurrent.futures import Future, ProcessPoolExecutor
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
+
+# Child processes must not be forked from the server: a forked child inherits
+# uvicorn's listening socket and every open client connection. Once uvicorn
+# closes an idle keep-alive connection, the child still holds it open, so the
+# browser reuses it and waits forever for a reply (the viewer hangs until the
+# app restarts). Spawned children start clean; Windows and macOS spawn anyway.
+MP_CONTEXT = multiprocessing.get_context("spawn")
 
 
 class WorkerPool:
@@ -35,6 +43,7 @@ class WorkerPool:
     def _new_executor(self) -> ProcessPoolExecutor:
         return ProcessPoolExecutor(
             max_workers=self._max_workers,
+            mp_context=MP_CONTEXT,
             initializer=self._initializer,
             initargs=self._initargs,
         )
