@@ -226,6 +226,22 @@ class SliceContext25D(BaseTransform):
         ctx.data = np.stack([below, volume, above]).astype(np.float32)
 
 
+@TransformRegistry.register("SliceContext25D5Channel")
+class SliceContext25D(BaseTransform):
+    """(1, Z, Y, X) -> (5, Z, Y, X): slices z - offset, z, z + offset (clamped at the edges)."""
+    def forward(self, ctx: InferenceContext, offset: tuple[int, int], **kwargs) -> None:
+        volume = ctx.data[0]
+        z = np.arange(volume.shape[0])
+        last = volume.shape[0] - 1
+        
+        below_2 = volume[np.clip(z - offset[1], 0, last)]
+        below_1 = volume[np.clip(z - offset[0], 0, last)]
+        above_1 = volume[np.clip(z + offset[0], 0, last)]
+        above_2 = volume[np.clip(z + offset[1], 0, last)]
+
+        ctx.data = np.stack([below_2, below_1, volume, above_1, above_2]).astype(np.float32)
+
+
 @TransformRegistry.register("ZScorePerChannel")
 class ZScorePerChannel(BaseTransform):
     """Normalise every channel with its own mean and std (statistics of this scan)."""
