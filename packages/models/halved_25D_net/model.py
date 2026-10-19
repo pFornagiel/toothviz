@@ -137,8 +137,6 @@ class MobileNet25DHalf(nn.Module):
 def load_trained(checkpoint_path: str, num_classes: int = 36) -> MobileNet25DHalf:
     """
     MobileNet25DHalf with the weights of the trained ``...MobileNet25DHalfCtx5ch`` arm.
-
-    The checkpoint already uses this module's names, so it loads as is.
     """
     weights = torch.load(checkpoint_path, map_location="cpu", weights_only=False)[
         "network_weights"
