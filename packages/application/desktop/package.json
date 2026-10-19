@@ -55,7 +55,7 @@
         "to": "application/backend"
       },
       {
-        "from": "../../../packages/models/mobile_unet/exports",
+        "from": "../../../packages/models/lite_mobile_unet_5ch/exports",
         "to": "models",
         "filter": [
           "*.onnx",

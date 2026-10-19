@@ -38,10 +38,6 @@ export class BackendManager {
     return path.resolve(app.getAppPath(), "..");
   }
 
-  private repoRoot(): string {
-    return path.resolve(this.applicationRoot(), "../..");
-  }
-
   async start(): Promise<void> {
     if (this.proc) return;
 
@@ -50,14 +46,9 @@ export class BackendManager {
     setBackendPort(port);
 
     const applicationRoot = this.applicationRoot();
-    const repoRoot = this.repoRoot();
     const userData = app.getPath("userData");
     const dataRoot = path.join(userData, "data");
     const frontendDist = path.join(applicationRoot, "frontend", "dist");
-
-    const modelPath = app.isPackaged
-      ? path.join(process.resourcesPath, "models", "mobile_unet.onnx")
-      : path.join(repoRoot, "packages", "models", "mobile_unet", "exports", "mobile_unet.onnx");
 
     const serveFrontend =
       app.isPackaged || process.env.TOOTH_SERVE_FRONTEND === "1";
@@ -65,12 +56,20 @@ export class BackendManager {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       TOOTH_DATA_ROOT: dataRoot,
-      TOOTH_MODEL_PATH: modelPath,
       TOOTH_FRONTEND_DIST: frontendDist,
       TOOTH_SERVE_FRONTEND: serveFrontend ? "1" : "0",
       TOOTH_BACKEND_HOST: BACKEND_HOST,
       TOOTH_BACKEND_PORT: String(port),
     };
+    // Dev resolves the model in backend config so TOOTH_MODEL can switch it.
+    // A packaged app only ships the lite weights, next to the backend.
+    if (app.isPackaged) {
+      env.TOOTH_MODEL_PATH = path.join(
+        process.resourcesPath,
+        "models",
+        "lite_mobile_unet_5ch.onnx",
+      );
+    }
 
     const isWin = process.platform === "win32";
     const args = [

@@ -77,8 +77,15 @@ SQLite and CAS data:
 - **Browser / `make dev`:** `packages/application/data/`
 - **Electron:** `~/Library/Application Support/Tooth/data/` (macOS) or equivalent `userData` path
 
-The segmentation pipeline expects an ONNX model at `packages/models/mobile_unet/exports/mobile_unet.onnx`,
-with its weights (`mobile_unet.onnx.data`) and pipeline config (`mobile_unet.json`) next to it.
+The segmentation pipeline uses `packages/models/lite_mobile_unet_5ch/exports/lite_mobile_unet_5ch.onnx`
+by default, with its weights (`lite_mobile_unet_5ch.onnx.data`) and pipeline config (`lite_mobile_unet_5ch.json`) next to it.
+Set `TOOTH_MODEL=mobilenetv3_unet_3ch` to run `packages/models/mobilenetv3_unet_3ch` instead.
+
+The config reorients scans to `["R", "P", "I"]` using their header. That is correct for scans whose
+header matches their voxels (DICOM, DentVoxel). ToothFairy3 files as shipped, and every nnU-Net
+dataset built from them, are the exception: the header says LPS while the voxels are RPI, so they
+come out mirrored left-right and top-bottom and score near zero. Convert them with the official
+ToothFairy3 orientation script before testing the app on them; do not change `axcodes`.
 The model files are stored in Git LFS: run `git lfs install` once before cloning or committing.
 
 ### Tests
