@@ -149,12 +149,12 @@ class UNetDecoderBlock(nn.Module):
         return self.conv2(self.conv1(torch.cat([x, skip], dim=1)))
 
 
-class MobileNet25D(torch.nn.Module):
+class MobileNetV3UNet3Ch(torch.nn.Module):
     FULL_RES_CHANNEL_SIZE = 16
     DECODER_CHANNELS = (256, 128, 64, 32, 16)
 
     def __init__(self, in_channels: int = 3, num_classes: int = 32):
-        super(MobileNet25D, self).__init__()
+        super(MobileNetV3UNet3Ch, self).__init__()
 
         self.full_res_conv = nn.Sequential(
             Conv2dBatchnormActivation(
@@ -196,9 +196,9 @@ class MobileNet25D(torch.nn.Module):
         return self.segmentation_head(y)
 
 
-def load_trained(checkpoint_path: str, num_classes: int = 36) -> MobileNet25D:
+def load_trained(checkpoint_path: str, num_classes: int = 36) -> MobileNetV3UNet3Ch:
     """
-    MobileNet25D with the weights of a trained ``...MobileNetFullRes`` arm.
+    MobileNetV3UNet3Ch with the weights of a trained ``...MobileNetFullRes`` arm.
 
     The checkpoint uses the repo network's names (timm/smp); this renames them.
     """
@@ -222,7 +222,7 @@ def load_trained(checkpoint_path: str, num_classes: int = 36) -> MobileNet25D:
                 break
         renamed[key] = value
 
-    net = MobileNet25D(in_channels=3, num_classes=num_classes)
+    net = MobileNetV3UNet3Ch(in_channels=3, num_classes=num_classes)
     net.load_state_dict(renamed)
     return net.eval()
 
@@ -235,4 +235,4 @@ if __name__ == "__main__":
     exports_dir.mkdir(parents=True, exist_ok=True)
 
     net = load_trained(parent_dir / "checkpoint_best.pth")
-    export_to_onnx(net, 3, exports_dir / "mobile_unet.onnx")
+    export_to_onnx(net, 3, exports_dir / "mobilenetv3_unet_3ch.onnx")

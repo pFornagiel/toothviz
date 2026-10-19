@@ -5,7 +5,7 @@ PR links: https://github.com/pFornagiel/toothviz/pull/<n>
 
 ## TL;DR (opening slide)
 
-- **ML:** the old 3D model (sliding_window_3d, 256³ patches) was replaced by a light **2.5D MobileUNet** that runs slice by slice. A smaller 5-channel variant has been started.
+- **ML:** the old 3D model (sliding_window_3d, 256³ patches) was replaced by a light **2.5D MobileNetV3UNet3Ch** that runs slice by slice. A smaller 5-channel variant, LiteMobileUNet5Ch, has been started.
 - **Viewer UX:** teeth are picked in 3D or from an odontogram, with apply/discard flows and simpler controls.
 - **Scan management:** pipelines can be cancelled, deletes ask for confirmation, scan names must be unique, and the browse list paginates, sorts and filters.
 - **Stability:** fixed a Linux-only bug that hung the app after processing (fork vs spawn).
@@ -22,7 +22,7 @@ PR links: https://github.com/pFornagiel/toothviz/pull/<n>
 | #74 | Diagram generation scripts for thesis | Paweł Fornagiel | open |
 | #75 | Linux worker spawn fix | Paweł Fornagiel | open |
 | #76 | New model architecture (MobileUNet 2.5D) | Paweł Fornagiel | open |
-| (local) | `halved_25D_net` + 5-channel slice context | Paweł Fornagiel | uncommitted on `@pFornagiel/alt-arch` |
+| (local) | `lite_mobile_unet_5ch` + 5-channel slice context | Paweł Fornagiel | uncommitted on `@pFornagiel/alt-arch` |
 
 #61–#63 were opened on 12 Sep but merged in this period.
 
@@ -32,7 +32,7 @@ PR links: https://github.com/pFornagiel/toothviz/pull/<n>
 
 **Slide: Why change the model**
 - Old setup: a 3D network (`tooth_seg_semantic.onnx`, ~123 MB) used 256³ patches with `sliding_window_3d`, and its preprocessing was crop, CT-normalise, resample and pad.
-- The new model is 2.5D and much smaller (`mobile_unet.onnx` + data, ~27 MB). It is also cheaper to run on a desktop CPU.
+- The new model is 2.5D and much smaller (`mobilenetv3_unet_3ch.onnx` + data, ~27 MB). It is also cheaper to run on a desktop CPU.
 - The old models moved to `packages/models/legacy/`.
 
 **Slide: How 2.5D works (diagram)**
@@ -40,7 +40,7 @@ PR links: https://github.com/pFornagiel/toothviz/pull/<n>
 - Preprocessing: `ResampleToVoxelSize 0.3 mm` → `Reorient RPI` → `SliceContext25D` → `ZScorePerChannel` → `PadToSize 384²`.
 - Prediction: `sliding_window_2d` with 384×384 tiles, step 0.5 and batches of 8.
 - Postprocessing: `ReversePad` → `DropLabelsAbove 32` → `RemoveSmallLabels (<40 mm³)` → `ResampleToInputGrid`. The 2D slice predictions are stitched back into a 3D mask on the original scan grid.
-- Everything is driven by config (`mobile_unet.json`) through the existing transform/predictor registry from #60.
+- Everything is driven by config (`mobilenetv3_unet_3ch.json`) through the existing transform/predictor registry from #60.
 
 **Slide: Architecture**
 - A MobileNetV3-style encoder (timm inverted residuals, hard-swish, squeeze-excite) with a U-Net decoder.
@@ -51,12 +51,12 @@ PR links: https://github.com/pFornagiel/toothviz/pull/<n>
 - The attention adds parameters but has learned nothing. The likely cause is training the encoder from scratch, with BatchNorm absorbing the constant scale.
 - This leads into the next model iteration (section 2).
 
-## 2. ML: work in progress, "halved" 5-channel network (uncommitted)
+## 2. ML: work in progress, LiteMobileUNet5Ch (uncommitted)
 
 **Slide: Next model iteration**
-- `packages/models/halved_25D_net/model.py`: `MobileNet25DHalf`. It is a simpler encoder/decoder: **SE removed**, plain inverted residuals, 7 encoder stages down to /64, and depthwise-separable decoder blocks. It has 5 input channels and 36 classes.
+- `packages/models/lite_mobile_unet_5ch/model.py`: `LiteMobileUNet5Ch`. It is a simpler encoder/decoder: **SE removed**, plain inverted residuals, 7 encoder stages down to /64, and depthwise-separable decoder blocks. It has 5 input channels and 36 classes.
 - New transform `SliceContext25D5Channel`: the network sees slices z±9 and z±27, not z±3, so it gets much more vertical context per slice.
-- Config: `halved_25D_net/exports/halved_25D_net.json` (same pipeline, new context step).
+- Config: `lite_mobile_unet_5ch/exports/lite_mobile_unet_5ch.json` (same pipeline, new context step).
 - Status: the ONNX export is not generated yet, and there are no results yet. Present this as "next steps".
 - ⚠ Before committing: in `transforms.py` the new class is also named `SliceContext25D`, which shadows the 3-channel class at module level. The registry keys are still distinct.
 
@@ -124,7 +124,7 @@ PR links: https://github.com/pFornagiel/toothviz/pull/<n>
 ## 7. Next steps (closing slide)
 
 - Merge #74, #75 and #76.
-- Train and evaluate `MobileNet25DHalf` with 5-channel context, and compare it with MobileUNet on Dice and on inference time.
+- Train and evaluate `LiteMobileUNet5Ch` with 5-channel context, and compare it with MobileNetV3UNet3Ch on Dice and on inference time.
 - Experiments on the SE finding: remove SE, use a pretrained encoder, or track gates during training.
 - Regenerate the explainer data after the model changes.
 - Thesis: build more diagrams with the generator, and write the model architecture chapter.

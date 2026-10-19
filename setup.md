@@ -77,8 +77,8 @@ SQLite and CAS data:
 - **Browser / `make dev`:** `packages/application/data/`
 - **Electron:** `~/Library/Application Support/Tooth/data/` (macOS) or equivalent `userData` path
 
-The segmentation pipeline expects an ONNX model at `packages/models/halved_25D_net/exports/mobile_25D_half.onnx`,
-with its weights (`mobile_25D_half.onnx.data`) and pipeline config (`mobile_25D_half.json`) next to it.
+The segmentation pipeline expects an ONNX model at `packages/models/lite_mobile_unet_5ch/exports/lite_mobile_unet_5ch.onnx`,
+with its weights (`lite_mobile_unet_5ch.onnx.data`) and pipeline config (`lite_mobile_unet_5ch.json`) next to it.
 
 The config reorients scans to `["R", "P", "I"]` using their header. That is correct for scans whose
 header matches their voxels (DICOM, DentVoxel). ToothFairy3 files as shipped, and every nnU-Net

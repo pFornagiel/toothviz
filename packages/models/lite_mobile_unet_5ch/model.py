@@ -92,9 +92,9 @@ class MobileDecoderBlock(nn.Module):
         return self.conv1(torch.cat([self.upsample(x), skip], dim=1))
 
 
-class MobileNet25DHalf(nn.Module):
+class LiteMobileUNet5Ch(nn.Module):
     def __init__(self, in_channels: int = 5, num_classes: int = 36):
-        super(MobileNet25DHalf, self).__init__()
+        super(LiteMobileUNet5Ch, self).__init__()
 
         self.encoder = nn.ModuleList(
             [
@@ -134,14 +134,14 @@ class MobileNet25DHalf(nn.Module):
         return self.segmentation_head(y)
 
 
-def load_trained(checkpoint_path: str, num_classes: int = 36) -> MobileNet25DHalf:
+def load_trained(checkpoint_path: str, num_classes: int = 36) -> LiteMobileUNet5Ch:
     """
-    MobileNet25DHalf with the weights of the trained ``...MobileNet25DHalfCtx5ch`` arm.
+    LiteMobileUNet5Ch with the weights of the trained ``...MobileNet25DHalfCtx5ch`` arm.
     """
     weights = torch.load(checkpoint_path, map_location="cpu", weights_only=False)[
         "network_weights"
     ]
-    net = MobileNet25DHalf(in_channels=5, num_classes=num_classes)
+    net = LiteMobileUNet5Ch(in_channels=5, num_classes=num_classes)
     net.load_state_dict(weights)
     return net.eval()
 
@@ -157,4 +157,4 @@ if __name__ == "__main__":
     exports_dir.mkdir(parents=True, exist_ok=True)
 
     net = load_trained(parent_dir / "ctx5ch_checkpoint_final.pth")
-    export_to_onnx(net, 5, exports_dir / "mobile_25D_half.onnx")
+    export_to_onnx(net, 5, exports_dir / "lite_mobile_unet_5ch.onnx")

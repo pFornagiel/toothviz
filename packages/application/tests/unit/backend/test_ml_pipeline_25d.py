@@ -1,4 +1,4 @@
-"""Unit tests for the 2.5D (mobile_unet) segmentation pipeline pieces."""
+"""Unit tests for the 2.5D segmentation pipeline pieces."""
 
 from __future__ import annotations
 
@@ -24,7 +24,9 @@ from backend.workers.subprocesses.ml_pipeline.transforms import (
 )
 
 MODELS_DIR = Path(__file__).resolve().parents[4] / "models"
-MOBILE_UNET_CONFIG = MODELS_DIR / "mobile_unet" / "exports" / "mobile_unet.json"
+MOBILENETV3_UNET_3CH_CONFIG = (
+    MODELS_DIR / "mobilenetv3_unet_3ch" / "exports" / "mobilenetv3_unet_3ch.json"
+)
 
 
 def _ctx_from_xyz(volume_xyz: np.ndarray, affine: np.ndarray) -> InferenceContext:
@@ -154,9 +156,9 @@ def test_sliding_window_2d_stitches_tiles_into_slice_labels():
     assert [c.args[0] for c in progress.put.call_args_list] == [(1, 3), (2, 3), (3, 3)]
 
 
-def test_mobile_unet_config_end_to_end(tmp_path):
+def test_mobilenetv3_unet_3ch_config_end_to_end(tmp_path):
     """The shipped config runs end to end and returns labels on the input grid."""
-    config = json.loads(MOBILE_UNET_CONFIG.read_text())
+    config = json.loads(MOBILENETV3_UNET_3CH_CONFIG.read_text())
     scan = np.zeros((40, 36, 30), dtype=np.float32)
     scan[10:25, 10:25, 8:20] = 1000.0
     affine = np.diag([-0.6, 0.6, 0.6, 1.0])
