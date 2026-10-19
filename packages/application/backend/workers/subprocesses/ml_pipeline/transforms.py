@@ -227,8 +227,9 @@ class SliceContext25D(BaseTransform):
 
 
 @TransformRegistry.register("SliceContext25D5Channel")
-class SliceContext25D(BaseTransform):
-    """(1, Z, Y, X) -> (5, Z, Y, X): slices z - offset, z, z + offset (clamped at the edges)."""
+class SliceContext25D5Channel(BaseTransform):
+    """(1, Z, Y, X) -> (5, Z, Y, X): slices z - offset[1], z - offset[0], z, z + offset[0],
+    z + offset[1] (clamped at the edges)."""
     def forward(self, ctx: InferenceContext, offset: tuple[int, int], **kwargs) -> None:
         volume = ctx.data[0]
         z = np.arange(volume.shape[0])

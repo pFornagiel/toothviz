@@ -2,8 +2,8 @@
     "preprocessing": [
       { "name": "ResampleToVoxelSize", "voxel_size": 0.3, "order": 1 },
       { "name": "Reorient", "axcodes": ["R", "P", "I"] },
-      { "name": "SliceContext25D5Channel", "offset": [9, 27] },
       { "name": "ZScorePerChannel" },
+      { "name": "SliceContext25D5Channel", "offset": [9, 27] },
       { "name": "PadToSize", "min_size": [1, 384, 384], "pad_value": 0 }
     ],
     "prediction": {

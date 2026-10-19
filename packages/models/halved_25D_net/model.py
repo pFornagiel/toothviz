@@ -136,32 +136,15 @@ class MobileNet25DHalf(nn.Module):
 
 def load_trained(checkpoint_path: str, num_classes: int = 36) -> MobileNet25DHalf:
     """
-    MobileNet25D with the weights of a trained ``...MobileNetFullRes`` arm.
+    MobileNet25DHalf with the weights of the trained ``...MobileNet25DHalfCtx5ch`` arm.
 
-    The checkpoint uses the repo network's names (timm/smp); this renames them.
+    The checkpoint already uses this module's names, so it loads as is.
     """
-    rename = {
-        "full_res.": "full_res_conv.",
-        "encoder.conv_stem.": "encoder.stem.0.",
-        "encoder.bn1.": "encoder.stem.1.",
-        "encoder.blocks.6.0.conv.": "encoder.blocks.6.0.0.",
-        "encoder.blocks.6.0.bn1.": "encoder.blocks.6.0.1.",
-        "decoder.blocks.": "decoder_blocks.",
-        "segmentation_head.0.": "segmentation_head.",
-    }
     weights = torch.load(checkpoint_path, map_location="cpu", weights_only=False)[
         "network_weights"
     ]
-    renamed = {}
-    for key, value in weights.items():
-        for old, new in rename.items():
-            if key.startswith(old):
-                key = new + key[len(old) :]
-                break
-        renamed[key] = value
-
     net = MobileNet25DHalf(in_channels=5, num_classes=num_classes)
-    net.load_state_dict(renamed)
+    net.load_state_dict(weights)
     return net.eval()
 
 

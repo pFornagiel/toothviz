@@ -9,7 +9,7 @@ DEFAULT_CHUNK_SIZE: int = 16 * 1024 * 1024  # 16 MB
 
 _DEFAULT_DATA_ROOT = _APPLICATION_ROOT / "data"
 _DEFAULT_MODEL_PATH = (
-    _REPO_ROOT / "packages" / "models" / "mobile_unet" / "exports" / "mobile_unet.onnx"
+    _REPO_ROOT / "packages" / "models" / "halved_25D_net" / "exports" / "mobile_25D_half.onnx"
 )
 _DEFAULT_FRONTEND_DIST = _APPLICATION_ROOT / "frontend" / "dist"
 

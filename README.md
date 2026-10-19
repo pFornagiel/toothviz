@@ -97,7 +97,7 @@ make desktop-dev
 starts the local FastAPI backend, and opens the Electron window.
 
 The automatic mode requires the Git LFS objects in
-`packages/models/mobile_unet/exports/`. If the model is unavailable, raw
+`packages/models/halved_25D_net/exports/`. If the model is unavailable, raw
 volume viewing and precomputed masks can still be used.
 
 ### Run without the model
