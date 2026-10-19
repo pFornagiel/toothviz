@@ -156,5 +156,5 @@ if __name__ == "__main__":
     exports_dir = parent_dir / "exports"
     exports_dir.mkdir(parents=True, exist_ok=True)
 
-    net = load_trained(parent_dir / "ctx5ch_checkpoint_final.pth")
+    net = load_trained(parent_dir / "weights_lite_mobile_unet_5ch.pth")
     export_to_onnx(net, 5, exports_dir / "lite_mobile_unet_5ch.onnx")
