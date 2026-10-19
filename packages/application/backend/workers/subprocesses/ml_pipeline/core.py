@@ -17,12 +17,16 @@ class InferenceContext:
     original_spacing: np.ndarray
     current_spacing: np.ndarray
     original_shape: tuple[int, ...]
+    original_affine: np.ndarray | None = None
+    affine: np.ndarray | None = None
     history: dict[str, Any] = field(default_factory=dict)
-    
+
     @classmethod
-    def from_nifti(cls, image_data: np.ndarray, spacing: np.ndarray) -> InferenceContext:
+    def from_nifti(
+        cls, image_data: np.ndarray, spacing: np.ndarray, affine: np.ndarray | None = None
+    ) -> InferenceContext:
         """Initialize from loaded NIfTI data (in nnUNet expected Z, Y, X layout if already transposed)."""
-        # Ensure data is 4D (C, X, Y, Z) initially.
+        # Ensure data is 4D (C, Z, Y, X) initially.
         if image_data.ndim == 3:
             data = image_data[np.newaxis, ...]
         else:
@@ -33,6 +37,8 @@ class InferenceContext:
             original_spacing=spacing.copy(),
             current_spacing=spacing.copy(),
             original_shape=data.shape,
+            original_affine=affine,
+            affine=affine,
         )
 
 

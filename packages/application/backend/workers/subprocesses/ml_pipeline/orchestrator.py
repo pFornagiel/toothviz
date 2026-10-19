@@ -27,10 +27,12 @@ def run_pipeline(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    # File loading
     logger.info(f"Loading NIfTI image from {input_nifti_path}")
     img = nib.load(input_nifti_path)
     image_data = np.asarray(img.get_fdata(dtype=np.float32))
 
+    # Check whether the NIFTI file is 3D volume, raise otherwise
     if image_data.ndim == 4 and image_data.shape[-1] == 1:
         image_data = image_data[..., 0]
     if image_data.ndim != 3:
@@ -38,11 +40,13 @@ def run_pipeline(
             f"segmentation expects a 3D volume; got shape {image_data.shape!r}"
         )
 
-    # Convert nibabel (X, Y, Z) to SimpleITK (Z, Y, X) space, which nnUNet expects
+    # Convert nibabel (X, Y, Z) to SimpleITK (Z, Y, X) space, which model and nnUNet expects
     image_data = np.transpose(image_data, (2, 1, 0))
+    # Physical spacing, by default in (X, Y, Z) order, so we reverse
     spacing = np.array(img.header.get_zooms()[:3])[::-1]
 
-    ctx = InferenceContext.from_nifti(image_data, spacing)
+    # Create required context for inference
+    ctx = InferenceContext.from_nifti(image_data, spacing, img.affine)
 
     # 1. Preprocessing
     preprocessing_steps = config.get("preprocessing", [])
@@ -80,7 +84,12 @@ def run_pipeline(
         mask = mask[0]  # strip channel dim
         
     mask = np.transpose(mask, (2, 1, 0))
-    
+    if mask.shape != img.shape[:3]:
+        raise ValueError(
+            f"segmentation mask {mask.shape} is not on the input grid {img.shape[:3]}; "
+            "the postprocessing must end on the input scan's grid"
+        )
+
     mask_img = nib.Nifti1Image(mask.astype(np.uint8), affine=img.affine)
     mask_img.header.set_data_dtype(np.uint8)
 

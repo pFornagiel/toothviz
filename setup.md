@@ -77,7 +77,9 @@ SQLite and CAS data:
 - **Browser / `make dev`:** `packages/application/data/`
 - **Electron:** `~/Library/Application Support/Tooth/data/` (macOS) or equivalent `userData` path
 
-The segmentation pipeline expects an ONNX model at `packages/models/tooth_seg_semantic.onnx`.
+The segmentation pipeline expects an ONNX model at `packages/models/mobile_unet/exports/mobile_unet.onnx`,
+with its weights (`mobile_unet.onnx.data`) and pipeline config (`mobile_unet.json`) next to it.
+The model files are stored in Git LFS: run `git lfs install` once before cloning or committing.
 
 ### Tests
 

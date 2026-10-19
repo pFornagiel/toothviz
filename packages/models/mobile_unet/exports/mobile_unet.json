@@ -1,0 +1,23 @@
+{
+  "preprocessing": [
+    { "name": "ResampleToVoxelSize", "voxel_size": 0.3, "order": 1 },
+    { "name": "Reorient", "axcodes": ["R", "P", "I"] },
+    { "name": "SliceContext25D", "offset": 3 },
+    { "name": "ZScorePerChannel" },
+    { "name": "PadToSize", "min_size": [1, 384, 384], "pad_value": 0 }
+  ],
+  "prediction": {
+    "strategy": "sliding_window_2d",
+    "params": {
+      "patch_size": [384, 384],
+      "tile_step_size": 0.5,
+      "batch_size": 8
+    }
+  },
+  "postprocessing": [
+    { "name": "ReversePad" },
+    { "name": "DropLabelsAbove", "max_label": 32 },
+    { "name": "RemoveSmallLabels", "min_volume_mm3": 40 },
+    { "name": "ResampleToInputGrid" }
+  ]
+}
