@@ -22,7 +22,8 @@ Electron shell for the Tooth CBCT app using [electron-vite](https://electron-vit
 | Variable | Purpose |
 |----------|---------|
 | `TOOTH_DATA_ROOT` | Writable data directory (Electron `userData/data`) |
-| `TOOTH_MODEL_PATH` | Path to ONNX model |
+| `TOOTH_MODEL` | Passed through in dev. `lite_mobile_unet_5ch` (default) or `mobilenetv3_unet_3ch` |
+| `TOOTH_MODEL_PATH` | Set for a packaged app to the bundled lite ONNX file. In dev, an explicit path overrides `TOOTH_MODEL` |
 | `TOOTH_FRONTEND_DIST` | Path to built React app |
 | `TOOTH_SERVE_FRONTEND` | `1` to mount SPA static files on the API server |
 

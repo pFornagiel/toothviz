@@ -196,7 +196,8 @@ service.
 The backend supports these optional environment variables:
 
 - `TOOTH_DATA_ROOT` — override the data and database directory.
-- `TOOTH_MODEL_PATH` — use a different ONNX model.
+- `TOOTH_MODEL` — select `lite_mobile_unet_5ch` (default) or `mobilenetv3_unet_3ch`.
+- `TOOTH_MODEL_PATH` — use an ONNX file other than those two. Overrides `TOOTH_MODEL`.
 - `SEGMENTATION_MODE` — select `normal` or `dummy` inference.
 - `TOOTH_FRONTEND_DIST` — override the built frontend directory.
 - `TOOTH_SERVE_FRONTEND` — set to `1`, `true`, or `yes` to serve the built
