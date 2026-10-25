@@ -27,12 +27,9 @@ Electron shell for the Tooth CBCT app using [electron-vite](https://electron-vit
 | `TOOTH_FRONTEND_DIST` | Path to built React app |
 | `TOOTH_SERVE_FRONTEND` | `1` to mount SPA static files on the API server |
 
-## Post-MVP: bundled Python
+## Self-contained installers
 
-To ship without a system Python install:
-
-1. Build a PyInstaller one-folder artifact for `uvicorn` + `backend` + dependencies
-2. Place it in `extraResources` and spawn it instead of `uv run`
-3. Add code signing (macOS notarization, Windows Authenticode)
-
-Expect large installers (300MB+) due to ONNX Runtime and scientific stack.
+`npm run dist` needs Python + uv on the target machine. `packages/installer`
+builds installers that bundle a PyInstaller-frozen backend instead. When a
+packaged app contains `resources/backend/toothviz-backend`, the main process
+spawns it in place of `uv run`. See `packages/installer/README.md`.
