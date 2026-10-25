@@ -1,0 +1,110 @@
+name: Installers
+
+# Builds the self-contained installers on each OS (PyInstaller cannot
+# cross-compile), installs each one the way a user would and runs
+# packages/installer/smoke_test.py against the installed app.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "packages/installer/**"
+      - "packages/application/desktop/electron/**"
+      - ".github/workflows/installer.yml"
+
+concurrency:
+  group: installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest supported Ubuntu, so the Linux build runs on newer glibc too.
+          - { name: Linux, os: ubuntu-22.04 }
+          - { name: Windows, os: windows-latest }
+          - { name: macOS Apple Silicon, os: macos-latest }
+          - { name: macOS Intel, os: macos-15-intel }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build installer
+        run: uv run python packages/installer/build.py
+
+      - name: Test the AppImage
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+          xvfb-run -a uv run python packages/installer/smoke_test.py packages/installer/release/*.AppImage
+
+      - name: Install and test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem packages/installer/release/ToothViz-Setup-*.exe
+          Start-Process $setup.FullName -ArgumentList "/S" -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter ToothViz.exe | Select-Object -First 1
+          uv run python packages/installer/smoke_test.py $exe.FullName
+
+      - name: Install and test (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          hdiutil attach packages/installer/release/ToothViz-*.dmg -mountpoint /Volumes/ToothViz -nobrowse
+          cp -R /Volumes/ToothViz/ToothViz.app /Applications/
+          hdiutil detach /Volumes/ToothViz
+          codesign --verify --deep --strict /Applications/ToothViz.app
+          uv run python packages/installer/smoke_test.py /Applications/ToothViz.app/Contents/MacOS/ToothViz
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ToothViz-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: ignore
+          path: |
+            packages/installer/release/*.exe
+            packages/installer/release/*.dmg
+            packages/installer/release/*.AppImage
+            packages/installer/release/*.deb
+            packages/installer/release/smoke-test-*.png
+
+  # Ubuntu 24.04 restricts the user namespaces Electron's sandbox needs, which
+  # is the most common way Electron apps fail to start on Linux.
+  test-ubuntu-24:
+    name: Test Linux on Ubuntu 24.04
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ToothViz-Linux-X64
+          path: packages/installer/release
+
+      - name: Test the AppImage
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+          chmod +x packages/installer/release/*.AppImage
+          xvfb-run -a uv run python packages/installer/smoke_test.py packages/installer/release/*.AppImage
+
+      - name: Install and test the .deb
+        run: |
+          sudo apt-get install -y ./packages/installer/release/*.deb
+          xvfb-run -a uv run python packages/installer/smoke_test.py /opt/ToothViz/toothviz
