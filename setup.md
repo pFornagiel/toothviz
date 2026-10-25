@@ -103,6 +103,6 @@ cd packages/application/frontend
 npm run test
 ```
 
-### Future: bundled Python (not in MVP)
+### Self-contained installers
 
-The desktop MVP spawns `uv run uvicorn` and requires Python + uv on the PATH. A later release can bundle the backend with PyInstaller and drop that requirement. See `packages/application/desktop/README.md`.
+`make desktop-dist` builds an app that still needs Python + uv on the PATH. For an installer that bundles everything (frozen backend included), run `uv run python packages/installer/build.py`. See `packages/installer/README.md`.

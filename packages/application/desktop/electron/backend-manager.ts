@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 import treeKill from "tree-kill";
@@ -36,6 +37,15 @@ export class BackendManager {
     }
     // app.getAppPath() -> .../desktop; parent is packages/application
     return path.resolve(app.getAppPath(), "..");
+  }
+
+  /** Self-contained backend executable added by packages/installer, if any. */
+  private bundledBackend(): string | null {
+    if (!app.isPackaged) return null;
+    const exe =
+      process.platform === "win32" ? "toothviz-backend.exe" : "toothviz-backend";
+    const file = path.join(process.resourcesPath, "backend", exe);
+    return existsSync(file) ? file : null;
   }
 
   async start(): Promise<void> {
@@ -84,12 +94,22 @@ export class BackendManager {
 
     console.info(`[backend] starting on ${BACKEND_HOST}:${port}`);
 
-    this.proc = spawn("uv", args, {
-      cwd: applicationRoot,
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-      shell: isWin,
-    });
+    const bundled = this.bundledBackend();
+    this.proc = bundled
+      ? // Host and port come from env. The flag makes the backend exit
+        // with Electron, so it cannot outlive a crash.
+        spawn(bundled, ["--exit-with-parent"], {
+          cwd: applicationRoot,
+          env,
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        })
+      : spawn("uv", args, {
+          cwd: applicationRoot,
+          env,
+          stdio: ["ignore", "pipe", "pipe"],
+          shell: isWin,
+        });
 
     this.proc.stdout?.on("data", (chunk: Buffer) => {
       console.log("[backend]", chunk.toString().trimEnd());

@@ -146,13 +146,13 @@ To use the dummy segmentation worker in this setup, prefix the API command with
 ### Build a desktop installer
 
 ```bash
-cd packages/application
-make desktop-dist
+uv run python packages/installer/build.py
 ```
 
-Build artefacts are written to `packages/application/desktop/release/`.
-Packaging is still under development: the generated application does not yet
-bundle Python and uv, so those tools must be available on the target system.
+This builds a self-contained installer for the current OS (Windows `.exe`,
+macOS `.dmg`, Linux `.AppImage` and `.deb`) in `packages/installer/release/`.
+Users need nothing else installed. See [packages/installer](packages/installer/README.md)
+for details, including the GitHub Actions workflow that builds all platforms.
 
 ### Tests and static checks
 
@@ -212,6 +212,7 @@ packages/
 │   ├── desktop/       Electron main process and packaging
 │   ├── frontend/      React application and NiiVue integration
 │   └── tests/         Backend unit and integration tests
+├── installer/         Self-contained installers for Windows, macOS and Linux
 ├── models/            Git LFS-managed test ONNX model assets
 └── prototyping/       Earlier experiments and proofs of concept
 
