@@ -8,16 +8,46 @@ _REPO_ROOT = _APPLICATION_ROOT.parent.parent
 DEFAULT_CHUNK_SIZE: int = 16 * 1024 * 1024  # 16 MB
 
 _DEFAULT_DATA_ROOT = _APPLICATION_ROOT / "data"
-_DEFAULT_MODEL_PATH = (
-    _REPO_ROOT / "packages" / "models" / "mobile_unet" / "exports" / "mobile_unet.onnx"
-)
+_MODELS_DIR = _REPO_ROOT / "packages" / "models"
 _DEFAULT_FRONTEND_DIST = _APPLICATION_ROOT / "frontend" / "dist"
+
+LITE_MOBILE_UNET_5CH_PATH: Path = (
+    _MODELS_DIR / "lite_mobile_unet_5ch" / "exports" / "lite_mobile_unet_5ch.onnx"
+)
+MOBILENETV3_UNET_3CH_PATH: Path = (
+    _MODELS_DIR / "mobilenetv3_unet_3ch" / "exports" / "mobilenetv3_unet_3ch.onnx"
+)
+
+# Selected with TOOTH_MODEL. lite_mobile_unet_5ch is the default.
+MODEL_PATHS: dict[str, Path] = {
+    "lite_mobile_unet_5ch": LITE_MOBILE_UNET_5CH_PATH,
+    "mobilenetv3_unet_3ch": MOBILENETV3_UNET_3CH_PATH,
+}
+DEFAULT_MODEL_NAME = "lite_mobile_unet_5ch"
+
+
+def resolve_model_path() -> Path:
+    """ONNX file for this process.
+
+    ``TOOTH_MODEL_PATH`` is an explicit file and wins. Otherwise ``TOOTH_MODEL``
+    picks a name from ``MODEL_PATHS``.
+    """
+    explicit = os.getenv("TOOTH_MODEL_PATH")
+    if explicit:
+        return Path(explicit)
+    name = os.getenv("TOOTH_MODEL", DEFAULT_MODEL_NAME)
+    try:
+        return MODEL_PATHS[name]
+    except KeyError:
+        known = ", ".join(MODEL_PATHS)
+        raise ValueError(f"Invalid TOOTH_MODEL: {name!r}. Must be one of: {known}") from None
+
 
 DATA_ROOT: Path = Path(os.getenv("TOOTH_DATA_ROOT", str(_DEFAULT_DATA_ROOT)))
 
 STORAGE_DB_URL: str = f"sqlite:///{DATA_ROOT / 'cbct.db'}"
 
-MODEL_PATH: Path = Path(os.getenv("TOOTH_MODEL_PATH", str(_DEFAULT_MODEL_PATH)))
+MODEL_PATH: Path = resolve_model_path()
 
 FRONTEND_DIST: Path = Path(
     os.getenv("TOOTH_FRONTEND_DIST", str(_DEFAULT_FRONTEND_DIST))

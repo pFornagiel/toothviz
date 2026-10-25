@@ -1,4 +1,4 @@
-"""Unit tests for the 2.5D (mobile_unet) segmentation pipeline pieces."""
+"""Unit tests for the 2.5D segmentation pipeline pieces."""
 
 from __future__ import annotations
 
@@ -19,11 +19,13 @@ from backend.workers.subprocesses.ml_pipeline.transforms import (
     ResampleToInputGrid,
     ResampleToVoxelSize,
     SliceContext25D,
+    SliceContext25D5Channel,
     ZScorePerChannel,
 )
 
-MOBILE_UNET_CONFIG = (
-    Path(__file__).resolve().parents[4] / "models" / "mobile_unet" / "exports" / "mobile_unet.json"
+MODELS_DIR = Path(__file__).resolve().parents[4] / "models"
+MOBILENETV3_UNET_3CH_CONFIG = (
+    MODELS_DIR / "mobilenetv3_unet_3ch" / "exports" / "mobilenetv3_unet_3ch.json"
 )
 
 
@@ -84,6 +86,28 @@ def test_slice_context_stacks_neighbours_clamped_at_edges():
     np.testing.assert_array_equal(ctx.data[2, :, 0, 0], [2, 3, 4, 4, 4])
 
 
+def test_slice_context_5_channel_stacks_near_and_far_neighbours():
+    volume = np.arange(7, dtype=np.float32)[:, None, None] * np.ones((7, 2, 2), np.float32)
+    ctx = InferenceContext.from_nifti(volume, np.ones(3))
+
+    SliceContext25D5Channel().forward(ctx, offset=[1, 3])
+
+    assert ctx.data.shape == (5, 7, 2, 2)
+    np.testing.assert_array_equal(ctx.data[0, :, 0, 0], [0, 0, 0, 0, 1, 2, 3])
+    np.testing.assert_array_equal(ctx.data[1, :, 0, 0], [0, 0, 1, 2, 3, 4, 5])
+    np.testing.assert_array_equal(ctx.data[2, :, 0, 0], [0, 1, 2, 3, 4, 5, 6])
+    np.testing.assert_array_equal(ctx.data[3, :, 0, 0], [1, 2, 3, 4, 5, 6, 6])
+    np.testing.assert_array_equal(ctx.data[4, :, 0, 0], [3, 4, 5, 6, 6, 6, 6])
+
+
+def test_every_exported_model_has_its_pipeline_config():
+    """The worker loads ``MODEL_PATH.with_suffix(".json")``; a missing one silently means no preprocessing."""
+    onnx_files = [p for p in MODELS_DIR.glob("*/exports/*.onnx") if p.parts[-3] != "legacy"]
+    assert onnx_files
+    for onnx in onnx_files:
+        assert onnx.with_suffix(".json").exists(), onnx
+
+
 def test_zscore_per_channel():
     data = np.stack([np.arange(10.0), np.arange(10.0) * 5 + 3]).reshape(2, 10, 1, 1)
     ctx = InferenceContext.from_nifti(data.astype(np.float32), np.ones(3))
@@ -132,9 +156,9 @@ def test_sliding_window_2d_stitches_tiles_into_slice_labels():
     assert [c.args[0] for c in progress.put.call_args_list] == [(1, 3), (2, 3), (3, 3)]
 
 
-def test_mobile_unet_config_end_to_end(tmp_path):
+def test_mobilenetv3_unet_3ch_config_end_to_end(tmp_path):
     """The shipped config runs end to end and returns labels on the input grid."""
-    config = json.loads(MOBILE_UNET_CONFIG.read_text())
+    config = json.loads(MOBILENETV3_UNET_3CH_CONFIG.read_text())
     scan = np.zeros((40, 36, 30), dtype=np.float32)
     scan[10:25, 10:25, 8:20] = 1000.0
     affine = np.diag([-0.6, 0.6, 0.6, 1.0])
