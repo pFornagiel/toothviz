@@ -51,6 +51,22 @@ def default_executable() -> Path:
     return release / "linux-unpacked" / "toothviz"
 
 
+def print_backend_log(work: Path) -> None:
+    """Show the end of the backend's log, to explain a failure."""
+    if sys.platform == "win32":
+        base = Path(os.environ["APPDATA"])
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = work  # XDG_CONFIG_HOME
+    log = base / "ToothViz" / "logs" / "app.log"
+    if log.exists():
+        lines = log.read_text(errors="replace").splitlines()
+        print(f"\n--- last lines of {log} ---", *lines[-80:], sep="\n")
+    else:
+        print(f"\nNo backend log at {log}")
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -254,6 +270,9 @@ def main() -> int:
             return False
 
         wait_for("the backend to shut down", 30, backend_gone)
+    except BaseException:
+        print_backend_log(work)
+        raise
     finally:
         if app.poll() is None:
             app.kill()

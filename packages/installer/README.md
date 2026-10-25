@@ -7,7 +7,7 @@ and the segmentation model), so users don't install Python, uv or Node.
 | OS      | File                                    | What the user does                               |
 |---------|-----------------------------------------|--------------------------------------------------|
 | Windows | `ToothViz-Setup-<version>-windows-x64.exe` | Double-click it. It installs and starts ToothViz. |
-| macOS   | `ToothViz-<version>-macos-<arch>.dmg`   | Open it, drag ToothViz into Applications.        |
+| macOS   | `ToothViz-<version>-macos-arm64.dmg`    | Open it, drag ToothViz into Applications.        |
 | Linux   | `ToothViz-<version>-linux-x86_64.AppImage` | Make it executable, double-click it.           |
 | Linux   | `ToothViz-<version>-linux-amd64.deb`    | Debian/Ubuntu: open it with the software installer. |
 
@@ -33,11 +33,15 @@ It runs these steps:
 
 ### All platforms at once (GitHub Actions)
 
-`.github/workflows/installer.yml` builds on Windows, macOS (Apple Silicon and
-Intel) and Linux. Each job installs its installer the way a user would and runs
+`.github/workflows/installer.yml` builds on Windows, macOS (Apple Silicon) and
+Linux. Each job installs its installer the way a user would and runs
 the smoke test, and an extra job tests the Linux builds on Ubuntu 24.04. Start
 it from the Actions tab ("Installers" → "Run workflow"), or push a `v*` tag.
 The installers and a screenshot of each running app are attached to the run.
+
+Intel Macs aren't supported: onnxruntime 1.24 (the version in `uv.lock`) has
+no wheels for them. Supporting them would mean pinning an older onnxruntime
+for that platform.
 
 ## Checking a build
 
@@ -75,7 +79,7 @@ models/                      lite_mobile_unet_5ch ONNX model
 When a packaged app has `resources/backend/toothviz-backend`, Electron starts
 it in place of `uv run uvicorn`, with the same environment variables. Dev mode
 (`make desktop-dev`) and `make desktop-dist` still use uv as before. The
-backend watches its stdin and exits once Electron is gone, even after a crash.
+backend watches the Electron process and exits once it's gone, even after a crash.
 
 User data (scans, database) and logs live in the per-user folder, which is
 kept when the app is uninstalled or updated:

@@ -27,8 +27,8 @@ jobs:
           # The oldest supported Ubuntu, so the Linux build runs on newer glibc too.
           - { name: Linux, os: ubuntu-22.04 }
           - { name: Windows, os: windows-latest }
+          # No Intel macOS: onnxruntime 1.24 ships no wheels for it.
           - { name: macOS Apple Silicon, os: macos-latest }
-          - { name: macOS Intel, os: macos-15-intel }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +43,10 @@ jobs:
 
       - name: Build installer
         run: uv run python packages/installer/build.py
+        env:
+          # electron-builder skips all signing on PRs, even the ad-hoc macOS
+          # signature the app needs to open. Sign so PR builds match releases.
+          CSC_FOR_PULL_REQUEST: "true"
 
       - name: Test the AppImage
         if: runner.os == 'Linux'
@@ -85,6 +89,7 @@ jobs:
   test-ubuntu-24:
     name: Test Linux on Ubuntu 24.04
     needs: build
+    if: ${{ !cancelled() }} # only needs the Linux build, not every platform
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

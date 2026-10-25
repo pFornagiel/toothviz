@@ -15,6 +15,8 @@ module.exports = {
   appId: "com.tooth.cbct",
   productName: "ToothViz",
   extraMetadata: {
+    // Windows install folder (%LOCALAPPDATA%\Programs\toothviz) and Linux package name.
+    name: "toothviz",
     // Electron names the user data folder (scans, database, logs) after this:
     // ~/.config/ToothViz, %APPDATA%\ToothViz, ~/Library/Application Support/ToothViz.
     productName: "ToothViz",
