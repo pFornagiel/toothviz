@@ -96,12 +96,12 @@ export class BackendManager {
 
     const bundled = this.bundledBackend();
     this.proc = bundled
-      ? // Host and port come from env. The backend exits when its stdin
-        // closes, so it cannot outlive a crashed Electron.
-        spawn(bundled, ["--watch-stdin"], {
+      ? // Host and port come from env. The flag makes the backend exit
+        // with Electron, so it cannot outlive a crash.
+        spawn(bundled, ["--exit-with-parent"], {
           cwd: applicationRoot,
           env,
-          stdio: ["pipe", "pipe", "pipe"],
+          stdio: ["ignore", "pipe", "pipe"],
           windowsHide: true,
         })
       : spawn("uv", args, {

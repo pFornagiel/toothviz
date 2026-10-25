@@ -9,16 +9,28 @@ import multiprocessing
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 
 
-def _stop_when_stdin_closes(server) -> None:
+def _stop_when_parent_exits(server) -> None:
     """Shut down once Electron is gone, even if it crashed without killing us.
 
-    Electron holds the write end of our stdin; the OS closes it when Electron
-    exits for any reason, which ends this read.
+    Not done by reading a stdin pipe: on Windows a blocked pipe read stalls
+    the worker processes from starting.
     """
-    sys.stdin.buffer.read()
+    parent = os.getppid()
+    if sys.platform == "win32":
+        import ctypes
+
+        synchronize, infinite = 0x00100000, 0xFFFFFFFF
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(synchronize, False, parent)
+        kernel32.WaitForSingleObject(handle, infinite)  # returns at once if already gone
+    else:
+        # An orphaned process is re-parented, so its parent pid changes.
+        while os.getppid() == parent:
+            time.sleep(1)
     server.should_exit = True
 
 
@@ -43,8 +55,8 @@ def main() -> None:
             access_log=False,
         )
     )
-    if "--watch-stdin" in sys.argv:
-        threading.Thread(target=_stop_when_stdin_closes, args=(server,), daemon=True).start()
+    if "--exit-with-parent" in sys.argv:
+        threading.Thread(target=_stop_when_parent_exits, args=(server,), daemon=True).start()
     server.run()
 
 
