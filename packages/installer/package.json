@@ -1,0 +1,9 @@
+{
+  "name": "@tooth/installer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Builds the self-contained ToothViz installers (see README.md)",
+  "devDependencies": {
+    "electron-builder": "26.17.0"
+  }
+}

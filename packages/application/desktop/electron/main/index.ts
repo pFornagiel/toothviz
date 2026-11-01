@@ -93,10 +93,10 @@ async function bootstrap(): Promise<void> {
     const message =
       err instanceof Error ? err.message : "Failed to start application";
     console.error(message, err);
-    dialog.showErrorBox(
-      "ToothViz - startup failed",
-      `${message}\n\nEnsure Python 3.11+, uv, and backend dependencies are installed (see setup.md).`,
-    );
+    const hint = app.isPackaged
+      ? `Details are in the log files in:\n${path.join(app.getPath("userData"), "logs")}`
+      : "Ensure Python 3.11+, uv, and backend dependencies are installed (see setup.md).";
+    dialog.showErrorBox("ToothViz - startup failed", `${message}\n\n${hint}`);
     app.quit();
   }
 }

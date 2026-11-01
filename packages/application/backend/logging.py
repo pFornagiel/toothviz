@@ -1,9 +1,11 @@
 import logging.config
+import os
 from pathlib import Path
 
 def setup_logging(module_name: str = "app"):
     _repo_root = Path(__file__).resolve().parents[3]
-    log_dir = _repo_root / "packages" / "application" / "logs"
+    # Installed builds live in read-only folders, so they point this elsewhere.
+    log_dir = Path(os.getenv("TOOTH_LOG_DIR", _repo_root / "packages" / "application" / "logs"))
     log_dir.mkdir(parents=True, exist_ok=True)
 
     LOGGING_CONFIG = {
