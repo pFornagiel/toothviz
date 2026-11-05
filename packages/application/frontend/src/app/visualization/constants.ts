@@ -26,6 +26,15 @@ export const DEFAULT_BACK_COLOR_DARK: [number, number, number, number] = [0, 0, 
 export const DEFAULT_SHOW_3D_CROSSHAIR = true;
 export const DEFAULT_CROSSHAIR_WIDTH = 0.2;
 export const DEFAULT_CROSSHAIR_COLOR = "#ff0000";
+// Saturated or white only: grays and dark tones would get lost on a grayscale scan.
+export const CROSSHAIR_COLOR_OPTIONS = [
+  { name: "Red", value: DEFAULT_CROSSHAIR_COLOR },
+  { name: "Yellow", value: "#ffd600" },
+  { name: "Green", value: "#00e676" },
+  { name: "Cyan", value: "#00e5ff" },
+  { name: "Magenta", value: "#ff40ff" },
+  { name: "White", value: "#ffffff" },
+];
 // Black gap between the 2D/3D tiles, in canvas pixels (the background shows through).
 export const DEFAULT_TILE_MARGIN = 4;
 

@@ -1,6 +1,5 @@
 import { useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
-import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
 import { hexToRgba } from "../../utils/hexToRgba";
 import {
   DEFAULT_BACK_COLOR_DARK,
@@ -31,10 +30,8 @@ function applyCrosshairVisibility(nv: NiiVueGPU, visible: boolean): void {
  */
 export default function useSceneControls({
   nvRef,
-  queueNvUpdate,
 }: {
   nvRef: RefObject<NiiVueGPU | null>;
-  queueNvUpdate: QueueNvUpdate;
 }): SceneControls {
   const [showCrosshair, setShowCrosshair] = useState(DEFAULT_SHOW_3D_CROSSHAIR);
   const [crosshairColor, setCrosshairColor] = useState(DEFAULT_CROSSHAIR_COLOR);
@@ -57,9 +54,7 @@ export default function useSceneControls({
     }
 
     setCrosshairColor(value);
-    queueNvUpdate(NvUpdateKey.CrosshairColor, () => {
-      nv.crosshairColor = hexToRgba(value);
-    });
+    nv.crosshairColor = hexToRgba(value);
   };
 
   const reset = () => {

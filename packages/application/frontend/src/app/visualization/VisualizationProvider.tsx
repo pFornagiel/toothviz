@@ -82,7 +82,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   const viewLayout = useViewLayoutControls({ nvRef });
   const volumeDisplay = useVolumeDisplayControls({ nvRef, queueNvUpdate });
   const teeth = useToothSelectionControls({ nvRef, queueNvUpdate });
-  const scene = useSceneControls({ nvRef, queueNvUpdate });
+  const scene = useSceneControls({ nvRef });
   const clipPlane = useClipPlaneControls({ nvRef, queueNvUpdate });
   const render = useRenderControls({ nvRef, queueNvUpdate });
 

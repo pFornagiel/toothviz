@@ -9,7 +9,6 @@ export enum NvUpdateKey {
   RenderZoom = "render_zoom",
   ClipPlane = "clip_plane",
   ToothLabels = "tooth_labels",
-  CrosshairColor = "crosshair_color",
 }
 
 export type QueueNvUpdate = (key: NvUpdateKey, apply: () => void) => void;

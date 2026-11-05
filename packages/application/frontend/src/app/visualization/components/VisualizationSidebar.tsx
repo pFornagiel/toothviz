@@ -61,6 +61,7 @@ import {
   slicePickMessage,
 } from "../pickModeCopy";
 import { ClearSelectionDialog } from "./ClearSelectionDialog";
+import { CrosshairColorPicker } from "./CrosshairColorPicker";
 import { ResetViewDialog } from "./ResetViewDialog";
 import { SelectAllDialog } from "./SelectAllDialog";
 import { useVisualization } from "../VisualizationProvider";
@@ -596,23 +597,19 @@ export function VisualizationSidebar() {
             <ControlSection value="scene" icon={Crosshair} title="Scene">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground">Crosshair</span>
-                <Switch checked={scene.showCrosshair} onCheckedChange={scene.handleCrosshairToggle} />
+                <div className="flex items-center gap-2">
+                  <CrosshairColorPicker
+                    value={scene.crosshairColor}
+                    onChange={scene.handleCrosshairColorChange}
+                    disabled={!scene.showCrosshair}
+                  />
+                  <Switch
+                    checked={scene.showCrosshair}
+                    aria-label="Crosshair"
+                    onCheckedChange={scene.handleCrosshairToggle}
+                  />
+                </div>
               </div>
-              <label
-                className={cn(
-                  "flex items-center justify-between",
-                  !scene.showCrosshair && "opacity-50",
-                )}
-              >
-                <span className="text-sm text-foreground">Crosshair color</span>
-                <input
-                  type="color"
-                  value={scene.crosshairColor}
-                  disabled={!scene.showCrosshair}
-                  onChange={(e) => scene.handleCrosshairColorChange(e.target.value)}
-                  className="h-6 w-10 cursor-pointer rounded border border-border bg-transparent p-0.5 disabled:cursor-not-allowed"
-                />
-              </label>
             </ControlSection>
           </Accordion>
         </fieldset>
