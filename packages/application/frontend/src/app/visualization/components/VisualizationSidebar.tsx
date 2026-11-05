@@ -42,7 +42,6 @@ import { formatFdiList, sameToothSelection } from "../selectionSummary";
 import {
   SliceTypeKey,
   SLICE_TYPE_LABELS,
-  CROSSHAIR_WIDTH_RANGE,
   OPACITY_RANGE,
   CLIP_DEPTH_RANGE,
   CLIP_AZIMUTH_RANGE,
@@ -564,7 +563,7 @@ export function VisualizationSidebar() {
               <ControlSection value="clip" icon={Scissors} title="3D Clip Plane">
                 <SliderRow
                   label="Depth"
-                  valueLabel={clip.clipPlaneDepth.toFixed(2)}
+                  valueLabel={clip.clipPlaneDepth.toFixed(3)}
                   value={clip.clipPlaneDepth}
                   min={CLIP_DEPTH_RANGE.min}
                   max={CLIP_DEPTH_RANGE.max}
@@ -599,16 +598,21 @@ export function VisualizationSidebar() {
                 <span className="text-sm text-foreground">Crosshair</span>
                 <Switch checked={scene.showCrosshair} onCheckedChange={scene.handleCrosshairToggle} />
               </div>
-              <SliderRow
-                label="Crosshair width"
-                valueLabel={`${scene.crosshairWidth}px`}
-                value={scene.crosshairWidth}
-                min={CROSSHAIR_WIDTH_RANGE.min}
-                max={CROSSHAIR_WIDTH_RANGE.max}
-                step={CROSSHAIR_WIDTH_RANGE.step}
-                onChange={scene.handleCrosshairWidthChange}
-                disabled={!scene.showCrosshair}
-              />
+              <label
+                className={cn(
+                  "flex items-center justify-between",
+                  !scene.showCrosshair && "opacity-50",
+                )}
+              >
+                <span className="text-sm text-foreground">Crosshair color</span>
+                <input
+                  type="color"
+                  value={scene.crosshairColor}
+                  disabled={!scene.showCrosshair}
+                  onChange={(e) => scene.handleCrosshairColorChange(e.target.value)}
+                  className="h-6 w-10 cursor-pointer rounded border border-border bg-transparent p-0.5 disabled:cursor-not-allowed"
+                />
+              </label>
             </ControlSection>
           </Accordion>
         </fieldset>

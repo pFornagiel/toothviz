@@ -1,9 +1,11 @@
 import { useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
+import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
+import { hexToRgba } from "../../utils/hexToRgba";
 import {
   DEFAULT_BACK_COLOR_DARK,
   DEFAULT_SHOW_3D_CROSSHAIR,
-  DEFAULT_CROSSHAIR_WIDTH,
+  DEFAULT_CROSSHAIR_COLOR,
   DEFAULT_PAN2D_XYZMM,
   DEFAULT_CROSSHAIR_POS,
 } from "../constants";
@@ -11,8 +13,9 @@ import {
 export interface SceneControls {
   showCrosshair: boolean;
   handleCrosshairToggle: () => void;
-  crosshairWidth: number;
-  handleCrosshairWidthChange: (value: number) => void;
+  /** Crosshair colour as `#rrggbb`. */
+  crosshairColor: string;
+  handleCrosshairColorChange: (value: string) => void;
   /** Restores crosshair, background, pan/zoom-2D, and crosshair position. */
   reset: () => void;
 }
@@ -23,16 +26,18 @@ function applyCrosshairVisibility(nv: NiiVueGPU, visible: boolean): void {
 }
 
 /**
- * Scene-level toggles (crosshair visibility/width) pushed onto the niivue
+ * Scene-level toggles (crosshair visibility/colour) pushed onto the niivue
  * instance. `reset` restores defaults including 2D pan and crosshair center.
  */
 export default function useSceneControls({
   nvRef,
+  queueNvUpdate,
 }: {
   nvRef: RefObject<NiiVueGPU | null>;
+  queueNvUpdate: QueueNvUpdate;
 }): SceneControls {
   const [showCrosshair, setShowCrosshair] = useState(DEFAULT_SHOW_3D_CROSSHAIR);
-  const [crosshairWidth, setCrosshairWidth] = useState(DEFAULT_CROSSHAIR_WIDTH);
+  const [crosshairColor, setCrosshairColor] = useState(DEFAULT_CROSSHAIR_COLOR);
 
   const handleCrosshairToggle = () => {
     const nv = nvRef.current;
@@ -45,14 +50,16 @@ export default function useSceneControls({
     applyCrosshairVisibility(nv, newValue);
   };
 
-  const handleCrosshairWidthChange = (value: number) => {
+  const handleCrosshairColorChange = (value: string) => {
     const nv = nvRef.current;
     if (!nv) {
       return;
     }
 
-    setCrosshairWidth(value);
-    nv.crosshairWidth = value;
+    setCrosshairColor(value);
+    queueNvUpdate(NvUpdateKey.CrosshairColor, () => {
+      nv.crosshairColor = hexToRgba(value);
+    });
   };
 
   const reset = () => {
@@ -62,10 +69,9 @@ export default function useSceneControls({
     }
 
     setShowCrosshair(DEFAULT_SHOW_3D_CROSSHAIR);
-    setCrosshairWidth(DEFAULT_CROSSHAIR_WIDTH);
 
     applyCrosshairVisibility(nv, DEFAULT_SHOW_3D_CROSSHAIR);
-    nv.crosshairWidth = DEFAULT_CROSSHAIR_WIDTH;
+    handleCrosshairColorChange(DEFAULT_CROSSHAIR_COLOR);
     nv.backgroundColor = DEFAULT_BACK_COLOR_DARK;
     nv.pan2Dxyzmm = [...DEFAULT_PAN2D_XYZMM];
     nv.crosshairPos = [...DEFAULT_CROSSHAIR_POS];
@@ -74,8 +80,8 @@ export default function useSceneControls({
   return {
     showCrosshair,
     handleCrosshairToggle,
-    crosshairWidth,
-    handleCrosshairWidthChange,
+    crosshairColor,
+    handleCrosshairColorChange,
     reset,
   };
 }
