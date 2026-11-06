@@ -4,10 +4,7 @@ import { cn } from "../../components/ui/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 
 const LABEL = "Display range";
-const HELP =
-  "Values below the left handle appear black in 2D and are hidden in 3D. " +
-  "Values above the right handle appear fully white. " +
-  "Move the left handle right to hide soft tissue, or the right handle left to brighten the image.";
+const HELP = "Values below the range appear black in 2D and are hidden in 3D. Values above it appear white.";
 
 const THUMB_CLASS =
   "block size-4 rounded-full bg-primary shadow-sm ring-ring/50 hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden";
@@ -49,7 +46,7 @@ export default function DisplayRangeSlider({
           </TooltipContent>
         </Tooltip>
         <span className="ml-auto text-sm text-foreground tabular-nums">
-          {lower.toFixed(0)} – {upper.toFixed(0)}
+          {lower.toFixed(0)} to {upper.toFixed(0)}
         </span>
       </div>
       <SliderPrimitive.Root

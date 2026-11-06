@@ -31,7 +31,7 @@ afterEach(cleanup);
 describe("DisplayRangeSlider", () => {
   it("shows both ends of the range", () => {
     setup(200, 1845);
-    expect(screen.getByText("200 – 1845")).toBeInTheDocument();
+    expect(screen.getByText("200 to 1845")).toBeInTheDocument();
     expect(screen.getByRole("slider", { name: "Lower limit" })).toHaveAttribute("aria-valuenow", "200");
     expect(screen.getByRole("slider", { name: "Upper limit" })).toHaveAttribute("aria-valuenow", "1845");
   });
