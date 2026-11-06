@@ -15,6 +15,7 @@ import { Odontogram } from "react-odontogram";
 import "react-odontogram/style.css";
 import "../odontogram.css";
 import { cn } from "@/lib/utils";
+import { volumeLabel } from "../volumeLabels";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Checkbox } from "../../components/ui/checkbox";
@@ -315,7 +316,7 @@ export function VisualizationSidebar() {
           >
             {/* Volume selection */}
             {volumes.length > 0 && (
-              <ControlSection value="volumes" icon={Layers} title="Volume Selection">
+              <ControlSection value="volumes" icon={Layers} title="Layers">
                 <div className="space-y-2.5">
                   {volumes.map((vol, idx) => (
                     <label
@@ -326,7 +327,9 @@ export function VisualizationSidebar() {
                         checked={display.volumeVisibility[idx] ?? true}
                         onCheckedChange={() => display.handleVolumeVisibilityToggle(idx)}
                       />
-                      <span className="truncate">{vol.name || `Volume ${idx}`}</span>
+                      <span className="truncate" title={vol.name}>
+                        {volumeLabel(idx, teeth.overlayIndex, vol.name)}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -515,7 +518,7 @@ export function VisualizationSidebar() {
                     <SelectContent>
                       {visibleVolumeIndices.map((idx) => (
                         <SelectItem key={idx} value={String(idx)}>
-                          {volumes[idx]?.name || `Volume ${idx}`}
+                          {volumeLabel(idx, teeth.overlayIndex, volumes[idx]?.name)}
                         </SelectItem>
                       ))}
                     </SelectContent>
