@@ -42,7 +42,8 @@ const TONE_DOT: Record<ModeNoticeTone, string> = {
 
 const BAR_SURFACE: Record<"inline" | "overlay", string> = {
   inline: "bg-secondary",
-  overlay: "bg-background/90 shadow-sm backdrop-blur-md",
+  // Overlay sits on the black scan canvas — keep chrome near-black in dark mode.
+  overlay: "bg-background/90 shadow-sm backdrop-blur-md dark:bg-black/70 dark:border-white/15",
 };
 
 /**

@@ -139,7 +139,7 @@ function VisualizationView() {
                   variant="secondary"
                   size="icon"
                   onClick={() => setSidebarVisible(true)}
-                  className="absolute top-3 left-3 z-30 size-9 shadow-sm"
+                  className="absolute top-3 left-3 z-30 size-9 shadow-sm dark:border dark:border-white/15 dark:bg-black/60 dark:text-foreground dark:hover:bg-black/80"
                   title="Show controls"
                 >
                   <PanelLeftOpen className="size-5" />
@@ -183,25 +183,25 @@ function VisualizationView() {
                   variant="secondary"
                   size="icon"
                   onClick={() => setLegendVisible(true)}
-                  className="absolute top-3 right-3 z-30 size-9 shadow-sm"
+                  className="absolute top-3 right-3 z-30 size-9 shadow-sm dark:border dark:border-white/15 dark:bg-black/60 dark:text-foreground dark:hover:bg-black/80"
                   title="Show legend"
                 >
                   <PanelRightOpen className="size-5" />
                 </Button>
               )}
               {viewPhase === ViewPhase.Loading && (
-                <div className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
+                <div className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-black/70 backdrop-blur-sm">
                   <div
                     className="h-10 w-10 shrink-0 rounded-full border-2 border-primary/30 border-t-primary animate-spin"
                     aria-hidden
                   />
-                  <p className="text-sm font-medium text-muted-foreground">{statusText}</p>
+                  <p className="text-sm font-medium text-white/80">{statusText}</p>
                 </div>
               )}
               {pickFlash && (
                 <div
                   key={pickFlash.id}
-                  className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 animate-in fade-in-0 zoom-in-95 rounded-full border border-primary/30 bg-background/90 px-2.5 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md duration-150"
+                  className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 animate-in fade-in-0 zoom-in-95 rounded-full border border-primary/30 bg-background/90 px-2.5 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md duration-150 dark:border-white/15 dark:bg-black/75 dark:text-white/85"
                   role="status"
                   aria-live="polite"
                 >
