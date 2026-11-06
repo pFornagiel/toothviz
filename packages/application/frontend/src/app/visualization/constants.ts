@@ -25,6 +25,18 @@ export const DEFAULT_VISIBLE_OPACITY = 1.0;
 export const DEFAULT_BACK_COLOR_DARK: [number, number, number, number] = [0, 0, 0, 1];
 export const DEFAULT_SHOW_3D_CROSSHAIR = true;
 export const DEFAULT_CROSSHAIR_WIDTH = 0.2;
+export const DEFAULT_CROSSHAIR_COLOR = "#ff0000";
+// Saturated or white only: grays and dark tones would get lost on a grayscale scan.
+export const CROSSHAIR_COLOR_OPTIONS = [
+  { name: "Red", value: DEFAULT_CROSSHAIR_COLOR },
+  { name: "Yellow", value: "#ffd600" },
+  { name: "Green", value: "#00e676" },
+  { name: "Cyan", value: "#00e5ff" },
+  { name: "Magenta", value: "#ff40ff" },
+  { name: "White", value: "#ffffff" },
+];
+// Black gap between the 2D/3D tiles, in canvas pixels (the background shows through).
+export const DEFAULT_TILE_MARGIN = 4;
 
 export const DEFAULT_RENDER_AZIMUTH = 120;
 export const DEFAULT_RENDER_ELEVATION = 10;
@@ -39,9 +51,8 @@ export const CLIP_DEPTH_EDGE = Math.sqrt(3); // ≈1.732 - worst-case (cubic) fu
 export const RENDER_ZOOM_BUTTON_FACTOR = 1.2; // multiplicative step for the +/- buttons
 
 // Slider bounds for UI controls
-export const CROSSHAIR_WIDTH_RANGE = { min: 0.1, max: 2, step: 0.1 };
 export const OPACITY_RANGE = { min: 0, max: 1, step: 0.01 };
-export const CLIP_DEPTH_RANGE = { min: -CLIP_DEPTH_EDGE, max: CLIP_DEPTH_EDGE, step: 0.01 };
+export const CLIP_DEPTH_RANGE = { min: -CLIP_DEPTH_EDGE, max: CLIP_DEPTH_EDGE, step: 0.001 };
 export const CLIP_AZIMUTH_RANGE = { min: -90, max: 90, step: 1 };
 export const CLIP_ELEVATION_RANGE = { min: -90, max: 90, step: 1 };
 export const RENDER_AZIMUTH_RANGE = { min: 0, max: 360, step: 1 };
@@ -84,4 +95,8 @@ export const DEFAULT_OVERLAY_NAME = "overlay";
 // useVolumeDisplayControls - HU intensity fallback range and fully-hidden opacity
 export const CAL_MIN_GLOBAL_VAL = -1000;
 export const CAL_MAX_GLOBAL_VAL = 3000;
+// Lower window bound applied when a scan loads. There is no standard dental CBCT
+// preset; this rounds the lower edge of level 1131 / width 1858, a windowing
+// protocol reported for tooth segmentation on CBCT (Adv Clin Exp Med 2018;27(7)).
+export const DEFAULT_CAL_MIN = 200;
 export const HIDDEN_OPACITY = 0;

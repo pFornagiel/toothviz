@@ -42,7 +42,6 @@ import { formatFdiList, sameToothSelection } from "../selectionSummary";
 import {
   SliceTypeKey,
   SLICE_TYPE_LABELS,
-  CROSSHAIR_WIDTH_RANGE,
   OPACITY_RANGE,
   CLIP_DEPTH_RANGE,
   CLIP_AZIMUTH_RANGE,
@@ -62,6 +61,7 @@ import {
   slicePickMessage,
 } from "../pickModeCopy";
 import { ClearSelectionDialog } from "./ClearSelectionDialog";
+import { CrosshairColorPicker } from "./CrosshairColorPicker";
 import { ResetViewDialog } from "./ResetViewDialog";
 import { SelectAllDialog } from "./SelectAllDialog";
 import { useVisualization } from "../VisualizationProvider";
@@ -564,7 +564,7 @@ export function VisualizationSidebar() {
               <ControlSection value="clip" icon={Scissors} title="3D Clip Plane">
                 <SliderRow
                   label="Depth"
-                  valueLabel={clip.clipPlaneDepth.toFixed(2)}
+                  valueLabel={clip.clipPlaneDepth.toFixed(3)}
                   value={clip.clipPlaneDepth}
                   min={CLIP_DEPTH_RANGE.min}
                   max={CLIP_DEPTH_RANGE.max}
@@ -597,18 +597,19 @@ export function VisualizationSidebar() {
             <ControlSection value="scene" icon={Crosshair} title="Scene">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground">Crosshair</span>
-                <Switch checked={scene.showCrosshair} onCheckedChange={scene.handleCrosshairToggle} />
+                <div className="flex items-center gap-2">
+                  <CrosshairColorPicker
+                    value={scene.crosshairColor}
+                    onChange={scene.handleCrosshairColorChange}
+                    disabled={!scene.showCrosshair}
+                  />
+                  <Switch
+                    checked={scene.showCrosshair}
+                    aria-label="Crosshair"
+                    onCheckedChange={scene.handleCrosshairToggle}
+                  />
+                </div>
               </div>
-              <SliderRow
-                label="Crosshair width"
-                valueLabel={`${scene.crosshairWidth}px`}
-                value={scene.crosshairWidth}
-                min={CROSSHAIR_WIDTH_RANGE.min}
-                max={CROSSHAIR_WIDTH_RANGE.max}
-                step={CROSSHAIR_WIDTH_RANGE.step}
-                onChange={scene.handleCrosshairWidthChange}
-                disabled={!scene.showCrosshair}
-              />
             </ControlSection>
           </Accordion>
         </fieldset>

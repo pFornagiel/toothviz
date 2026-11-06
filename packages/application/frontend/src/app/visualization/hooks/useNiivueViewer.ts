@@ -4,10 +4,13 @@ import { SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER, DRAG_MODE } from "@niivue/ni
 import { listFiles, fileContentUrl } from "@/api/studies";
 import { resolveViewerFileIds } from "../../pipeline/viewerFiles";
 import { ViewPhase, type VisualizationLocationState } from "../types";
+import { hexToRgba } from "../../utils/hexToRgba";
 import {
   DEFAULT_BACK_COLOR_DARK,
   DEFAULT_SHOW_3D_CROSSHAIR,
   DEFAULT_CROSSHAIR_WIDTH,
+  DEFAULT_CROSSHAIR_COLOR,
+  DEFAULT_TILE_MARGIN,
   DEFAULT_RENDER_AZIMUTH,
   DEFAULT_RENDER_ELEVATION,
   VOLUME_COLORMAP,
@@ -176,6 +179,8 @@ export default function useNiivueViewer({
       is3DCrosshairVisible: DEFAULT_SHOW_3D_CROSSHAIR,
       isCrossLinesVisible: DEFAULT_SHOW_3D_CROSSHAIR,
       crosshairWidth: DEFAULT_CROSSHAIR_WIDTH,
+      crosshairColor: hexToRgba(DEFAULT_CROSSHAIR_COLOR),
+      tileMargin: DEFAULT_TILE_MARGIN,
       azimuth: DEFAULT_RENDER_AZIMUTH,
       elevation: DEFAULT_RENDER_ELEVATION,
       secondaryDragMode: DRAG_MODE.pan,

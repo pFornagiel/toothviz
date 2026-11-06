@@ -9,7 +9,13 @@ import {
   HIDDEN_OPACITY,
   DEFAULT_OVERLAY_OPACITY,
   DEFAULT_OVERLAY_NAME,
+  DEFAULT_CAL_MIN,
 } from "../constants";
+
+/** Default lower window bound, unless it would leave the scan with an empty window. */
+export function resolveDefaultCalMin(calMin: number, calMax: number): number {
+  return DEFAULT_CAL_MIN < calMax ? DEFAULT_CAL_MIN : calMin;
+}
 
 /** Same resolution as tooth-selection overlay lookup. */
 function isOverlayVolumeIndex(nv: NiiVueGPU, index: number): boolean {
@@ -73,6 +79,8 @@ export default function useVolumeDisplayControls({
   // Initialised cal_min and cal_max for reset
   const initialCalMin = useRef(CAL_MIN_GLOBAL_VAL);
   const initialCalMax = useRef(CAL_MAX_GLOBAL_VAL);
+  // Sync also runs when an overlay arrives later; that must not undo the user's windowing.
+  const windowInitializedFor = useRef<object | null>(null);
 
   const setCalMax = useCallback(
     (value: number | undefined, setInitial: boolean = false) => {
@@ -288,8 +296,16 @@ export default function useVolumeDisplayControls({
     setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
     setCalMinGlobal(vol.globalMin);
     setCalMaxGlobal(vol.globalMax);
-    setCalMin(vol.calMin, true);
-    setCalMax(vol.calMax, true);
+    const isNewBaseVolume = windowInitializedFor.current !== vol;
+    windowInitializedFor.current = vol;
+    let calMin = vol.calMin;
+    if (isNewBaseVolume && !isOverlayVolumeIndex(nv, 0)) {
+      calMin = resolveDefaultCalMin(vol.calMin, vol.calMax);
+      // Written directly: the cal_min effect stays silent if the state already matches.
+      void nv.setVolume(0, { calMin });
+    }
+    setCalMin(calMin, isNewBaseVolume);
+    setCalMax(vol.calMax, isNewBaseVolume);
     // Initialize visibility and store opacities for all volumes
     setVolumeVisibility(nv.volumes.map(() => true));
     setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
