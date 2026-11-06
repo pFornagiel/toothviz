@@ -23,11 +23,7 @@ export function sliceAxisIndex(sliceType: number): number {
 export function zoomPan2D(nv: NiiVueGPU, nextZoom: number): number {
   const pan = nv.pan2Dxyzmm;
   const prev = pan[3] ?? 1;
-  const clamped = clamp(
-    Math.round(nextZoom * 10) / 10,
-    PAN2D_ZOOM_RANGE.min,
-    PAN2D_ZOOM_RANGE.max,
-  );
+  const clamped = clamp(nextZoom, PAN2D_ZOOM_RANGE.min, PAN2D_ZOOM_RANGE.max);
   const { extentsMin, extentsMax } = nv.model;
   const mm = nv.model.scene2mm(nv.crosshairPos);
   const pivotedPan = (axis: number): number => {

@@ -5,6 +5,7 @@ import useNiivueCanvasWheel from "@/app/visualization/hooks/useNiivueCanvasWheel
 import useNiivueMiddleButtonPan from "@/app/visualization/hooks/useNiivueMiddleButtonPan";
 import { zoomPan2D } from "@/app/visualization/hooks/niivueZoom";
 import { ViewPhase } from "@/app/visualization/types";
+import { PAN2D_ZOOM_RANGE } from "@/app/visualization/constants";
 
 vi.mock("@niivue/niivue", () => ({
   SLICE_TYPE: { AXIAL: 0, CORONAL: 1, SAGITTAL: 2, MULTIPLANAR: 3, RENDER: 4 },
@@ -99,6 +100,21 @@ describe("useNiivueCanvasWheel", () => {
     wheel({ deltaY: -100, ctrlKey: true });
     expect(nv.pan2Dxyzmm[3]).toBeGreaterThan(1);
     expect(nv.moveCrosshairInVox).not.toHaveBeenCalled();
+  });
+
+  it("zooms out by wheel all the way to the minimum", () => {
+    const { nv, wheel } = setupWheel(AXIAL_HIT);
+    for (let i = 0; i < 40; i++) {
+      wheel({ deltaY: 100, ctrlKey: true });
+    }
+    expect(nv.pan2Dxyzmm[3]).toBe(PAN2D_ZOOM_RANGE.min);
+  });
+
+  it("zooms back in by wheel from the minimum", () => {
+    const { nv, wheel } = setupWheel(AXIAL_HIT);
+    nv.pan2Dxyzmm = [0, 0, 0, PAN2D_ZOOM_RANGE.min];
+    wheel({ deltaY: -100, ctrlKey: true });
+    expect(nv.pan2Dxyzmm[3]).toBeGreaterThan(PAN2D_ZOOM_RANGE.min);
   });
 
   it.each([false, true])("zooms the 3D tile regardless of Ctrl (ctrl=%s)", (ctrlKey) => {
