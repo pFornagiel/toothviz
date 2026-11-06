@@ -3,6 +3,7 @@ import { cleanup, renderHook } from "@testing-library/react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import useNiivueCanvasWheel from "@/app/visualization/hooks/useNiivueCanvasWheel";
 import useNiivueMiddleButtonPan from "@/app/visualization/hooks/useNiivueMiddleButtonPan";
+import { zoomPan2D } from "@/app/visualization/hooks/niivueZoom";
 import { ViewPhase } from "@/app/visualization/types";
 
 vi.mock("@niivue/niivue", () => ({
@@ -28,7 +29,7 @@ function setup(hit: object) {
     pan2Dxyzmm: [0, 0, 0, 1],
     crosshairPos: [0.5, 0.5, 0.5],
     moveCrosshairInVox: vi.fn(),
-    model: { scene2mm: () => [0, 0, 0] },
+    model: { scene2mm: () => [0, 0, 0], extentsMin: [0, 0, 0], extentsMax: [0, 0, 0] },
     view: { hitTest: () => hit },
   };
   const canvasRef = { current: canvas };
@@ -39,6 +40,31 @@ function setup(hit: object) {
 afterEach(() => {
   cleanup();
   document.body.innerHTML = "";
+});
+
+describe("zoomPan2D", () => {
+  it("keeps the crosshair at the same place on screen", () => {
+    // Off-centre scan and crosshair, with the view already panned.
+    const extentsMin = [10, -40, 100];
+    const extentsMax = [90, 20, 180];
+    const crosshairMm = [70, -25, 120];
+    const nv = {
+      pan2Dxyzmm: [3, -7, 11, 1.5],
+      crosshairPos: [0, 0, 0],
+      model: { scene2mm: () => crosshairMm, extentsMin, extentsMax },
+    };
+    // NiiVue draws a tile by scaling around the scan centre, then applying the pan.
+    const screenOffset = (axis: number) => {
+      const centre = (extentsMin[axis] + extentsMax[axis]) / 2;
+      return (crosshairMm[axis] - centre + nv.pan2Dxyzmm[axis]) * nv.pan2Dxyzmm[3];
+    };
+    const before = [0, 1, 2].map(screenOffset);
+
+    zoomPan2D(nv as unknown as NiiVueGPU, 4);
+
+    expect(nv.pan2Dxyzmm[3]).toBe(4);
+    [0, 1, 2].forEach((axis) => expect(screenOffset(axis)).toBeCloseTo(before[axis]));
+  });
 });
 
 describe("useNiivueCanvasWheel", () => {
