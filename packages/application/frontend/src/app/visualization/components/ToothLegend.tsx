@@ -64,7 +64,7 @@ function LegendToothList({
                   )}
                 >
                   <span
-                    className="size-3 shrink-0 rounded-[2px] ring-1 ring-black/15 ring-inset"
+                    className="size-3 shrink-0 rounded-[2px] ring-1 ring-black/15 ring-inset dark:ring-white/20"
                     style={{ backgroundColor: entry.color }}
                     aria-hidden
                   />
@@ -164,7 +164,7 @@ export function ToothLegend() {
   return (
     <aside
       aria-label="Tooth legend"
-      className="flex h-full min-h-0 w-full min-w-0 flex-col bg-secondary"
+      className="flex h-full min-h-0 w-full min-w-0 flex-col bg-secondary dark:bg-background"
     >
       {/* Header (matches the controls sidebar header) */}
       <div className="flex items-start justify-between gap-2 border-b border-border px-4 py-4">

@@ -280,7 +280,7 @@ export function VisualizationSidebar() {
   ];
 
   return (
-    <aside className="flex h-full min-h-0 w-full min-w-0 flex-col bg-secondary">
+    <aside className="flex h-full min-h-0 w-full min-w-0 flex-col bg-secondary dark:bg-background">
       {/* Header */}
       <div className="flex items-start justify-between gap-2 border-b border-border px-4 py-4">
         <div className="min-w-0">

@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tooth } from "../icons/tooth";
+import { ThemeToggle } from "../ThemeToggle";
+
 interface PageLayoutProps {
   title?: string;
   showBackButton?: boolean;
@@ -88,6 +90,9 @@ export function PageLayout({
             )}>
             Browse
           </Button>
+        </div>
+        <div className="ml-auto flex shrink-0 items-center px-4">
+          <ThemeToggle />
         </div>
       </header>
       <main className={cn("flex-1", fullHeight && "min-h-0", mainClassName)}>{children}</main>

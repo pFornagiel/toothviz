@@ -1,6 +1,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: light;
   --font-size: 16px;
   --background: #f8fafc;
   --foreground: #1d2731;
@@ -42,20 +43,22 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #1d2731;
-  --foreground: #f8fafc;
+  /* Softened vs near-white so dark UI is less harsh next to black scan canvases. */
+  --foreground: #d7dee8;
   --card: #2d3133;
-  --card-foreground: #f8fafc;
+  --card-foreground: #d7dee8;
   --popover: #2d3133;
-  --popover-foreground: #f8fafc;
+  --popover-foreground: #d7dee8;
   --primary: #a9c7ff;
   --primary-foreground: #001b3d;
   --secondary: #3e4853;
-  --secondary-foreground: #f8fafc;
+  --secondary-foreground: #d7dee8;
   --muted: #3e4853;
-  --muted-foreground: #c2c6d4;
+  --muted-foreground: #aeb6c4;
   --accent: #3e4853;
-  --accent-foreground: #f8fafc;
+  --accent-foreground: #d7dee8;
   --destructive: #ffdad6;
   --destructive-foreground: #93000a;
   --border: #56606c;
@@ -69,11 +72,11 @@
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: #2d3133;
-  --sidebar-foreground: #f8fafc;
+  --sidebar-foreground: #d7dee8;
   --sidebar-primary: #a9c7ff;
   --sidebar-primary-foreground: #001b3d;
   --sidebar-accent: #3e4853;
-  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-accent-foreground: #d7dee8;
   --sidebar-border: #56606c;
   --sidebar-ring: #a9c7ff;
 }
