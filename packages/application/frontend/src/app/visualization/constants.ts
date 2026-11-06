@@ -101,9 +101,3 @@ export const CAL_MAX_GLOBAL_VAL = 3000;
 export const DEFAULT_CAL_MIN = 200;
 export const HIDDEN_OPACITY = 0;
 
-/** Tooltips for intensity windowing sliders (dentist-facing). */
-export const CAL_MIN_HELP =
-  "Lower brightness limit. Densities below this appear black — raise it to hide soft tissue and empty space.";
-export const CAL_MAX_HELP =
-  "Upper brightness limit. Densities above this appear white — lower it to brighten bone and teeth.";
-

@@ -50,8 +50,6 @@ import {
   RENDER_ELEVATION_RANGE,
   RENDER_ZOOM_RANGE,
   RENDER_ZOOM_BUTTON_FACTOR,
-  CAL_MIN_HELP,
-  CAL_MAX_HELP,
 } from "../constants";
 import {
   PICK_MODE_HELP_OFF,
@@ -170,7 +168,6 @@ function SliderRow({
   step,
   onChange,
   disabled,
-  tooltip,
 }: {
   label: string;
   valueLabel: string;
@@ -180,26 +177,10 @@ function SliderRow({
   step: number;
   onChange: (value: number) => void;
   disabled?: boolean;
-  tooltip?: string;
 }) {
-  const labelNode = tooltip ? (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="cursor-help border-b border-dotted border-muted-foreground/60 text-sm text-foreground">
-          {label}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-60 text-balance">
-        {tooltip}
-      </TooltipContent>
-    </Tooltip>
-  ) : (
-    <span className="text-sm text-foreground">{label}</span>
-  );
-
   return (
     <div className={cn("space-y-1.5", disabled && "opacity-50")}>
-      {labelNode}
+      <span className="text-sm text-foreground">{label}</span>
       <div className="flex items-center gap-3">
         <input
           type="range"
@@ -556,7 +537,6 @@ export function VisualizationSidebar() {
                 <>
                   <SliderRow
                     label="Cal min"
-                    tooltip={CAL_MIN_HELP}
                     valueLabel={display.cal_min.toFixed(0)}
                     value={display.cal_min}
                     min={display.cal_minGlobal}
@@ -567,7 +547,6 @@ export function VisualizationSidebar() {
                   />
                   <SliderRow
                     label="Cal max"
-                    tooltip={CAL_MAX_HELP}
                     valueLabel={display.cal_max.toFixed(0)}
                     value={display.cal_max}
                     min={display.cal_minGlobal}
