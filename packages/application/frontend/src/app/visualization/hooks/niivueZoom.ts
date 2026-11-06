@@ -15,24 +15,22 @@ export function sliceAxisIndex(sliceType: number): number {
 }
 
 /**
- * Zoom 2D tiles via pan2Dxyzmm[3], pivoting on the crosshair (same formula as NiiVue).
+ * Zoom 2D tiles via pan2Dxyzmm[3], keeping the crosshair at the same place on screen.
+ * NiiVue draws a tile by scaling around the scan centre and then applying the pan, so
+ * a point's screen offset is (mm - centre + pan) * zoom; the new pan keeps that constant.
+ * NiiVue's own wheel zoom uses a different formula, which lets the crosshair drift.
  */
 export function zoomPan2D(nv: NiiVueGPU, nextZoom: number): number {
   const pan = nv.pan2Dxyzmm;
   const prev = pan[3] ?? 1;
-  const clamped = clamp(
-    Math.round(nextZoom * 10) / 10,
-    PAN2D_ZOOM_RANGE.min,
-    PAN2D_ZOOM_RANGE.max,
-  );
-  const delta = prev - clamped;
+  const clamped = clamp(nextZoom, PAN2D_ZOOM_RANGE.min, PAN2D_ZOOM_RANGE.max);
+  const { extentsMin, extentsMax } = nv.model;
   const mm = nv.model.scene2mm(nv.crosshairPos);
-  nv.pan2Dxyzmm = [
-    pan[0] + delta * mm[0],
-    pan[1] + delta * mm[1],
-    pan[2] + delta * mm[2],
-    clamped,
-  ];
+  const pivotedPan = (axis: number): number => {
+    const offset = mm[axis] - (extentsMin[axis] + extentsMax[axis]) / 2;
+    return ((offset + pan[axis]) * prev) / clamped - offset;
+  };
+  nv.pan2Dxyzmm = [pivotedPan(0), pivotedPan(1), pivotedPan(2), clamped];
   return clamped;
 }
 

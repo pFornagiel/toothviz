@@ -21,9 +21,10 @@ import { sliceAxisIndex, zoomPan2D } from "./niivueZoom";
   Niivue registers its own `wheel` listener on the canvas to scroll slices/zoom.
   We intercept on the canvas's parent in the capture phase and call stopPropagation,
   so the event never reaches niivue's handler.
-  Plain scroll zooms the hovered tile (3D → scaleMultiplier, 2D → pan2Dxyzmm),
-  Shift+scroll nudges the clip-plane depth,
-  Ctrl/Cmd+scroll scrolls slices (since we block NiiVue's handler).
+  Plain scroll moves through the slices of the hovered 2D tile,
+  Ctrl/Cmd+scroll zooms it (pan2Dxyzmm, which NiiVue shares across all 2D tiles),
+  Shift+scroll nudges the clip-plane depth.
+  The 3D tile has no slices, so it zooms (scaleMultiplier) with or without Ctrl/Cmd.
   Re-attaches whenever the canvas mounts.
 */
 export default function useNiivueCanvasWheel({
@@ -97,17 +98,6 @@ export default function useNiivueCanvasWheel({
         return;
       }
 
-      // Slice scroll stays available because we block NiiVue's own wheel handler.
-      if (e.ctrlKey || e.metaKey) {
-        const sliceType = hitSliceType(e) ?? nv.sliceType;
-        const axis = sliceAxisIndex(sliceType);
-        const step = e.deltaY > 0 ? 1 : -1;
-        const delta = [0, 0, 0] as [number, number, number];
-        delta[axis] = step;
-        nv.moveCrosshairInVox(delta[0], delta[1], delta[2]);
-        return;
-      }
-
       const factor = direction > 0 ? RENDER_ZOOM_SCROLL_FACTOR : 1 / RENDER_ZOOM_SCROLL_FACTOR;
 
       if (hitsRenderTile(e)) {
@@ -118,6 +108,16 @@ export default function useNiivueCanvasWheel({
         );
         nv.scaleMultiplier = next;
         setRenderZoom(next);
+        return;
+      }
+
+      if (!e.ctrlKey && !e.metaKey) {
+        const sliceType = hitSliceType(e) ?? nv.sliceType;
+        const axis = sliceAxisIndex(sliceType);
+        const step = e.deltaY > 0 ? 1 : -1;
+        const delta = [0, 0, 0] as [number, number, number];
+        delta[axis] = step;
+        nv.moveCrosshairInVox(delta[0], delta[1], delta[2]);
         return;
       }
 

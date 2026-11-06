@@ -20,6 +20,7 @@ import useClipPlaneControls from "./hooks/useClipPlaneControls";
 import useRenderControls from "./hooks/useRenderControls";
 import useNiivueViewer from "./hooks/useNiivueViewer";
 import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
+import useNiivueMiddleButtonPan from "./hooks/useNiivueMiddleButtonPan";
 import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
 import useNiivueTileDoubleClick from "./hooks/useNiivueTileDoubleClick";
 import useNiivueToothPick from "./hooks/useNiivueToothPick";
@@ -134,6 +135,12 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     viewPhase: viewer.viewPhase,
     setClipPlaneDepth: clipPlane.setClipPlaneDepth,
     setRenderZoom: render.setRenderZoom,
+  });
+
+  useNiivueMiddleButtonPan({
+    canvasRef,
+    nvRef,
+    viewPhase: viewer.viewPhase,
   });
 
   useNiivueDragRotation({
