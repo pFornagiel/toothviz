@@ -88,22 +88,62 @@ export function toggleToothId(selected: string[], toothId: string): string[] {
     : [...selected, toothId];
 }
 
-/** Unique tooth class IDs present in a segmentation mask (1–32 only). */
-export function presentClassesFromImg(img: ArrayLike<number>): number[] {
-  const seen = new Uint8Array(MAX_TOOTH_CLASS + 1);
+/** Voxels per tooth class in a segmentation mask, indexed by class ID (1–32 only). */
+export function toothVoxelCounts(img: ArrayLike<number>): Uint32Array {
+  const counts = new Uint32Array(MAX_TOOTH_CLASS + 1);
   for (let i = 0; i < img.length; i++) {
     const v = img[i] | 0;
     if (v >= 1 && v <= MAX_TOOTH_CLASS) {
-      seen[v] = 1;
+      counts[v]++;
     }
   }
+  return counts;
+}
+
+/** Tooth class IDs with at least one voxel. */
+export function presentClassesFromCounts(counts: ArrayLike<number>): number[] {
   const out: number[] = [];
   for (let c = 1; c <= MAX_TOOTH_CLASS; c++) {
-    if (seen[c]) {
+    if (counts[c] > 0) {
       out.push(c);
     }
   }
   return out;
+}
+
+/** Unique tooth class IDs present in a segmentation mask (1–32 only). */
+export function presentClassesFromImg(img: ArrayLike<number>): number[] {
+  return presentClassesFromCounts(toothVoxelCounts(img));
+}
+
+/**
+ * Centre of mass of the selected teeth, or `null` when the 3D view should keep
+ * rotating around the scan centre: nothing selected, or every tooth selected.
+ * `centroids` are NiiVue's per-tooth centres in mm, keyed by FDI number.
+ */
+export function selectionCentreOfMass(
+  selectedToothIds: string[],
+  presentClassIds: number[],
+  voxelCounts: ArrayLike<number>,
+  centroids: Record<string, ArrayLike<number>> | undefined,
+): [number, number, number] | null {
+  const selected = visibleClassesFromSelection(presentClassIds, selectedToothIds);
+  if (selected.length === 0 || selected.length === presentClassIds.length) {
+    return null;
+  }
+  const sum = [0, 0, 0];
+  let total = 0;
+  for (const classId of selected) {
+    const centroid = centroids?.[String(classToFdi(classId))];
+    const voxels = voxelCounts[classId];
+    if (centroid && voxels > 0) {
+      sum[0] += centroid[0] * voxels;
+      sum[1] += centroid[1] * voxels;
+      sum[2] += centroid[2] * voxels;
+      total += voxels;
+    }
+  }
+  return total > 0 ? [sum[0] / total, sum[1] / total, sum[2] / total] : null;
 }
 
 export function classesToToothIds(classIds: number[]): string[] {

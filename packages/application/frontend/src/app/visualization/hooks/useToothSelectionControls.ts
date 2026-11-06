@@ -8,15 +8,18 @@ import {
   buildSelectionConditions,
   buildToothLabelColormap,
   classesToToothIds,
-  presentClassesFromImg,
+  presentClassesFromCounts,
+  selectionCentreOfMass,
   toggleToothId,
   toothIdToFdi,
+  toothVoxelCounts,
   visibilityKey,
   visibleClassesFromSelection,
   withColormapVisibility,
   type LabelColorMap,
 } from "../toothLabels";
 import { sameToothSelection } from "../selectionSummary";
+import { setRotationPivot } from "./niivueRotationPivot";
 
 const FILTER_DEBOUNCE_MS = 80;
 
@@ -87,13 +90,9 @@ function findOverlayIndex(nv: NiiVueGPU): number {
   return nv.volumes.length > 1 ? 1 : -1;
 }
 
-function readPresentClasses(nv: NiiVueGPU, overlayIndex: number): number[] {
-  const vol = nv.volumes[overlayIndex];
-  const img = vol?.img;
-  if (!img) {
-    return [];
-  }
-  return presentClassesFromImg(img);
+function readVoxelCounts(nv: NiiVueGPU, overlayIndex: number): Uint32Array {
+  const img = nv.volumes[overlayIndex]?.img;
+  return img ? toothVoxelCounts(img) : new Uint32Array(0);
 }
 
 
@@ -120,6 +119,7 @@ export default function useToothSelectionControls({
 
   const overlayIndexRef = useRef(-1);
   const presentClassIdsRef = useRef<number[]>([]);
+  const voxelCountsRef = useRef<Uint32Array>(new Uint32Array(0));
   const selectedToothIdsRef = useRef<string[]>([]);
   const pickFromPreviewRef = useRef(false);
   const pickModePendingGenRef = useRef(0);
@@ -243,22 +243,45 @@ export default function useToothSelectionControls({
     return pushVisibility(null, true);
   }, [pushVisibility]);
 
+  /** Rotate the 3D view around the selected teeth. Needs the colormap's centroids. */
+  const pivotOnSelection = useCallback(
+    (selected: string[]) => {
+      const nv = nvRef.current;
+      if (!nv) {
+        return;
+      }
+      const vol = nv.volumes[overlayIndexRef.current] as
+        | { colormapLabel?: RuntimeLabelColormap | null }
+        | undefined;
+      setRotationPivot(
+        nv,
+        selectionCentreOfMass(
+          selected,
+          presentClassIdsRef.current,
+          voxelCountsRef.current,
+          vol?.colormapLabel?.centroids,
+        ),
+      );
+    },
+    [nvRef],
+  );
+
   const filterToSelection = useCallback(
     (selected: string[]): Promise<void> => {
       const present = presentClassIdsRef.current;
       if (!showAllCmapRef.current || present.length === 0) {
         return Promise.resolve();
       }
-      if (selected.length === 0) {
-        return pushVisibility([], false);
-      }
       const visible = visibleClassesFromSelection(present, selected);
-      if (visible.length === present.length) {
-        return showAllTeeth();
-      }
-      return pushVisibility(visible, false);
+      const applied =
+        selected.length === 0
+          ? pushVisibility([], false)
+          : visible.length === present.length
+            ? showAllTeeth()
+            : pushVisibility(visible, false);
+      return applied.then(() => pivotOnSelection(selected));
     },
-    [pushVisibility, showAllTeeth],
+    [pushVisibility, showAllTeeth, pivotOnSelection],
   );
 
   // Rebuild cached full colormap when the mask changes; apply current visibility.
@@ -316,6 +339,7 @@ export default function useToothSelectionControls({
     if (nextOverlayIndex < 0) {
       pickModePendingGenRef.current += 1;
       setPickModePending(false);
+      voxelCountsRef.current = new Uint32Array(0);
       setPresentClassIds([]);
       setSelectedToothIds([]);
       setPickFromPreviewState(false);
@@ -329,7 +353,9 @@ export default function useToothSelectionControls({
       appliedVisibilityKeyRef.current = null;
       return;
     }
-    const present = readPresentClasses(nv, nextOverlayIndex);
+    const voxelCounts = readVoxelCounts(nv, nextOverlayIndex);
+    voxelCountsRef.current = voxelCounts;
+    const present = presentClassesFromCounts(voxelCounts);
     const allIds = classesToToothIds(present);
     const firstMask = !hadMaskRef.current && present.length > 0;
     hadMaskRef.current = present.length > 0;
@@ -474,7 +500,10 @@ export default function useToothSelectionControls({
     setPickModeBaselineToothIds([]);
     setPickModeExitIntent(null);
     void showAllTeeth();
-  }, [showAllTeeth]);
+    if (nvRef.current) {
+      setRotationPivot(nvRef.current, null);
+    }
+  }, [showAllTeeth, nvRef]);
 
   return {
     hasToothLabels,
