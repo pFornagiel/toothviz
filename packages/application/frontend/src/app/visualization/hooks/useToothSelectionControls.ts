@@ -105,9 +105,11 @@ function readVoxelCounts(nv: NiiVueGPU, overlayIndex: number): Uint32Array {
 export default function useToothSelectionControls({
   nvRef,
   queueNvUpdate,
+  volumeVisibility,
 }: {
   nvRef: RefObject<NiiVueGPU | null>;
   queueNvUpdate: QueueNvUpdate;
+  volumeVisibility: boolean[];
 }): ToothSelectionControls {
   const [presentClassIds, setPresentClassIds] = useState<number[]>([]);
   const [selectedToothIds, setSelectedToothIds] = useState<string[]>([]);
@@ -139,6 +141,10 @@ export default function useToothSelectionControls({
   presentClassIdsRef.current = presentClassIds;
   selectedToothIdsRef.current = selectedToothIds;
   pickFromPreviewRef.current = pickFromPreview;
+
+  const maskVisible = volumeVisibility[overlayIndex] ?? true;
+  const maskVisibleRef = useRef(maskVisible);
+  maskVisibleRef.current = maskVisible;
 
   const presentToothIds = classesToToothIds(presentClassIds);
   const hasToothLabels = presentToothIds.length > 0;
@@ -243,7 +249,10 @@ export default function useToothSelectionControls({
     return pushVisibility(null, true);
   }, [pushVisibility]);
 
-  /** Rotate the 3D view around the selected teeth. Needs the colormap's centroids. */
+  /**
+   * Rotate the 3D view around the selected teeth, or the scan centre while the
+   * segmentation is hidden. Needs the colormap's centroids.
+   */
   const pivotOnSelection = useCallback(
     (selected: string[]) => {
       const nv = nvRef.current;
@@ -255,16 +264,25 @@ export default function useToothSelectionControls({
         | undefined;
       setRotationPivot(
         nv,
-        selectionCentreOfMass(
-          selected,
-          presentClassIdsRef.current,
-          voxelCountsRef.current,
-          vol?.colormapLabel?.centroids,
-        ),
+        maskVisibleRef.current
+          ? selectionCentreOfMass(
+              selected,
+              presentClassIdsRef.current,
+              voxelCountsRef.current,
+              vol?.colormapLabel?.centroids,
+            )
+          : null,
       );
     },
     [nvRef],
   );
+
+  // Pick mode has not applied its picks yet, so it pivots on the earlier selection.
+  useEffect(() => {
+    pivotOnSelection(
+      pickFromPreviewRef.current ? selectionBeforePickRef.current : selectedToothIdsRef.current,
+    );
+  }, [maskVisible, pivotOnSelection]);
 
   const filterToSelection = useCallback(
     (selected: string[]): Promise<void> => {

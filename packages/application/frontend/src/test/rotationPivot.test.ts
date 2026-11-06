@@ -1,7 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
-import { fdiToClass, selectionCentreOfMass, toothVoxelCounts } from "@/app/visualization/toothLabels";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  classToFdi,
+  classToToothId,
+  fdiToClass,
+  selectionCentreOfMass,
+  toothVoxelCounts,
+} from "@/app/visualization/toothLabels";
 import { setRotationPivot } from "@/app/visualization/hooks/niivueRotationPivot";
+import useToothSelectionControls from "@/app/visualization/hooks/useToothSelectionControls";
 
 const TOOTH_11 = fdiToClass(11)!;
 const TOOTH_21 = fdiToClass(21)!;
@@ -52,6 +60,88 @@ describe("selectionCentreOfMass", () => {
       20, 40, 0,
     ]);
     expect(selectionCentreOfMass(["teeth-11"], PRESENT, COUNTS, undefined)).toBeNull();
+  });
+});
+
+describe("useToothSelectionControls rotation pivot", () => {
+  const FIRST_TOOTH = classToToothId(1)!;
+  const FIRST_CENTRE = [1, 2, 3];
+  const SCAN_CENTRE = [50, 0, 30];
+
+  async function setup() {
+    const nv = {
+      drawScene: vi.fn(),
+      updateGLVolume: vi.fn(async () => {}),
+      setColormapLabel: vi.fn(async () => {}),
+      model: {
+        extentsMin: [0, -10, 20],
+        extentsMax: [100, 10, 40],
+        pivot3D: Float32Array.of(...SCAN_CENTRE),
+      },
+      volumes: [
+        { name: "scan" },
+        {
+          name: "overlay",
+          img: [0, 1, 1, 2, 2, 3],
+          colormapLabel: {
+            lut: new Uint8ClampedArray(4),
+            min: 0,
+            max: 3,
+            centroids: {
+              [classToFdi(1)!]: FIRST_CENTRE,
+              [classToFdi(2)!]: [4, 5, 6],
+              [classToFdi(3)!]: [7, 8, 9],
+            },
+          },
+        },
+      ],
+    };
+    const nvRef = { current: nv as unknown as NiiVueGPU };
+    const hook = renderHook(
+      ({ volumeVisibility }) =>
+        useToothSelectionControls({
+          nvRef,
+          queueNvUpdate: (_key, apply) => apply(),
+          volumeVisibility,
+        }),
+      { initialProps: { volumeVisibility: [true, true] } },
+    );
+    await act(async () => hook.result.current.syncFromVolumes(nv as unknown as NiiVueGPU));
+    const pivot = () => [...nv.model.pivot3D];
+    return { hook, pivot };
+  }
+
+  async function selectOnlyFirstTooth({ hook, pivot }: Awaited<ReturnType<typeof setup>>) {
+    act(() => hook.result.current.clearSelection());
+    act(() => {
+      hook.result.current.toggleToothFromChart(FIRST_TOOTH);
+    });
+    await waitFor(() => expect(pivot()).toEqual(FIRST_CENTRE));
+  }
+
+  it("rotates around the scan centre while the segmentation is hidden", async () => {
+    const ctx = await setup();
+    await selectOnlyFirstTooth(ctx);
+
+    ctx.hook.rerender({ volumeVisibility: [true, false] });
+    expect(ctx.pivot()).toEqual(SCAN_CENTRE);
+
+    ctx.hook.rerender({ volumeVisibility: [true, true] });
+    expect(ctx.pivot()).toEqual(FIRST_CENTRE);
+  });
+
+  it("ignores selection changes until the segmentation is shown again", async () => {
+    const ctx = await setup();
+    ctx.hook.rerender({ volumeVisibility: [true, false] });
+    act(() => ctx.hook.result.current.clearSelection());
+    act(() => {
+      ctx.hook.result.current.toggleToothFromChart(FIRST_TOOTH);
+    });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 150)));
+    expect(ctx.pivot()).toEqual(SCAN_CENTRE);
+
+    ctx.hook.rerender({ volumeVisibility: [true, true] });
+    expect(ctx.pivot()).toEqual(FIRST_CENTRE);
   });
 });
 

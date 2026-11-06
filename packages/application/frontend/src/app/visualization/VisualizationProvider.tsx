@@ -82,7 +82,11 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
   // Control state hooks
   const viewLayout = useViewLayoutControls({ nvRef });
   const volumeDisplay = useVolumeDisplayControls({ nvRef, queueNvUpdate });
-  const teeth = useToothSelectionControls({ nvRef, queueNvUpdate });
+  const teeth = useToothSelectionControls({
+    nvRef,
+    queueNvUpdate,
+    volumeVisibility: volumeDisplay.volumeVisibility,
+  });
   const scene = useSceneControls({ nvRef });
   const clipPlane = useClipPlaneControls({ nvRef, queueNvUpdate });
   const render = useRenderControls({ nvRef, queueNvUpdate });
