@@ -316,7 +316,7 @@ export function VisualizationSidebar() {
           >
             {/* Volume selection */}
             {volumes.length > 0 && (
-              <ControlSection value="volumes" icon={Layers} title="Volume Selection">
+              <ControlSection value="volumes" icon={Layers} title="Layers">
                 <div className="space-y-2.5">
                   {volumes.map((vol, idx) => (
                     <label
