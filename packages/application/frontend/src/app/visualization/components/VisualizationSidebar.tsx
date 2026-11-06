@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
+import DisplayRangeSlider from "./DisplayRangeSlider";
 import "react-odontogram/style.css";
 import "../odontogram.css";
 import { cn } from "@/lib/utils";
@@ -534,28 +535,15 @@ export function VisualizationSidebar() {
                 disabled={!hasActiveVolume}
               />
               {!isMaskActive && (
-                <>
-                  <SliderRow
-                    label="Cal min"
-                    valueLabel={display.cal_min.toFixed(0)}
-                    value={display.cal_min}
-                    min={display.cal_minGlobal}
-                    max={display.cal_maxGlobal}
-                    step={1}
-                    onChange={display.handleCalMinChange}
-                    disabled={!hasActiveVolume}
-                  />
-                  <SliderRow
-                    label="Cal max"
-                    valueLabel={display.cal_max.toFixed(0)}
-                    value={display.cal_max}
-                    min={display.cal_minGlobal}
-                    max={display.cal_maxGlobal}
-                    step={1}
-                    onChange={display.handleCalMaxChange}
-                    disabled={!hasActiveVolume}
-                  />
-                </>
+                <DisplayRangeSlider
+                  lower={display.cal_min}
+                  upper={display.cal_max}
+                  min={display.cal_minGlobal}
+                  max={display.cal_maxGlobal}
+                  onLowerChange={display.handleCalMinChange}
+                  onUpperChange={display.handleCalMaxChange}
+                  disabled={!hasActiveVolume}
+                />
               )}
             </ControlSection>
 
