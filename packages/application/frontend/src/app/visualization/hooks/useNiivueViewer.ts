@@ -90,22 +90,20 @@ export default function useNiivueViewer({
 
       const volumeId = resolved.volumeFileId;
       const overlayId = resolved.overlayFileId;
-      const volumeName = resolved.volumeDisplayName ?? DEFAULT_VOLUME_NAME;
-      const overlayName = resolved.overlayDisplayName ?? DEFAULT_OVERLAY_NAME;
 
       const volumes: { url: string; name: string; opacity?: number; colormap?: string }[] = [];
 
       if (volumeId) {
         volumes.push({
           url: fileContentUrl(studyId, volumeId),
-          name: volumeName,
+          name: DEFAULT_VOLUME_NAME,
           colormap: VOLUME_COLORMAP,
         });
       }
       if (overlayId) {
         volumes.push({
           url: fileContentUrl(studyId, overlayId),
-          name: overlayName,
+          name: DEFAULT_OVERLAY_NAME,
           opacity: DEFAULT_OVERLAY_OPACITY,
           colormap: OVERLAY_COLORMAP,
         });
@@ -140,7 +138,7 @@ export default function useNiivueViewer({
       await nv.loadVolumes([
         {
           url: primaryUrl,
-          name: primary.name,
+          name: DEFAULT_VOLUME_NAME,
           colormap: VOLUME_COLORMAP,
         },
       ]);
@@ -151,7 +149,7 @@ export default function useNiivueViewer({
         blobUrlsRef.current.push(maskUrl);
         await nv.addVolume({
           url: maskUrl,
-          name: mask.name,
+          name: DEFAULT_OVERLAY_NAME,
           opacity: DEFAULT_OVERLAY_OPACITY,
           colormap: OVERLAY_COLORMAP,
         });

@@ -59,7 +59,7 @@ export default function useProcessingPreview({
 
       await nv.addVolume({
         url: fileContentUrl(studyId, overlayId),
-        name: resolved.overlayDisplayName ?? DEFAULT_OVERLAY_NAME,
+        name: DEFAULT_OVERLAY_NAME,
         opacity: DEFAULT_OVERLAY_OPACITY,
         colormap: OVERLAY_COLORMAP,
       });

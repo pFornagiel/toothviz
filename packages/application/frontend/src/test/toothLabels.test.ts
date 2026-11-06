@@ -68,8 +68,8 @@ describe("presentClassesFromImg", () => {
 describe("preview pick helpers", () => {
   it("maps location values to tooth class by overlay name", () => {
     const values = [
-      { name: "volume", value: 120 },
-      { name: "overlay", value: 9.2 },
+      { name: "Original Background", value: 120 },
+      { name: "Teeth", value: 9.2 },
     ];
     expect(toothClassFromLocationValues(values, 1)).toBe(9);
   });
@@ -81,8 +81,8 @@ describe("preview pick helpers", () => {
   });
 
   it("ignores background and out-of-range", () => {
-    expect(toothClassFromLocationValues([{ name: "overlay", value: 0 }], 0)).toBeNull();
-    expect(toothClassFromLocationValues([{ name: "overlay", value: 99 }], 0)).toBeNull();
+    expect(toothClassFromLocationValues([{ name: "Teeth", value: 0 }], 0)).toBeNull();
+    expect(toothClassFromLocationValues([{ name: "Teeth", value: 99 }], 0)).toBeNull();
   });
 
   it("toggles tooth ids", () => {

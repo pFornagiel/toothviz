@@ -89,8 +89,8 @@ export const DEFAULT_RENDER_ZOOM = 1.0;
 export const VOLUME_COLORMAP = "Gray";
 export const OVERLAY_COLORMAP = "Red";
 export const DEFAULT_OVERLAY_OPACITY = 0.5;
-export const DEFAULT_VOLUME_NAME = "volume";
-export const DEFAULT_OVERLAY_NAME = "overlay";
+export const DEFAULT_VOLUME_NAME = "Original Background";
+export const DEFAULT_OVERLAY_NAME = "Teeth";
 
 // useVolumeDisplayControls - HU intensity fallback range and fully-hidden opacity
 export const CAL_MIN_GLOBAL_VAL = -1000;
@@ -100,3 +100,10 @@ export const CAL_MAX_GLOBAL_VAL = 3000;
 // protocol reported for tooth segmentation on CBCT (Adv Clin Exp Med 2018;27(7)).
 export const DEFAULT_CAL_MIN = 200;
 export const HIDDEN_OPACITY = 0;
+
+/** Tooltips for intensity windowing sliders (dentist-facing). */
+export const CAL_MIN_HELP =
+  "Lower brightness limit. Densities below this appear black — raise it to hide soft tissue and empty space.";
+export const CAL_MAX_HELP =
+  "Upper brightness limit. Densities above this appear white — lower it to brighten bone and teeth.";
+

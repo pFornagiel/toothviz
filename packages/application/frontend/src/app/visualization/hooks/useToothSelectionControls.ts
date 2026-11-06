@@ -79,7 +79,7 @@ export interface ToothSelectionControls {
 
 function findOverlayIndex(nv: NiiVueGPU): number {
   const byName = nv.volumes.findIndex(
-    (v) => (v.name ?? "").toLowerCase() === DEFAULT_OVERLAY_NAME,
+    (v) => (v.name ?? "").toLowerCase() === DEFAULT_OVERLAY_NAME.toLowerCase(),
   );
   if (byName >= 0) {
     return byName;

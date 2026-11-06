@@ -4,6 +4,8 @@
  * Classes 1–8 → FDI 11–18, 9–16 → 21–28, 17–24 → 31–38, 25–32 → 41–48.
  */
 
+import { DEFAULT_OVERLAY_NAME } from "./constants";
+
 export const MAX_TOOTH_CLASS = 32;
 
 const UPPER_RIGHT = [11, 12, 13, 14, 15, 16, 17, 18] as const;
@@ -63,7 +65,7 @@ export function classToToothId(classId: number): string | null {
 export function toothClassFromLocationValues(
   values: ReadonlyArray<{ name?: string; value: number }>,
   overlayIndex: number,
-  overlayName: string = "overlay",
+  overlayName: string = DEFAULT_OVERLAY_NAME,
 ): number | null {
   if (values.length === 0) {
     return null;

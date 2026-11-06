@@ -20,7 +20,7 @@ export function resolveDefaultCalMin(calMin: number, calMax: number): number {
 /** Same resolution as tooth-selection overlay lookup. */
 function isOverlayVolumeIndex(nv: NiiVueGPU, index: number): boolean {
   const byName = nv.volumes.findIndex(
-    (v) => (v.name ?? "").toLowerCase() === DEFAULT_OVERLAY_NAME,
+    (v) => (v.name ?? "").toLowerCase() === DEFAULT_OVERLAY_NAME.toLowerCase(),
   );
   if (byName >= 0) {
     return index === byName;
