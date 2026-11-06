@@ -1,7 +1,8 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
-import { SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER } from "@niivue/niivue";
+import { SLICE_TYPE } from "@niivue/niivue";
 import { SliceTypeKey, DEFAULT_SLICE_TYPE } from "../constants";
+import { showMultiplanarLayout, showSingleTile } from "./niivueLayout";
 
 export interface ViewLayoutControls {
   sliceType: SliceTypeKey;
@@ -44,35 +45,22 @@ export default function useViewLayoutControls({
 
     switch (type) {
       case SliceTypeKey.Multiplanar:
-        nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
-        nv.showRender = SHOW_RENDER.ALWAYS;
-        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
+        showMultiplanarLayout(nv);
         break;
       case SliceTypeKey.Axial:
-        nv.sliceType = SLICE_TYPE.AXIAL;
+        showSingleTile(nv, SLICE_TYPE.AXIAL);
         break;
       case SliceTypeKey.Coronal:
-        nv.sliceType = SLICE_TYPE.CORONAL;
+        showSingleTile(nv, SLICE_TYPE.CORONAL);
         break;
       case SliceTypeKey.Sagittal:
-        nv.sliceType = SLICE_TYPE.SAGITTAL;
+        showSingleTile(nv, SLICE_TYPE.SAGITTAL);
         break;
       case SliceTypeKey.Render:
-        nv.sliceType = SLICE_TYPE.RENDER;
+        showSingleTile(nv, SLICE_TYPE.RENDER);
         break;
     }
   };
-
-  useEffect(() => {
-    const nv = nvRef.current;
-    if (!nv || sliceType !== SliceTypeKey.Multiplanar) {
-      return;
-    }
-
-    nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
-    nv.showRender = SHOW_RENDER.ALWAYS;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sliceType]);
 
   const reset = () => {
     handleSliceTypeChange(DEFAULT_SLICE_TYPE);

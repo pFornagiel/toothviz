@@ -35,8 +35,8 @@ export const CROSSHAIR_COLOR_OPTIONS = [
   { name: "Magenta", value: "#ff40ff" },
   { name: "White", value: "#ffffff" },
 ];
-// Black gap between the 2D/3D tiles, in canvas pixels (the background shows through).
-export const DEFAULT_TILE_MARGIN = 4;
+// Black gap between the 2D/3D tiles, as a fraction of the canvas (the background shows through).
+export const MULTIPLANAR_TILE_GAP = 0.005;
 
 export const DEFAULT_RENDER_AZIMUTH = 120;
 export const DEFAULT_RENDER_ELEVATION = 10;

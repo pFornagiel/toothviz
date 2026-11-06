@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import NiiVueGPU from "@niivue/niivue/webgl2";
-import { SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER, DRAG_MODE } from "@niivue/niivue";
+import { DRAG_MODE } from "@niivue/niivue";
 import { listFiles, fileContentUrl } from "@/api/studies";
 import { resolveViewerFileIds } from "../../pipeline/viewerFiles";
 import { ViewPhase, type VisualizationLocationState } from "../types";
@@ -10,7 +10,6 @@ import {
   DEFAULT_SHOW_3D_CROSSHAIR,
   DEFAULT_CROSSHAIR_WIDTH,
   DEFAULT_CROSSHAIR_COLOR,
-  DEFAULT_TILE_MARGIN,
   DEFAULT_RENDER_AZIMUTH,
   DEFAULT_RENDER_ELEVATION,
   VOLUME_COLORMAP,
@@ -19,6 +18,7 @@ import {
   DEFAULT_VOLUME_NAME,
   DEFAULT_OVERLAY_NAME,
 } from "../constants";
+import { showMultiplanarLayout } from "./niivueLayout";
 
 export interface NiivueViewerState {
   viewPhase: ViewPhase;
@@ -117,9 +117,7 @@ export default function useNiivueViewer({
 
         // Update UI state based on loaded volume
         onVolumesLoaded(nv);
-        nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
-        nv.showRender = SHOW_RENDER.ALWAYS;
-        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
+        showMultiplanarLayout(nv);
       } else {
         setStatusText("No viewable files found for this study");
         throw new Error("No viewable volume or overlay files are available yet.");
@@ -160,9 +158,7 @@ export default function useNiivueViewer({
       setStatusText(`Volatile mode - ${primary.name}`);
 
       onVolumesLoaded(nv);
-      nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
-      nv.showRender = SHOW_RENDER.ALWAYS;
-      nv.sliceType = SLICE_TYPE.MULTIPLANAR;
+      showMultiplanarLayout(nv);
     },
     [primary, mask, onVolumesLoaded],
   );
@@ -180,10 +176,12 @@ export default function useNiivueViewer({
       isCrossLinesVisible: DEFAULT_SHOW_3D_CROSSHAIR,
       crosshairWidth: DEFAULT_CROSSHAIR_WIDTH,
       crosshairColor: hexToRgba(DEFAULT_CROSSHAIR_COLOR),
-      tileMargin: DEFAULT_TILE_MARGIN,
       azimuth: DEFAULT_RENDER_AZIMUTH,
       elevation: DEFAULT_RENDER_ELEVATION,
       secondaryDragMode: DRAG_MODE.pan,
+      // As in CS 3D Imaging: patient's right on the left of the axial and coronal
+      // tiles, anterior on the left of the sagittal tile.
+      isRadiological: true,
       // The tooth legend is rendered in the DOM by ToothLegend instead.
       isLegendVisible: false,
     });
