@@ -8,6 +8,7 @@ import type { SceneControls } from "./hooks/useSceneControls";
 import type { ClipPlaneControls } from "./hooks/useClipPlaneControls";
 import type { RenderControls } from "./hooks/useRenderControls";
 import type { ToothSelectionControls } from "./hooks/useToothSelectionControls";
+import type { MeasurementControls } from "./hooks/useNiivueMeasurement";
 
 // Lifecycle phase of the visualization view
 export enum ViewPhase {
@@ -64,6 +65,7 @@ export interface VisualizationContextValue {
   scene: SceneControls;
   clip: ClipPlaneControls;
   render: RenderControls;
+  measure: MeasurementControls;
   onReset: () => void;
   /** Ephemeral feedback after a pick-mode toggle (slice or chart). */
   pickFlash: { id: number; message: string } | null;

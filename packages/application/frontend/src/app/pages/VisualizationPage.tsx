@@ -15,6 +15,7 @@ import {
   ViewPhase,
 } from "../visualization";
 import { PickModeExitDialog } from "../visualization/components/PickModeExitDialog";
+import { MeasureControls } from "../visualization/components/MeasureControls";
 
 /** Pixel widths — hide/show one panel does not change the other. */
 const SIDEBAR = { default: 320, min: 240, max: 480 };
@@ -78,7 +79,7 @@ export function VisualizationPage() {
 }
 
 function VisualizationView() {
-  const { canvasRef, viewer, layout, display, teeth, pickFlash } = useVisualization();
+  const { canvasRef, viewer, layout, display, teeth, measure, pickFlash } = useVisualization();
 
   const {
     viewPhase,
@@ -189,6 +190,7 @@ function VisualizationView() {
                   <PanelRightOpen className="size-5" />
                 </Button>
               )}
+              {viewPhase === ViewPhase.Ready && <MeasureControls measure={measure} />}
               {viewPhase === ViewPhase.Loading && (
                 <div className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 bg-black/70 backdrop-blur-sm">
                   <div
