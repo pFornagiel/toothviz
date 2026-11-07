@@ -34,6 +34,21 @@ export function zoomPan2D(nv: NiiVueGPU, nextZoom: number): number {
   return clamped;
 }
 
+/**
+ * Bring a point in mm to the middle of the 2D tiles when the view is zoomed or panned,
+ * where it could be out of frame. An untouched view already shows the whole scan.
+ */
+export function centerPan2D(nv: NiiVueGPU, mm: ArrayLike<number>): void {
+  const pan = nv.pan2Dxyzmm;
+  const zoom = pan[3] ?? 1;
+  if (zoom === 1 && pan[0] === 0 && pan[1] === 0 && pan[2] === 0) {
+    return;
+  }
+  const { extentsMin, extentsMax } = nv.model;
+  const centred = (axis: number): number => (extentsMin[axis] + extentsMax[axis]) / 2 - mm[axis];
+  nv.pan2Dxyzmm = [centred(0), centred(1), centred(2), zoom];
+}
+
 /** Set both 3D scaleMultiplier and 2D pan zoom (sidebar / reset). */
 export function setUnifiedZoom(nv: NiiVueGPU, zoom: number): number {
   const clamped3d = clamp(zoom, RENDER_ZOOM_RANGE.min, RENDER_ZOOM_RANGE.max);

@@ -30,6 +30,7 @@ vi.mock("@niivue/niivue/webgl2", () => ({
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     view: null,
+    model: { completedMeasurements: [] },
   })),
 }));
 

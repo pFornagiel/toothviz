@@ -28,6 +28,7 @@ import useNiivueToothPick from "./hooks/useNiivueToothPick";
 import useProcessingPreview from "./hooks/useProcessingPreview";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
 import { ViewPhase } from "./types";
+import { SliceTypeKey } from "./constants";
 
 const VisualizationContext = createContext<VisualizationContextValue | null>(null);
 
@@ -134,6 +135,18 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     onOverlayLoaded: syncAfterVolumesLoaded,
   });
 
+  // Keep a single view that already shows the plane; otherwise show all planes.
+  const currentSliceType = viewLayout.sliceType;
+  const changeSliceType = viewLayout.handleSliceTypeChange;
+  const showMeasuredPlane = useCallback(
+    (plane: SliceTypeKey | null) => {
+      if (currentSliceType !== SliceTypeKey.Multiplanar && currentSliceType !== plane) {
+        changeSliceType(SliceTypeKey.Multiplanar);
+      }
+    },
+    [currentSliceType, changeSliceType],
+  );
+
   // First of the canvas hooks: while a point is set, it blocks the ones below.
   const measure = useNiivueMeasurement({
     canvasRef,
@@ -141,6 +154,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     viewPhase: viewer.viewPhase,
     available: viewLayout.showsSlices && !teeth.pickFromPreview,
     layoutKey: viewLayout.sliceType,
+    onShowPlane: showMeasuredPlane,
   });
 
   // Wire the mouse-wheel interaction and sync with react state

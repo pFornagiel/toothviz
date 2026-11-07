@@ -1,28 +1,52 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
-import { DRAG_MODE } from "@niivue/niivue";
+import { DRAG_MODE, SLICE_TYPE } from "@niivue/niivue";
 import type { ViewPhase } from "../types";
-import { POINTER_CLICK_SLOP_PX } from "../constants";
+import { POINTER_CLICK_SLOP_PX, SliceTypeKey } from "../constants";
 import { clamp } from "../../utils/clamp";
+import { centerPan2D } from "./niivueZoom";
 
 export type MeasurePhase = "off" | "firstPoint" | "secondPoint";
 
+export interface MeasurementItem {
+  distance: number;
+  /** The plane it was measured on, or `null` for any other slice type. */
+  plane: SliceTypeKey | null;
+}
+
 export interface MeasurementControls {
   phase: MeasurePhase;
-  /** Measurements currently drawn on the slices. */
-  count: number;
+  /** Every measurement, in the order they were made. */
+  measurements: MeasurementItem[];
   /** False where measuring cannot work: pick mode, or the 3D-only view. */
   available: boolean;
   start: () => void;
   /** Leaves measuring and drops an unfinished measurement. */
   cancel: () => void;
   clear: () => void;
+  /** Removes one measurement. */
+  remove: (index: number) => void;
+  /** Moves the crosshair to a measurement and makes sure its plane is on screen. */
+  goTo: (index: number) => void;
   /** Cancels measuring and removes every measurement (Reset View). */
   reset: () => void;
 }
 
 /** A tile's edges in client (CSS pixel) coordinates. */
 type TileBounds = { left: number; top: number; right: number; bottom: number };
+
+function planeOf(sliceType: number): SliceTypeKey | null {
+  switch (sliceType) {
+    case SLICE_TYPE.AXIAL:
+      return SliceTypeKey.Axial;
+    case SLICE_TYPE.CORONAL:
+      return SliceTypeKey.Coronal;
+    case SLICE_TYPE.SAGITTAL:
+      return SliceTypeKey.Sagittal;
+    default:
+      return null;
+  }
+}
 
 const MIN_DISTANCE_MM = 0.01;
 /** A second click also fires `dblclick`, which must not expand the tile. */
@@ -46,6 +70,7 @@ export default function useNiivueMeasurement({
   viewPhase,
   available,
   layoutKey,
+  onShowPlane,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   nvRef: RefObject<NiiVueGPU | null>;
@@ -53,9 +78,11 @@ export default function useNiivueMeasurement({
   available: boolean;
   /** Tiles move when this changes, which would misplace a point already set. */
   layoutKey: string;
+  /** Makes a plane visible, when going to a measurement made on it. */
+  onShowPlane: (plane: SliceTypeKey | null) => void;
 }): MeasurementControls {
   const [phase, setPhaseState] = useState<MeasurePhase>("off");
-  const [count, setCount] = useState(0);
+  const [measurements, setMeasurements] = useState<MeasurementItem[]>([]);
   const phaseRef = useRef<MeasurePhase>("off");
   const previousDragModeRef = useRef<number | null>(null);
   const pointerIdRef = useRef(0);
@@ -71,6 +98,11 @@ export default function useNiivueMeasurement({
     setPhaseState(next);
   }, []);
 
+  const syncList = useCallback(() => {
+    const list = nvRef.current?.model.completedMeasurements ?? [];
+    setMeasurements(list.map((m) => ({ distance: m.distance, plane: planeOf(m.sliceType) })));
+  }, [nvRef]);
+
   const leave = useCallback(() => {
     const nv = nvRef.current;
     if (nv && previousDragModeRef.current !== null) {
@@ -84,8 +116,8 @@ export default function useNiivueMeasurement({
       canvasRef.current.style.cursor = "";
     }
     setPhase("off");
-    setCount(nv?.model.completedMeasurements.length ?? 0);
-  }, [canvasRef, nvRef, setPhase]);
+    syncList();
+  }, [canvasRef, nvRef, setPhase, syncList]);
 
   /** Ends measuring once NiiVue has handled the release and stored the measurement. */
   const finish = useCallback(() => {
@@ -136,13 +168,53 @@ export default function useNiivueMeasurement({
 
   const clear = useCallback(() => {
     nvRef.current?.clearMeasurements();
-    setCount(0);
-  }, [nvRef]);
+    syncList();
+  }, [nvRef, syncList]);
+
+  const remove = useCallback(
+    (index: number) => {
+      const nv = nvRef.current;
+      if (!nv) {
+        return;
+      }
+      cancel();
+      nv.model.completedMeasurements.splice(index, 1);
+      nv.drawScene();
+      syncList();
+    },
+    [cancel, nvRef, syncList],
+  );
+
+  const goTo = useCallback(
+    (index: number) => {
+      const nv = nvRef.current;
+      const measurement = nv?.model.completedMeasurements[index];
+      if (!nv || !measurement) {
+        return;
+      }
+      cancel();
+      onShowPlane(planeOf(measurement.sliceType));
+      const { startMM, endMM } = measurement;
+      const middle: [number, number, number] = [
+        (startMM[0] + endMM[0]) / 2,
+        (startMM[1] + endMM[1]) / 2,
+        (startMM[2] + endMM[2]) / 2,
+      ];
+      nv.setCrosshairPos(middle);
+      centerPan2D(nv, middle);
+    },
+    [cancel, nvRef, onShowPlane],
+  );
 
   const reset = useCallback(() => {
     cancel();
     clear();
   }, [cancel, clear]);
+
+  // A newly loaded scan starts without measurements.
+  useEffect(() => {
+    syncList();
+  }, [viewPhase, syncList]);
 
   useEffect(() => {
     if (!available) {
@@ -296,5 +368,5 @@ export default function useNiivueMeasurement({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewPhase, cancel, finish]);
 
-  return { phase, count, available, start, cancel, clear, reset };
+  return { phase, measurements, available, start, cancel, clear, remove, goTo, reset };
 }
