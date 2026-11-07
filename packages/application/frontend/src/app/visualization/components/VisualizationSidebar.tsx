@@ -11,6 +11,7 @@ import {
   Plus,
   Ruler,
   Bone,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
@@ -41,7 +42,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../components/ui/collapsible";
 import { Tooth } from "../../components/icons/tooth";
+import type { BoneDisplay } from "../hooks/useToothSelectionControls";
 import {
   MANDIBLE_CLASS,
   MAXILLA_CLASS,
@@ -175,6 +178,51 @@ function ControlSection({
 }
 
 /** Label on the left, monospace value readout on the right, slider underneath. */
+/** A jaw bone's toggle; its opacity slider stays folded away until asked for. */
+function BoneRow({
+  name,
+  display,
+  onVisibleChange,
+  onOpacityChange,
+}: {
+  name: string;
+  display: BoneDisplay;
+  onVisibleChange: (visible: boolean) => void;
+  onOpacityChange: (opacity: number) => void;
+}) {
+  return (
+    <Collapsible className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+          <Checkbox
+            checked={display.visible}
+            onCheckedChange={(checked) => onVisibleChange(checked === true)}
+          />
+          {name}
+        </label>
+        <CollapsibleTrigger
+          aria-label={`${name} opacity`}
+          className="group inline-flex size-6 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+      </div>
+      <CollapsibleContent>
+        <SliderRow
+          label="Opacity"
+          valueLabel={display.opacity.toFixed(2)}
+          value={display.opacity}
+          min={OPACITY_RANGE.min}
+          max={OPACITY_RANGE.max}
+          step={OPACITY_RANGE.step}
+          onChange={onOpacityChange}
+          disabled={!display.visible}
+        />
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 function SliderRow({
   label,
   valueLabel,
@@ -529,25 +577,13 @@ export function VisualizationSidebar() {
             {maskVisible && teeth.presentBoneClasses.length > 0 && (
               <ControlSection value="bones" icon={Bone} title="Jaw Bones">
                 {teeth.presentBoneClasses.map((bone) => (
-                  <div key={bone} className="space-y-2">
-                    <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
-                      <Checkbox
-                        checked={teeth.boneDisplays[bone].visible}
-                        onCheckedChange={(c) => teeth.setBoneVisible(bone, c === true)}
-                      />
-                      {BONE_NAMES[bone]}
-                    </label>
-                    <SliderRow
-                      label="Opacity"
-                      valueLabel={teeth.boneDisplays[bone].opacity.toFixed(2)}
-                      value={teeth.boneDisplays[bone].opacity}
-                      min={OPACITY_RANGE.min}
-                      max={OPACITY_RANGE.max}
-                      step={OPACITY_RANGE.step}
-                      onChange={(v) => teeth.setBoneOpacity(bone, v)}
-                      disabled={!teeth.boneDisplays[bone].visible}
-                    />
-                  </div>
+                  <BoneRow
+                    key={bone}
+                    name={BONE_NAMES[bone]}
+                    display={teeth.boneDisplays[bone]}
+                    onVisibleChange={(visible) => teeth.setBoneVisible(bone, visible)}
+                    onOpacityChange={(opacity) => teeth.setBoneOpacity(bone, opacity)}
+                  />
                 ))}
               </ControlSection>
             )}

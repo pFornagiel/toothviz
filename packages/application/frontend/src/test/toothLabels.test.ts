@@ -126,6 +126,18 @@ describe("jaw bones in the label colormap", () => {
     expect(alphaOf(cmap, 1)).toBe(255);
   });
 
+  it("gives hidden bones no colour, which would bleach the teeth touching them", () => {
+    const channels = (cmap: { R: number[]; G: number[]; B: number[]; I: number[] }, id: number) => {
+      const i = cmap.I.indexOf(id);
+      return [cmap.R[i], cmap.G[i], cmap.B[i]];
+    };
+    expect(channels(base, MANDIBLE_CLASS)).toEqual([0, 0, 0]);
+    const cmap = withColormapVisibility(base, null, { [MAXILLA_CLASS]: 40 });
+    expect(channels(cmap, MANDIBLE_CLASS)).toEqual([0, 0, 0]);
+    expect(channels(cmap, METAL_CLASS)).toEqual([0, 0, 0]);
+    expect(channels(cmap, MAXILLA_CLASS)).not.toEqual([0, 0, 0]);
+  });
+
   it("keeps bones independent of the tooth selection", () => {
     const cmap = withColormapVisibility(base, [], { [MAXILLA_CLASS]: 40 });
     expect(alphaOf(cmap, 1)).toBe(0);

@@ -340,9 +340,9 @@ export function buildToothLabelColormap(
   // Hidden by default. NiiVue clamps a label above the colormap's range to its last
   // entry, so without these entries a bone voxel would be drawn as a tooth.
   for (const classId of presentNonToothClassIds) {
-    R.push(BONE_RGB[0]);
-    G.push(BONE_RGB[1]);
-    B.push(BONE_RGB[2]);
+    R.push(0);
+    G.push(0);
+    B.push(0);
     A.push(0);
     I.push(classId);
     labels.push(NON_TOOTH_LABELS[classId]);
@@ -358,17 +358,26 @@ export function withColormapVisibility(
   boneAlphas: BoneAlphas = {},
 ): LabelColorMap {
   const visible = visibleClassIds === null ? null : new Set(visibleClassIds);
+  const A = base.I.map((id) => {
+    if (id === 0) {
+      return 0;
+    }
+    if (id > MAX_TOOTH_CLASS) {
+      return boneAlphas[id as BoneClass] ?? 0;
+    }
+    return visible === null || visible.has(id) ? 255 : 0;
+  });
+  // The mask texture is interpolated without premultiplying, so even at alpha 0 a class's
+  // colour bleeds into the neighbouring voxels. A hidden bone must stay black, or the teeth
+  // it touches look bleached.
+  const boneChannel = (channel: number[], bone: number) =>
+    channel.map((v, i) => (base.I[i] > MAX_TOOTH_CLASS ? (A[i] > 0 ? bone : 0) : v));
   return {
     ...base,
-    A: base.I.map((id) => {
-      if (id === 0) {
-        return 0;
-      }
-      if (id > MAX_TOOTH_CLASS) {
-        return boneAlphas[id as BoneClass] ?? 0;
-      }
-      return visible === null || visible.has(id) ? 255 : 0;
-    }),
+    R: boneChannel(base.R, BONE_RGB[0]),
+    G: boneChannel(base.G, BONE_RGB[1]),
+    B: boneChannel(base.B, BONE_RGB[2]),
+    A,
   };
 }
 
