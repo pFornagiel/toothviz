@@ -51,7 +51,9 @@ honored it). The patch fades the composited background by
 - `NVViewGL @@ -2704` (SHARED hunk, also D) — the `colAcc *= backOpacity;` line.
 - `NVViewGL @@ -2987` — `draw(..., __backOpacity = 1)` parameter.
 - `NVViewGL @@ -3006` — uploads the clamped uniform.
-- `NVViewGL @@ -3814` — draw-loop caller passes `x.opacity ?? 1` (the background NVImage).
+- `NVViewGL @@ -3814` — draw-loop caller passes `x.renderOpacity ?? x.opacity ?? 1` (the
+  background NVImage). `renderOpacity` is a 3D-only override: the jaw bone view sets it to 0 to
+  drop the scan from the 3D render while 2D slices keep showing it.
 
 ### D. Clip planes affect ALL volumes, not just the background
 

@@ -6,7 +6,7 @@ import {
   classToToothId,
   fdiToClass,
   selectionCentreOfMass,
-  toothVoxelCounts,
+  maskVoxelCounts,
 } from "@/app/visualization/toothLabels";
 import { setRotationPivot } from "@/app/visualization/hooks/niivueRotationPivot";
 import useToothSelectionControls from "@/app/visualization/hooks/useToothSelectionControls";
@@ -27,13 +27,14 @@ const CENTROIDS = {
   36: [100, 100, 100],
 };
 
-describe("toothVoxelCounts", () => {
-  it("counts voxels per tooth and ignores other labels", () => {
-    const counts = toothVoxelCounts([0, 1, 1, 2, 33, 40, 1]);
+describe("maskVoxelCounts", () => {
+  it("counts voxels per class and ignores unknown labels", () => {
+    const counts = maskVoxelCounts([0, 1, 1, 2, 34, 40, 1]);
     expect(counts[1]).toBe(3);
     expect(counts[2]).toBe(1);
     expect(counts[0]).toBe(0);
-    expect(counts.length).toBe(33);
+    expect(counts[34]).toBe(1);
+    expect(counts.length).toBe(36);
   });
 });
 

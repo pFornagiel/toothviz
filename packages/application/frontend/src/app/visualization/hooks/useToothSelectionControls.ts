@@ -2,20 +2,29 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import type { ToothConditionGroup } from "react-odontogram";
 import { NvUpdateKey, type QueueNvUpdate } from "./useNvUpdateQueue";
-import { DEFAULT_OVERLAY_NAME } from "../constants";
 import {
+  DEFAULT_BONE_OPACITY,
+  DEFAULT_OVERLAY_NAME,
+  DEFAULT_OVERLAY_OPACITY,
+} from "../constants";
+import {
+  BONE_CLASSES,
+  boneOpacityToAlpha,
   buildLabelLut,
   buildSelectionConditions,
   buildToothLabelColormap,
   classesToToothIds,
   presentClassesFromCounts,
   selectionCentreOfMass,
+  maskVoxelCounts,
+  presentNonToothClassesFromCounts,
   toggleToothId,
   toothIdToFdi,
-  toothVoxelCounts,
   visibilityKey,
   visibleClassesFromSelection,
   withColormapVisibility,
+  type BoneAlphas,
+  type BoneClass,
   type LabelColorMap,
 } from "../toothLabels";
 import { sameToothSelection } from "../selectionSummary";
@@ -34,7 +43,33 @@ type RuntimeLabelColormap = {
 export type PickModeExitIntent = "apply" | "discard" | "choose";
 export type PickModeExitConfirmIntent = Exclude<PickModeExitIntent, "choose">;
 
+export interface BoneDisplay {
+  visible: boolean;
+  opacity: number;
+}
+export type BoneDisplays = Record<BoneClass, BoneDisplay>;
+
+function defaultBoneDisplays(): BoneDisplays {
+  return Object.fromEntries(
+    BONE_CLASSES.map((c) => [c, { visible: false, opacity: DEFAULT_BONE_OPACITY }]),
+  ) as BoneDisplays;
+}
+
+function boneAlphasFrom(displays: BoneDisplays, overlayOpacity: number): BoneAlphas {
+  return Object.fromEntries(
+    BONE_CLASSES.map((c) => [
+      c,
+      displays[c].visible ? boneOpacityToAlpha(displays[c].opacity, overlayOpacity) : 0,
+    ]),
+  ) as BoneAlphas;
+}
+
 export interface ToothSelectionControls {
+  /** Jaw bone classes that have voxels in the loaded mask. */
+  presentBoneClasses: BoneClass[];
+  boneDisplays: BoneDisplays;
+  setBoneVisible: (bone: BoneClass, visible: boolean) => void;
+  setBoneOpacity: (bone: BoneClass, opacity: number) => void;
   /** True when the loaded overlay has at least one tooth class. */
   hasToothLabels: boolean;
   presentToothIds: string[];
@@ -92,7 +127,7 @@ function findOverlayIndex(nv: NiiVueGPU): number {
 
 function readVoxelCounts(nv: NiiVueGPU, overlayIndex: number): Uint32Array {
   const img = nv.volumes[overlayIndex]?.img;
-  return img ? toothVoxelCounts(img) : new Uint32Array(0);
+  return img ? maskVoxelCounts(img) : new Uint32Array(0);
 }
 
 
@@ -112,6 +147,8 @@ export default function useToothSelectionControls({
   volumeVisibility: boolean[];
 }): ToothSelectionControls {
   const [presentClassIds, setPresentClassIds] = useState<number[]>([]);
+  const [presentNonToothClassIds, setPresentNonToothClassIds] = useState<number[]>([]);
+  const [boneDisplays, setBoneDisplays] = useState<BoneDisplays>(defaultBoneDisplays);
   const [selectedToothIds, setSelectedToothIds] = useState<string[]>([]);
   const [pickFromPreview, setPickFromPreviewState] = useState(false);
   const [pickModePending, setPickModePending] = useState(false);
@@ -137,6 +174,9 @@ export default function useToothSelectionControls({
   /** True after the initial setColormapLabel installed centroids. */
   const labelColormapInstalledRef = useRef(false);
   const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const boneDisplaysRef = useRef(boneDisplays);
+  /** Tooth visibility last sent to `pushVisibility`, re-applied when only a bone changes. */
+  const lastVisibleClassIdsRef = useRef<number[] | null>(null);
 
   presentClassIdsRef.current = presentClassIds;
   selectedToothIdsRef.current = selectedToothIds;
@@ -159,13 +199,17 @@ export default function useToothSelectionControls({
         return Promise.resolve();
       }
 
-      const key = visibilityKey(visibleClassIds);
+      lastVisibleClassIdsRef.current = visibleClassIds;
+      // A hidden mask has opacity 0 and restores its opacity later; this is only a divisor.
+      const overlayOpacity = nv.volumes[idx]?.opacity || DEFAULT_OVERLAY_OPACITY;
+      const boneAlphas = boneAlphasFrom(boneDisplaysRef.current, overlayOpacity);
+      const key = visibilityKey(visibleClassIds, boneAlphas);
       if (appliedVisibilityKeyRef.current === key && labelColormapInstalledRef.current) {
         overlayShowsAllRef.current = showsAll;
         return Promise.resolve();
       }
 
-      const cmap = withColormapVisibility(base, visibleClassIds);
+      const cmap = withColormapVisibility(base, visibleClassIds, boneAlphas);
 
       return new Promise((resolve) => {
         queueNvUpdate(NvUpdateKey.ToothLabels, () => {
@@ -287,7 +331,7 @@ export default function useToothSelectionControls({
   const filterToSelection = useCallback(
     (selected: string[]): Promise<void> => {
       const present = presentClassIdsRef.current;
-      if (!showAllCmapRef.current || present.length === 0) {
+      if (!showAllCmapRef.current) {
         return Promise.resolve();
       }
       const visible = visibleClassesFromSelection(present, selected);
@@ -304,14 +348,14 @@ export default function useToothSelectionControls({
 
   // Rebuild cached full colormap when the mask changes; apply current visibility.
   useEffect(() => {
-    if (presentClassIds.length === 0) {
+    if (presentClassIds.length === 0 && presentNonToothClassIds.length === 0) {
       showAllCmapRef.current = null;
       overlayShowsAllRef.current = true;
       labelColormapInstalledRef.current = false;
       appliedVisibilityKeyRef.current = null;
       return;
     }
-    const base = buildToothLabelColormap(presentClassIds, null);
+    const base = buildToothLabelColormap(presentClassIds, null, presentNonToothClassIds);
     showAllCmapRef.current = base;
     // New mask → force cold setColormapLabel so centroids match the volume.
     labelColormapInstalledRef.current = false;
@@ -324,7 +368,44 @@ export default function useToothSelectionControls({
     }
     // Only re-run when the mask set changes — not on selection/pick toggles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presentClassIds, pushVisibility]);
+  }, [presentClassIds, presentNonToothClassIds, pushVisibility]);
+
+  // The scan's bone is opaque and would hide the mask's bone in 3D, so the 3D view shows the
+  // mask alone meanwhile. 2D slices keep the scan (patched `renderOpacity`). Not while the
+  // mask itself is hidden, which would leave the 3D view empty.
+  const hideScanIn3d =
+    maskVisible && BONE_CLASSES.some((c) => boneDisplays[c].visible && boneDisplays[c].opacity > 0);
+  useEffect(() => {
+    const nv = nvRef.current;
+    if (!nv || overlayIndex <= 0) {
+      return;
+    }
+    (nv.volumes[0] as { renderOpacity?: number }).renderOpacity = hideScanIn3d ? 0 : undefined;
+    nv.drawScene();
+  }, [nvRef, hideScanIn3d, overlayIndex]);
+
+  const updateBone = useCallback(
+    (bone: BoneClass, change: Partial<BoneDisplay>) => {
+      const next = {
+        ...boneDisplaysRef.current,
+        [bone]: { ...boneDisplaysRef.current[bone], ...change },
+      };
+      boneDisplaysRef.current = next;
+      setBoneDisplays(next);
+      void pushVisibility(lastVisibleClassIdsRef.current, overlayShowsAllRef.current);
+    },
+    [pushVisibility],
+  );
+
+  const setBoneVisible = useCallback(
+    (bone: BoneClass, visible: boolean) => updateBone(bone, { visible }),
+    [updateBone],
+  );
+
+  const setBoneOpacity = useCallback(
+    (bone: BoneClass, opacity: number) => updateBone(bone, { opacity }),
+    [updateBone],
+  );
 
   // Chart/selection changes while pick mode is off: debounced filter.
   useEffect(() => {
@@ -359,6 +440,7 @@ export default function useToothSelectionControls({
       setPickModePending(false);
       voxelCountsRef.current = new Uint32Array(0);
       setPresentClassIds([]);
+      setPresentNonToothClassIds([]);
       setSelectedToothIds([]);
       setPickFromPreviewState(false);
       pickFromPreviewRef.current = false;
@@ -378,6 +460,7 @@ export default function useToothSelectionControls({
     const firstMask = !hadMaskRef.current && present.length > 0;
     hadMaskRef.current = present.length > 0;
     setPresentClassIds(present);
+    setPresentNonToothClassIds(presentNonToothClassesFromCounts(voxelCounts));
     setSelectedToothIds((prev) => {
       if (firstMask) {
         return allIds;
@@ -517,6 +600,9 @@ export default function useToothSelectionControls({
     selectionBeforePickRef.current = [];
     setPickModeBaselineToothIds([]);
     setPickModeExitIntent(null);
+    const bones = defaultBoneDisplays();
+    boneDisplaysRef.current = bones;
+    setBoneDisplays(bones);
     void showAllTeeth();
     if (nvRef.current) {
       setRotationPivot(nvRef.current, null);
@@ -524,6 +610,10 @@ export default function useToothSelectionControls({
   }, [showAllTeeth, nvRef]);
 
   return {
+    presentBoneClasses: BONE_CLASSES.filter((c) => presentNonToothClassIds.includes(c)),
+    boneDisplays,
+    setBoneVisible,
+    setBoneOpacity,
     hasToothLabels,
     presentToothIds,
     selectedToothIds,

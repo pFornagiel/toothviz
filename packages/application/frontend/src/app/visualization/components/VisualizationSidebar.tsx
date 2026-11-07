@@ -10,6 +10,7 @@ import {
   Minus,
   Plus,
   Ruler,
+  Bone,
   type LucideIcon,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
@@ -41,7 +42,13 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { Tooth } from "../../components/icons/tooth";
-import { toothIdFromOdontogramTarget, toothIdToFdi } from "../toothLabels";
+import {
+  MANDIBLE_CLASS,
+  MAXILLA_CLASS,
+  toothIdFromOdontogramTarget,
+  toothIdToFdi,
+  type BoneClass,
+} from "../toothLabels";
 import { formatFdiList, sameToothSelection } from "../selectionSummary";
 import {
   SliceTypeKey,
@@ -70,6 +77,11 @@ import { ResetViewDialog } from "./ResetViewDialog";
 import { SelectAllDialog } from "./SelectAllDialog";
 import { useVisualization } from "../VisualizationProvider";
 import { ViewPhase } from "../types";
+
+const BONE_NAMES: Record<BoneClass, string> = {
+  [MAXILLA_CLASS]: "Maxilla (upper jaw)",
+  [MANDIBLE_CLASS]: "Mandible (lower jaw)",
+};
 
 function MultiplanarIcon({ className }: { className?: string }) {
   return (
@@ -278,6 +290,7 @@ export function VisualizationSidebar() {
     // Listed even while empty, so the section is open when the first measurement adds it.
     "measurements",
     ...(showToothSelection ? ["teeth"] : []),
+    "bones",
     "render",
     "display",
     "scene",
@@ -512,6 +525,32 @@ export function VisualizationSidebar() {
               )}
               <ZoomControl zoom={render.renderZoom} onChange={render.handleRenderZoomChange} />
             </ControlSection>
+
+            {maskVisible && teeth.presentBoneClasses.length > 0 && (
+              <ControlSection value="bones" icon={Bone} title="Jaw Bones">
+                {teeth.presentBoneClasses.map((bone) => (
+                  <div key={bone} className="space-y-2">
+                    <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+                      <Checkbox
+                        checked={teeth.boneDisplays[bone].visible}
+                        onCheckedChange={(c) => teeth.setBoneVisible(bone, c === true)}
+                      />
+                      {BONE_NAMES[bone]}
+                    </label>
+                    <SliderRow
+                      label="Opacity"
+                      valueLabel={teeth.boneDisplays[bone].opacity.toFixed(2)}
+                      value={teeth.boneDisplays[bone].opacity}
+                      min={OPACITY_RANGE.min}
+                      max={OPACITY_RANGE.max}
+                      step={OPACITY_RANGE.step}
+                      onChange={(v) => teeth.setBoneOpacity(bone, v)}
+                      disabled={!teeth.boneDisplays[bone].visible}
+                    />
+                  </div>
+                ))}
+              </ControlSection>
+            )}
 
             {/* Display: volume appearance */}
             <ControlSection value="display" icon={SlidersHorizontal} title="Display">

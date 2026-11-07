@@ -306,7 +306,7 @@ index 475cb18..f7f9823 100644
              r.scene.isClipPlaneCutaway,
 -            r.volume.paqdUniforms
 +            r.volume.paqdUniforms,
-+            x.opacity ?? 1
++            x.renderOpacity ?? x.opacity ?? 1
            );
        }
        const V = m.renderOrientation !== void 0 || m.sliceMM !== void 0;

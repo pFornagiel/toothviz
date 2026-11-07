@@ -93,6 +93,7 @@ export const OVERLAY_COLORMAP = "Red";
 export const DEFAULT_OVERLAY_OPACITY = 0.5;
 export const DEFAULT_VOLUME_NAME = "volume";
 export const DEFAULT_OVERLAY_NAME = "overlay";
+export const DEFAULT_BONE_OPACITY = 0.3;
 
 // useVolumeDisplayControls - HU intensity fallback range and fully-hidden opacity
 export const CAL_MIN_GLOBAL_VAL = -1000;

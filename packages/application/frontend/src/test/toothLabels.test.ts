@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   CLASS_TO_FDI,
+  MANDIBLE_CLASS,
+  MAXILLA_CLASS,
+  METAL_CLASS,
+  boneOpacityToAlpha,
+  maskVoxelCounts,
+  presentClassesFromCounts,
+  presentNonToothClassesFromCounts,
   buildLabelLut,
   buildSelectionConditions,
   buildToothLabelColormap,
@@ -96,6 +103,66 @@ describe("preview pick helpers", () => {
   });
 });
 
+describe("jaw bones in the label colormap", () => {
+  const base = buildToothLabelColormap([1, 32], null, [METAL_CLASS, MANDIBLE_CLASS, MAXILLA_CLASS]);
+  const alphaOf = (cmap: { I: number[]; A: number[] }, id: number) => cmap.A[cmap.I.indexOf(id)];
+
+  it("adds non-tooth classes hidden, so NiiVue cannot clamp them onto a tooth's colour", () => {
+    expect(base.I).toEqual([0, 1, 32, METAL_CLASS, MANDIBLE_CLASS, MAXILLA_CLASS]);
+    expect(alphaOf(base, MANDIBLE_CLASS)).toBe(0);
+    expect(buildLabelLut(base).max).toBe(MAXILLA_CLASS);
+  });
+
+  it("does not put a bone name on a tooth's centroid key", () => {
+    expect(base.labels).toContain("mandible");
+    expect(base.labels).not.toContain("34");
+  });
+
+  it("shows only the requested bones and never the metal class", () => {
+    const cmap = withColormapVisibility(base, null, { [MANDIBLE_CLASS]: 40 });
+    expect(alphaOf(cmap, MANDIBLE_CLASS)).toBe(40);
+    expect(alphaOf(cmap, MAXILLA_CLASS)).toBe(0);
+    expect(alphaOf(cmap, METAL_CLASS)).toBe(0);
+    expect(alphaOf(cmap, 1)).toBe(255);
+  });
+
+  it("keeps bones independent of the tooth selection", () => {
+    const cmap = withColormapVisibility(base, [], { [MAXILLA_CLASS]: 40 });
+    expect(alphaOf(cmap, 1)).toBe(0);
+    expect(alphaOf(cmap, MAXILLA_CLASS)).toBe(40);
+  });
+
+  it("changes the visibility key when only a bone changes", () => {
+    expect(visibilityKey([1], { [MANDIBLE_CLASS]: 40 })).not.toBe(visibilityKey([1]));
+  });
+
+  it("lists non-tooth classes present in a mask", () => {
+    const counts = maskVoxelCounts([0, 1, 34, 34, 35]);
+    expect(presentNonToothClassesFromCounts(counts)).toEqual([34, 35]);
+    expect(presentClassesFromCounts(counts)).toEqual([1]);
+  });
+});
+
+describe("boneOpacityToAlpha", () => {
+  it("hides at 0 and is solid at 1", () => {
+    expect(boneOpacityToAlpha(0, 0.5)).toBe(0);
+    expect(boneOpacityToAlpha(1, 0.5)).toBe(255);
+  });
+
+  it("stays above the ray march's 0.01 cutoff once NiiVue applies the mask's opacity", () => {
+    for (const overlayOpacity of [0.25, 0.5, 1]) {
+      const alpha = boneOpacityToAlpha(0.01, overlayOpacity);
+      expect((alpha / 255) * overlayOpacity).toBeGreaterThanOrEqual(0.01);
+    }
+  });
+
+  it("grows with the slider", () => {
+    const values = [0.1, 0.3, 0.5, 0.7, 0.9].map((o) => boneOpacityToAlpha(o, 0.5));
+    expect(values).toEqual([...values].sort((a, b) => a - b));
+    expect(new Set(values).size).toBe(values.length);
+  });
+});
+
 describe("selection visibility", () => {
   it("maps present classes to tooth ids", () => {
     expect(classesToToothIds([1, 9, 25])).toEqual(["teeth-11", "teeth-21", "teeth-41"]);
@@ -167,9 +234,9 @@ describe("selection visibility", () => {
   });
 
   it("builds stable visibility keys", () => {
-    expect(visibilityKey(null)).toBe("*");
-    expect(visibilityKey([])).toBe("");
-    expect(visibilityKey([9, 1])).toBe("1,9");
+    expect(visibilityKey(null)).toBe("*|0/0");
+    expect(visibilityKey([])).toBe("|0/0");
+    expect(visibilityKey([9, 1])).toBe("1,9|0/0");
   });
 
   it("parses tooth ids from odontogram event targets", () => {

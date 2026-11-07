@@ -16,7 +16,7 @@
     },
     "postprocessing": [
       { "name": "ReversePad" },
-      { "name": "DropLabelsAbove", "max_label": 32 },
+      { "name": "DropLabelsAbove", "max_label": 35 },
       { "name": "RemoveSmallLabels", "min_volume_mm3": 40 },
       { "name": "ResampleToInputGrid" }
     ]
