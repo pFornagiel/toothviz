@@ -17,17 +17,32 @@ function setup() {
 }
 
 describe("useVolumeDisplayControls scanIn3d", () => {
-  it("hides the scan in the 3D render only, leaving its opacity for the 2D slices", () => {
+  it("starts with the scan out of the 3D render, leaving its opacity for the 2D slices", () => {
     const { scan, result } = setup();
-    act(() => result.current.setScanIn3d(false));
+    expect(result.current.scanIn3d).toBe(false);
     expect(scan.renderOpacity).toBe(0);
     expect(scan.opacity).toBe(1);
+  });
+
+  it("shows the scan in the 3D render once ticked, and reset takes it out again", () => {
+    const { scan, result } = setup();
     act(() => result.current.setScanIn3d(true));
+    expect(scan.renderOpacity).toBeUndefined();
+    act(() => result.current.reset());
+    expect(result.current.scanIn3d).toBe(false);
+    expect(scan.renderOpacity).toBe(0);
+  });
+
+  it("keeps the scan in the 3D render when there is no mask to show instead", () => {
+    const { scan, nv, result } = setup();
+    nv.volumes.pop();
+    act(() => result.current.syncFromVolumes(nv));
     expect(scan.renderOpacity).toBeUndefined();
   });
 
-  it("lets the scan's own checkbox apply again once the override is off", () => {
+  it("leaves the choice alone when the scan's own checkbox hides it everywhere", () => {
     const { result, nv } = setup();
+    act(() => result.current.setScanIn3d(true));
     act(() => result.current.syncFromVolumes(nv));
     act(() => result.current.handleVolumeVisibilityToggle(0));
     expect(nv.setVolume).toHaveBeenCalledWith(0, { opacity: 0 });
@@ -36,7 +51,6 @@ describe("useVolumeDisplayControls scanIn3d", () => {
 
   it("carries the choice over to a newly loaded scan", () => {
     const { result, nv } = setup();
-    act(() => result.current.setScanIn3d(false));
     const fresh: { renderOpacity?: number; opacity: number } = { opacity: 1 };
     nv.volumes[0] = fresh as unknown as NiiVueGPU["volumes"][number];
     act(() => result.current.syncFromVolumes(nv));

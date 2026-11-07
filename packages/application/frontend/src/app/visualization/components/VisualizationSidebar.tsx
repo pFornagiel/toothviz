@@ -339,14 +339,7 @@ export function VisualizationSidebar() {
       <BoneRow
         name={BONE_NAMES[bone]}
         display={teeth.boneDisplays[bone]}
-        onVisibleChange={(visible) => {
-          teeth.setBoneVisible(bone, visible);
-          // The scan's opaque bone would hide the mask's bone in 3D. This only happens on the
-          // way on, and shows in the scan's own checkbox, so turning a bone off moves nothing else.
-          if (visible) {
-            display.setScanIn3d(false);
-          }
-        }}
+        onVisibleChange={(visible) => teeth.setBoneVisible(bone, visible)}
         onOpacityChange={(opacity) => teeth.setBoneOpacity(bone, opacity)}
       />
     );

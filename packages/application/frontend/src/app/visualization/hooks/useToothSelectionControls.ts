@@ -51,7 +51,7 @@ export type BoneDisplays = Record<BoneClass, BoneDisplay>;
 
 function defaultBoneDisplays(): BoneDisplays {
   return Object.fromEntries(
-    BONE_CLASSES.map((c) => [c, { visible: false, opacity: DEFAULT_BONE_OPACITY }]),
+    BONE_CLASSES.map((c) => [c, { visible: true, opacity: DEFAULT_BONE_OPACITY }]),
   ) as BoneDisplays;
 }
 
