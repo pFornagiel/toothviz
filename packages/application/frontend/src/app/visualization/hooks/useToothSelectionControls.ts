@@ -130,6 +130,27 @@ function readVoxelCounts(nv: NiiVueGPU, overlayIndex: number): Uint32Array {
   return img ? maskVoxelCounts(img) : new Uint32Array(0);
 }
 
+/**
+ * Colours a mask that has just been loaded. NiiVue uploads a volume to the GPU right after
+ * `volumeLoaded`, whereas the controls apply their colormap frames later, which would first show
+ * every class in the load colormap (red). An overlay without tooth classes keeps that colormap.
+ */
+export function colorLoadedMask(nv: NiiVueGPU): void {
+  const overlayIndex = findOverlayIndex(nv);
+  const vol = nv.volumes[overlayIndex] as
+    | { colormapLabel?: RuntimeLabelColormap | null }
+    | undefined;
+  if (!vol || vol.colormapLabel) {
+    return;
+  }
+  const teeth = presentClassesFromCounts(readVoxelCounts(nv, overlayIndex));
+  if (teeth.length === 0) {
+    return;
+  }
+  const cmap = buildToothLabelColormap(teeth, null);
+  vol.colormapLabel = { ...buildLabelLut(cmap), labels: cmap.labels };
+}
+
 
 /**
  * Scans the segmentation overlay for ToothSeg class labels, drives odontogram

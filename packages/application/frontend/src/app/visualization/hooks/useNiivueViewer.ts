@@ -20,6 +20,7 @@ import {
   DEFAULT_VOLUME_NAME,
   DEFAULT_OVERLAY_NAME,
 } from "../constants";
+import { colorLoadedMask } from "./useToothSelectionControls";
 
 export interface NiivueViewerState {
   viewPhase: ViewPhase;
@@ -191,6 +192,7 @@ export default function useNiivueViewer({
     });
     // Set up event listeners before canvas attach
     configureNv(nv);
+    nv.addEventListener("volumeLoaded", () => colorLoadedMask(nv));
     await nv.attachToCanvas(canvasRef.current);
     nvRef.current = nv;
     return nv;
