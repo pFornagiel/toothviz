@@ -20,6 +20,7 @@ import useClipPlaneControls from "./hooks/useClipPlaneControls";
 import useRenderControls from "./hooks/useRenderControls";
 import useNiivueViewer from "./hooks/useNiivueViewer";
 import useNiivueCanvasWheel from "./hooks/useNiivueCanvasWheel";
+import useNiivueMeasurement from "./hooks/useNiivueMeasurement";
 import useNiivueMiddleButtonPan from "./hooks/useNiivueMiddleButtonPan";
 import useNiivueDragRotation from "./hooks/useNiivueDragRotation";
 import useNiivueTileDoubleClick from "./hooks/useNiivueTileDoubleClick";
@@ -109,6 +110,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     clipPlane.reset();
     scene.reset();
     viewLayout.reset();
+    measure.reset();
   };
 
   const viewer = useNiivueViewer({
@@ -130,6 +132,15 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     nvRef,
     enabled: previewEnabled,
     onOverlayLoaded: syncAfterVolumesLoaded,
+  });
+
+  // First of the canvas hooks: while a point is set, it blocks the ones below.
+  const measure = useNiivueMeasurement({
+    canvasRef,
+    nvRef,
+    viewPhase: viewer.viewPhase,
+    available: viewLayout.showsSlices && !teeth.pickFromPreview,
+    layoutKey: viewLayout.sliceType,
   });
 
   // Wire the mouse-wheel interaction and sync with react state
@@ -247,6 +258,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     scene,
     clip: clipPlane,
     render,
+    measure,
     onReset: resetSettings,
     pickFlash,
     showPickFlash,

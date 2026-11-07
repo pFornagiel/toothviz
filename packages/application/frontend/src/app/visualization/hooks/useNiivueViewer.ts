@@ -13,6 +13,7 @@ import {
   DEFAULT_TILE_MARGIN,
   DEFAULT_RENDER_AZIMUTH,
   DEFAULT_RENDER_ELEVATION,
+  MEASURE_TEXT_COLOR,
   VOLUME_COLORMAP,
   OVERLAY_COLORMAP,
   DEFAULT_OVERLAY_OPACITY,
@@ -184,6 +185,7 @@ export default function useNiivueViewer({
       azimuth: DEFAULT_RENDER_AZIMUTH,
       elevation: DEFAULT_RENDER_ELEVATION,
       secondaryDragMode: DRAG_MODE.pan,
+      measureTextColor: MEASURE_TEXT_COLOR,
       // The tooth legend is rendered in the DOM by ToothLegend instead.
       isLegendVisible: false,
     });
