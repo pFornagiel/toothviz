@@ -37,6 +37,8 @@ export const CROSSHAIR_COLOR_OPTIONS = [
 ];
 // Black gap between the 2D/3D tiles, in canvas pixels (the background shows through).
 export const DEFAULT_TILE_MARGIN = 4;
+// White, so a measurement's mm value stands out from its red line.
+export const MEASURE_TEXT_COLOR = [1, 1, 1, 1];
 
 export const DEFAULT_RENDER_AZIMUTH = 120;
 export const DEFAULT_RENDER_ELEVATION = 10;

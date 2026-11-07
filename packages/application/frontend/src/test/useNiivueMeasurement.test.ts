@@ -12,10 +12,15 @@ vi.stubGlobal("PointerEvent", MouseEvent);
 const NORMAL_DRAG_MODE = 8;
 const MEASUREMENT_DRAG_MODE = 2;
 
-function setup({ hit = { isRender: false } as object | null } = {}) {
+function setup({ hit = { isRender: false, tileIndex: 0 } as object | null } = {}) {
   const container = document.createElement("div");
   const canvas = document.createElement("canvas");
   canvas.setPointerCapture = vi.fn();
+  // Drawn at half size: tile [100, 50, 200, 100] covers x 60-160, y 45-95 on the page.
+  canvas.width = 800;
+  canvas.height = 400;
+  canvas.getBoundingClientRect = () =>
+    ({ left: 10, top: 20, width: 400, height: 200 }) as DOMRect;
   container.appendChild(canvas);
   document.body.appendChild(container);
 
@@ -25,12 +30,13 @@ function setup({ hit = { isRender: false } as object | null } = {}) {
     clearMeasurements: vi.fn(() => {
       nv.model.completedMeasurements.length = 0;
     }),
-    view: { hitTest: () => hit },
+    view: { hitTest: () => hit, screenSlices: [{ leftTopWidthHeight: [100, 50, 200, 100] }] },
     model: { completedMeasurements: [] as { distance: number }[] },
   };
 
   // Stands in for NiiVue's listeners, which come after the hook's capture listeners.
   const seen: string[] = [];
+  const moves: [number, number][] = [];
   let distance = 12;
   for (const type of ["pointerdown", "pointerup", "wheel", "dblclick"]) {
     canvas.addEventListener(type, () => {
@@ -40,6 +46,7 @@ function setup({ hit = { isRender: false } as object | null } = {}) {
       }
     });
   }
+  canvas.addEventListener("pointermove", (e) => moves.push([e.clientX, e.clientY]));
 
   const canvasRef = { current: canvas };
   const nvRef = { current: nv as unknown as NiiVueGPU };
@@ -67,7 +74,7 @@ function setup({ hit = { isRender: false } as object | null } = {}) {
     distance = value;
   };
 
-  return { nv, canvas, hook, seen, fire, click, setDistance };
+  return { nv, canvas, hook, seen, moves, fire, click, setDistance };
 }
 
 afterEach(() => {
@@ -126,6 +133,32 @@ describe("useNiivueMeasurement", () => {
     fire("pointerup", { button: 1 });
     expect(seen).toEqual([]);
     expect(hook.result.current.phase).toBe("secondPoint");
+  });
+
+  it("keeps the second point on the first point's tile", async () => {
+    const { hook, moves, fire, click } = setup();
+    fire("pointermove", { clientX: 500, clientY: 500 });
+    expect(moves).toEqual([[500, 500]]); // Not measuring yet: untouched.
+    moves.length = 0;
+
+    act(() => hook.result.current.start());
+    await click(100, 70);
+
+    fire("pointermove", { clientX: 120, clientY: 80 });
+    fire("pointermove", { clientX: 500, clientY: 10 });
+    expect(moves).toEqual([
+      [120, 80],
+      [160, 45],
+    ]);
+    moves.length = 0;
+
+    // Leaving the canvas, e.g. over the sidebar, also stops at the tile's edge.
+    act(() => {
+      document.body.dispatchEvent(
+        new MouseEvent("pointermove", { bubbles: true, clientX: 0, clientY: 70 }),
+      );
+    });
+    expect(moves).toEqual([[60, 70]]);
   });
 
   it("Esc drops the unfinished measurement and keeps earlier ones", async () => {

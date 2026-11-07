@@ -3,6 +3,7 @@ import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { DRAG_MODE } from "@niivue/niivue";
 import type { ViewPhase } from "../types";
 import { POINTER_CLICK_SLOP_PX } from "../constants";
+import { clamp } from "../../utils/clamp";
 
 export type MeasurePhase = "off" | "firstPoint" | "secondPoint";
 
@@ -20,6 +21,9 @@ export interface MeasurementControls {
   reset: () => void;
 }
 
+/** A tile's edges in client (CSS pixel) coordinates. */
+type TileBounds = { left: number; top: number; right: number; bottom: number };
+
 const MIN_DISTANCE_MM = 0.01;
 /** A second click also fires `dblclick`, which must not expand the tile. */
 const DOUBLE_CLICK_GUARD_MS = 500;
@@ -29,6 +33,8 @@ const DOUBLE_CLICK_GUARD_MS = 500;
   NiiVue only measures by dragging: press, move, release. So the first click reaches
   NiiVue as the press and its release is held back, which leaves NiiVue drawing a live
   line to the pointer; the second click's release is what ends the drag.
+  NiiVue stores a measurement clamped to the first point's tile but draws the live line
+  anywhere, so pointer moves are clamped to that tile to keep the two the same.
   With a point placed, other presses and the wheel are blocked: panning would restart
   NiiVue's drag, and zooming would move the first point, which it keeps in screen pixels.
   Measuring ends by itself after one measurement. Must be registered before the other
@@ -56,6 +62,8 @@ export default function useNiivueMeasurement({
   const firstPressRef = useRef<{ x: number; y: number } | null>(null);
   const secondPressRef = useRef(false);
   const releasingRef = useRef(false);
+  const tileBoundsRef = useRef<TileBounds | null>(null);
+  const forwardingMoveRef = useRef(false);
   const finishedAtRef = useRef(-Infinity);
 
   const setPhase = useCallback((next: MeasurePhase) => {
@@ -71,6 +79,7 @@ export default function useNiivueMeasurement({
     previousDragModeRef.current = null;
     firstPressRef.current = null;
     secondPressRef.current = false;
+    tileBoundsRef.current = null;
     if (canvasRef.current) {
       canvasRef.current.style.cursor = "";
     }
@@ -152,12 +161,24 @@ export default function useNiivueMeasurement({
       return;
     }
 
-    const hitsSliceTile = (e: PointerEvent): boolean => {
+    /** Edges of the 2D tile under the pointer, or `null` when there is none. */
+    const sliceTileBounds = (e: PointerEvent): TileBounds | null => {
+      const view = nvRef.current?.view;
       const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-      const hit = nvRef.current?.view?.hitTest(x, y);
-      return Boolean(hit && !hit.isRender);
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const hit = view?.hitTest((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
+      const tile = hit && !hit.isRender ? view?.screenSlices[hit.tileIndex]?.leftTopWidthHeight : null;
+      if (!tile) {
+        return null;
+      }
+      const [left, top, width, height] = tile;
+      return {
+        left: rect.left + left / scaleX,
+        top: rect.top + top / scaleY,
+        right: rect.left + (left + width) / scaleX,
+        bottom: rect.top + (top + height) / scaleY,
+      };
     };
 
     const handlePointerDown = (e: PointerEvent) => {
@@ -166,9 +187,11 @@ export default function useNiivueMeasurement({
       }
       if (phaseRef.current === "firstPoint") {
         // Scrolling, panning and rotating the 3D view stay available until a point is set.
-        if (e.button !== 0 || e.shiftKey || !hitsSliceTile(e)) {
+        const bounds = e.button === 0 && !e.shiftKey ? sliceTileBounds(e) : null;
+        if (!bounds) {
           return;
         }
+        tileBoundsRef.current = bounds;
         pointerIdRef.current = e.pointerId;
         firstPressRef.current = { x: e.clientX, y: e.clientY };
         setPhase("secondPoint");
@@ -182,6 +205,34 @@ export default function useNiivueMeasurement({
           canvas.setPointerCapture(e.pointerId);
         }
       }
+    };
+
+    // On the window, so the line also stops at the tile's edge when the pointer leaves the canvas.
+    const handlePointerMove = (e: PointerEvent) => {
+      const bounds = tileBoundsRef.current;
+      if (phaseRef.current !== "secondPoint" || !bounds || forwardingMoveRef.current) {
+        return;
+      }
+      const clientX = clamp(e.clientX, bounds.left, bounds.right);
+      const clientY = clamp(e.clientY, bounds.top, bounds.bottom);
+      const onCanvas = e.target === canvas;
+      if (onCanvas && clientX === e.clientX && clientY === e.clientY) {
+        return;
+      }
+      if (onCanvas) {
+        e.stopImmediatePropagation();
+      }
+      forwardingMoveRef.current = true;
+      canvas.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          clientX,
+          clientY,
+          pointerId: e.pointerId,
+          buttons: e.buttons,
+        }),
+      );
+      forwardingMoveRef.current = false;
     };
 
     const handlePointerUp = (e: PointerEvent) => {
@@ -233,7 +284,9 @@ export default function useNiivueMeasurement({
     container.addEventListener("wheel", blockWhilePointIsSet, wheel);
     container.addEventListener("dblclick", handleDoubleClick, capture);
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("pointermove", handlePointerMove, capture);
     return () => {
+      window.removeEventListener("pointermove", handlePointerMove, capture);
       container.removeEventListener("pointerdown", handlePointerDown, capture);
       container.removeEventListener("pointerup", handlePointerUp, capture);
       container.removeEventListener("wheel", blockWhilePointIsSet, capture);
