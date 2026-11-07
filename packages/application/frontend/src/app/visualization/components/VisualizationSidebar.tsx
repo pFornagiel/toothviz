@@ -339,7 +339,14 @@ export function VisualizationSidebar() {
       <BoneRow
         name={BONE_NAMES[bone]}
         display={teeth.boneDisplays[bone]}
-        onVisibleChange={(visible) => teeth.setBoneVisible(bone, visible)}
+        onVisibleChange={(visible) => {
+          teeth.setBoneVisible(bone, visible);
+          // The scan's opaque bone would hide the mask's bone in 3D. This only happens on the
+          // way on, and shows in the scan's own checkbox, so turning a bone off moves nothing else.
+          if (visible) {
+            display.setScanIn3d(false);
+          }
+        }}
         onOpacityChange={(opacity) => teeth.setBoneOpacity(bone, opacity)}
       />
     );
@@ -397,18 +404,27 @@ export function VisualizationSidebar() {
               <ControlSection value="volumes" icon={Layers} title="Layers">
                 <div className="space-y-2.5">
                   {volumes.map((vol, idx) => (
-                    <label
-                      key={idx}
-                      className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground"
-                    >
-                      <Checkbox
-                        checked={display.volumeVisibility[idx] ?? true}
-                        onCheckedChange={() => display.handleVolumeVisibilityToggle(idx)}
-                      />
-                      <span className="truncate" title={vol.name}>
-                        {volumeLabel(idx, teeth.overlayIndex, vol.name)}
-                      </span>
-                    </label>
+                    <React.Fragment key={idx}>
+                      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+                        <Checkbox
+                          checked={display.volumeVisibility[idx] ?? true}
+                          onCheckedChange={() => display.handleVolumeVisibilityToggle(idx)}
+                        />
+                        <span className="truncate" title={vol.name}>
+                          {volumeLabel(idx, teeth.overlayIndex, vol.name)}
+                        </span>
+                      </label>
+                      {idx === 0 && hasMultipleVolumes && (
+                        <label className="ml-6.5 flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+                          <Checkbox
+                            checked={display.scanIn3d}
+                            disabled={!(display.volumeVisibility[0] ?? true)}
+                            onCheckedChange={(checked) => display.setScanIn3d(checked === true)}
+                          />
+                          Show in 3D view
+                        </label>
+                      )}
+                    </React.Fragment>
                   ))}
                 </div>
               </ControlSection>

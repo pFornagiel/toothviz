@@ -33,6 +33,9 @@ export interface VolumeDisplayControls {
   handleVolumeChange: (index: number) => void;
   volumeVisibility: boolean[];
   handleVolumeVisibilityToggle: (index: number) => void;
+  /** Whether the scan is drawn in the 3D render; 2D slices are not affected. */
+  scanIn3d: boolean;
+  setScanIn3d: (visible: boolean) => void;
 
   // Display (active volume)
   opacity: number;
@@ -59,6 +62,14 @@ export interface VolumeDisplayControls {
  * instance lifecycle/loading lives in `useNiivueViewer`, which talks back only
  * through the identity-stable `syncFromVolumes` bridge.
  */
+/** Patched into NiiVue: overrides the scan's opacity in the 3D render only. */
+function applyScanIn3d(nv: NiiVueGPU, visible: boolean): void {
+  const scan = nv.volumes[0] as { renderOpacity?: number } | undefined;
+  if (scan) {
+    scan.renderOpacity = visible ? undefined : HIDDEN_OPACITY;
+  }
+}
+
 export default function useVolumeDisplayControls({
   nvRef,
   queueNvUpdate,
@@ -70,6 +81,7 @@ export default function useVolumeDisplayControls({
   const [selectedVolume, setSelectedVolume] = useState(0);
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
+  const [scanIn3d, setScanIn3d] = useState(true);
   const [opacity, setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
   const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
@@ -242,6 +254,14 @@ export default function useVolumeDisplayControls({
     setCalMax(value);
   };
 
+  useEffect(() => {
+    const nv = nvRef.current;
+    if (nv) {
+      applyScanIn3d(nv, scanIn3d);
+      nv.drawScene();
+    }
+  }, [nvRef, scanIn3d]);
+
   const handleVolumeVisibilityToggle = (index: number): void => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[index]) {
@@ -293,6 +313,8 @@ export default function useVolumeDisplayControls({
       return;
     }
     const vol = nv.volumes[0];
+    // A freshly loaded scan does not carry the override yet.
+    applyScanIn3d(nv, scanIn3d);
     setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
     setCalMinGlobal(vol.globalMin);
     setCalMaxGlobal(vol.globalMax);
@@ -326,6 +348,7 @@ export default function useVolumeDisplayControls({
     setCalMax(restoredCalMax);
     setOpacity(DEFAULT_VISIBLE_OPACITY);
     setVolumeVisibility(nv.volumes.map(() => true));
+    setScanIn3d(true);
 
     const opacities = nv.volumes.map((_, i) =>
       i === 0 ? DEFAULT_VISIBLE_OPACITY : DEFAULT_OVERLAY_OPACITY,
@@ -352,6 +375,8 @@ export default function useVolumeDisplayControls({
     handleVolumeChange,
     volumeVisibility,
     handleVolumeVisibilityToggle,
+    scanIn3d,
+    setScanIn3d,
     opacity,
     handleOpacityChange,
     cal_min,

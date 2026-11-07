@@ -370,20 +370,6 @@ export default function useToothSelectionControls({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presentClassIds, presentNonToothClassIds, pushVisibility]);
 
-  // The scan's bone is opaque and would hide the mask's bone in 3D, so the 3D view shows the
-  // mask alone meanwhile. 2D slices keep the scan (patched `renderOpacity`). Not while the
-  // mask itself is hidden, which would leave the 3D view empty.
-  const hideScanIn3d =
-    maskVisible && BONE_CLASSES.some((c) => boneDisplays[c].visible && boneDisplays[c].opacity > 0);
-  useEffect(() => {
-    const nv = nvRef.current;
-    if (!nv || overlayIndex <= 0) {
-      return;
-    }
-    (nv.volumes[0] as { renderOpacity?: number }).renderOpacity = hideScanIn3d ? 0 : undefined;
-    nv.drawScene();
-  }, [nvRef, hideScanIn3d, overlayIndex]);
-
   const updateBone = useCallback(
     (bone: BoneClass, change: Partial<BoneDisplay>) => {
       const next = {
