@@ -12,7 +12,7 @@ const HINT = {
 
 /** Viewer overlay for measuring a distance between two points on a 2D tile. */
 export function MeasureControls({ measure }: { measure: MeasurementControls }) {
-  const { phase, count, available, start, cancel, clear } = measure;
+  const { phase, measurements, available, start, cancel, clear } = measure;
 
   if (!available) {
     return null;
@@ -26,7 +26,7 @@ export function MeasureControls({ measure }: { measure: MeasurementControls }) {
             <Ruler className="size-4" />
             Measure
           </Button>
-          {count > 0 && (
+          {measurements.length > 0 && (
             <Button variant="secondary" size="sm" className={OVERLAY_BUTTON} onClick={clear}>
               <Trash2 className="size-4" />
               Clear measurements

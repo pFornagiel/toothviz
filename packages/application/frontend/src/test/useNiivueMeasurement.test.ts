@@ -3,11 +3,22 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import useNiivueMeasurement from "@/app/visualization/hooks/useNiivueMeasurement";
 import { ViewPhase } from "@/app/visualization/types";
+import { SliceTypeKey } from "@/app/visualization/constants";
 
-vi.mock("@niivue/niivue", () => ({ DRAG_MODE: { measurement: 2 } }));
+vi.mock("@niivue/niivue", () => ({
+  DRAG_MODE: { measurement: 2 },
+  SLICE_TYPE: { AXIAL: 0, CORONAL: 1, SAGITTAL: 2 },
+}));
 
 // jsdom has no PointerEvent; the handlers only need MouseEvent's fields.
 vi.stubGlobal("PointerEvent", MouseEvent);
+
+type StoredMeasurement = {
+  distance: number;
+  sliceType: number;
+  startMM: number[];
+  endMM: number[];
+};
 
 const NORMAL_DRAG_MODE = 8;
 const MEASUREMENT_DRAG_MODE = 2;
@@ -31,7 +42,13 @@ function setup({ hit = { isRender: false, tileIndex: 0 } as object | null } = {}
       nv.model.completedMeasurements.length = 0;
     }),
     view: { hitTest: () => hit, screenSlices: [{ leftTopWidthHeight: [100, 50, 200, 100] }] },
-    model: { completedMeasurements: [] as { distance: number }[] },
+    setCrosshairPos: vi.fn(),
+    pan2Dxyzmm: [0, 0, 0, 1],
+    model: {
+      extentsMin: [0, 0, 0],
+      extentsMax: [100, 100, 100],
+      completedMeasurements: [] as StoredMeasurement[],
+    },
   };
 
   // Stands in for NiiVue's listeners, which come after the hook's capture listeners.
@@ -42,7 +59,12 @@ function setup({ hit = { isRender: false, tileIndex: 0 } as object | null } = {}
     canvas.addEventListener(type, () => {
       seen.push(type);
       if (type === "pointerup") {
-        nv.model.completedMeasurements.push({ distance });
+        nv.model.completedMeasurements.push({
+          distance,
+          sliceType: 1,
+          startMM: [10, 20, 30],
+          endMM: [30, 20, 50],
+        });
       }
     });
   }
@@ -50,12 +72,14 @@ function setup({ hit = { isRender: false, tileIndex: 0 } as object | null } = {}
 
   const canvasRef = { current: canvas };
   const nvRef = { current: nv as unknown as NiiVueGPU };
+  const onShowPlane = vi.fn();
   const hook = renderHook(
     (props: { available: boolean; layoutKey: string }) =>
       useNiivueMeasurement({
         canvasRef,
         nvRef,
         viewPhase: ViewPhase.Ready,
+        onShowPlane,
         ...props,
       }),
     { initialProps: { available: true, layoutKey: "grid" } },
@@ -74,7 +98,7 @@ function setup({ hit = { isRender: false, tileIndex: 0 } as object | null } = {}
     distance = value;
   };
 
-  return { nv, canvas, hook, seen, moves, fire, click, setDistance };
+  return { nv, canvas, hook, seen, moves, onShowPlane, fire, click, setDistance };
 }
 
 afterEach(() => {
@@ -97,7 +121,7 @@ describe("useNiivueMeasurement", () => {
     await click(80, 40);
     expect(seen).toEqual(["pointerdown", "pointerup"]);
     expect(hook.result.current.phase).toBe("off");
-    expect(hook.result.current.count).toBe(1);
+    expect(hook.result.current.measurements).toHaveLength(1);
     expect(nv.primaryDragMode).toBe(NORMAL_DRAG_MODE);
   });
 
@@ -108,7 +132,7 @@ describe("useNiivueMeasurement", () => {
     fire("pointerup", { button: 0, clientX: 90, clientY: 10 });
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
     expect(hook.result.current.phase).toBe("off");
-    expect(hook.result.current.count).toBe(1);
+    expect(hook.result.current.measurements).toHaveLength(1);
   });
 
   it("leaves the first click to other tools on the 3D tile", async () => {
@@ -175,7 +199,7 @@ describe("useNiivueMeasurement", () => {
     });
     expect(hook.result.current.phase).toBe("off");
     expect(nv.model.completedMeasurements).toHaveLength(1);
-    expect(hook.result.current.count).toBe(1);
+    expect(hook.result.current.measurements).toHaveLength(1);
     expect(nv.primaryDragMode).toBe(NORMAL_DRAG_MODE);
   });
 
@@ -186,7 +210,7 @@ describe("useNiivueMeasurement", () => {
     await click();
     await click();
     expect(nv.model.completedMeasurements).toHaveLength(0);
-    expect(hook.result.current.count).toBe(0);
+    expect(hook.result.current.measurements).toHaveLength(0);
   });
 
   it("stops the second click's double click from reaching the tile", async () => {
@@ -212,6 +236,51 @@ describe("useNiivueMeasurement", () => {
     expect(hook.result.current.phase).toBe("off");
   });
 
+  async function measureTwice(ctx: ReturnType<typeof setup>) {
+    act(() => ctx.hook.result.current.start());
+    await ctx.click(10, 10);
+    await ctx.click(50, 50);
+    ctx.setDistance(30);
+    act(() => ctx.hook.result.current.start());
+    await ctx.click(10, 10);
+    await ctx.click(50, 50);
+  }
+
+  it("lists measurements with their value and plane", async () => {
+    const ctx = setup();
+    await measureTwice(ctx);
+    expect(ctx.hook.result.current.measurements).toEqual([
+      { distance: 12, plane: SliceTypeKey.Coronal },
+      { distance: 30, plane: SliceTypeKey.Coronal },
+    ]);
+  });
+
+  it("removes only the chosen measurement", async () => {
+    const ctx = setup();
+    await measureTwice(ctx);
+    act(() => ctx.hook.result.current.remove(0));
+    expect(ctx.nv.model.completedMeasurements.map((m) => m.distance)).toEqual([30]);
+    expect(ctx.hook.result.current.measurements.map((m) => m.distance)).toEqual([30]);
+    expect(ctx.nv.drawScene).toHaveBeenCalled();
+  });
+
+  it("goes to the middle of a measurement and shows its plane", async () => {
+    const ctx = setup();
+    await measureTwice(ctx);
+    act(() => ctx.hook.result.current.goTo(1));
+    expect(ctx.onShowPlane).toHaveBeenCalledWith(SliceTypeKey.Coronal);
+    expect(ctx.nv.setCrosshairPos).toHaveBeenCalledWith([20, 20, 40]);
+    expect(ctx.nv.pan2Dxyzmm).toEqual([0, 0, 0, 1]); // An untouched view stays as it is.
+  });
+
+  it("brings a measurement to the middle of a zoomed view", async () => {
+    const ctx = setup();
+    await measureTwice(ctx);
+    ctx.nv.pan2Dxyzmm = [5, 5, 5, 3];
+    act(() => ctx.hook.result.current.goTo(0));
+    expect(ctx.nv.pan2Dxyzmm).toEqual([30, 30, 10, 3]);
+  });
+
   it("clear and reset remove the measurements", async () => {
     const { nv, hook, click } = setup();
     act(() => hook.result.current.start());
@@ -220,7 +289,7 @@ describe("useNiivueMeasurement", () => {
 
     act(() => hook.result.current.clear());
     expect(nv.model.completedMeasurements).toHaveLength(0);
-    expect(hook.result.current.count).toBe(0);
+    expect(hook.result.current.measurements).toHaveLength(0);
 
     act(() => hook.result.current.start());
     await click();

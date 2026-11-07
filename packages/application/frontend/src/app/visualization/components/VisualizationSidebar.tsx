@@ -9,10 +9,12 @@ import {
   RotateCcw,
   Minus,
   Plus,
+  Ruler,
   type LucideIcon,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
 import DisplayRangeSlider from "./DisplayRangeSlider";
+import { MeasurementList } from "./MeasurementList";
 import "react-odontogram/style.css";
 import "../odontogram.css";
 import { cn } from "@/lib/utils";
@@ -249,7 +251,7 @@ function ZoomControl({
 }
 
 export function VisualizationSidebar() {
-  const { viewer, layout, volumes, view, display, teeth, scene, clip, render, onReset, showPickFlash } =
+  const { viewer, layout, volumes, view, display, teeth, scene, clip, render, measure, onReset, showPickFlash } =
     useVisualization();
   const [clearSelectionOpen, setClearSelectionOpen] = React.useState(false);
   const [selectAllOpen, setSelectAllOpen] = React.useState(false);
@@ -273,6 +275,8 @@ export function VisualizationSidebar() {
   // Render View (slice type + zoom) stays available for every slice type.
   const openSections = [
     "volumes",
+    // Listed even while empty, so the section is open when the first measurement adds it.
+    "measurements",
     ...(showToothSelection ? ["teeth"] : []),
     "render",
     "display",
@@ -334,6 +338,12 @@ export function VisualizationSidebar() {
                     </label>
                   ))}
                 </div>
+              </ControlSection>
+            )}
+
+            {measure.measurements.length > 0 && (
+              <ControlSection value="measurements" icon={Ruler} title="Measurements">
+                <MeasurementList measure={measure} />
               </ControlSection>
             )}
 
