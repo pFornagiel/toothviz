@@ -27,3 +27,11 @@ export function isLowerLeftTooth(fdi: string | number): boolean {
 export function isLowerRightTooth(fdi: string | number): boolean {
   return fdiQuadrantDigit(fdi) === "4";
 }
+
+export function isUpperJawTooth(fdi: string | number): boolean {
+  return isUpperRightTooth(fdi) || isUpperLeftTooth(fdi);
+}
+
+export function isLowerJawTooth(fdi: string | number): boolean {
+  return isLowerLeftTooth(fdi) || isLowerRightTooth(fdi);
+}

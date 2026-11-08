@@ -13,6 +13,7 @@ import {
   Ruler,
   Eye,
   EyeOff,
+  ChevronLeft,
   type LucideIcon,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
@@ -72,6 +73,7 @@ import { CrosshairColorPicker } from "./CrosshairColorPicker";
 import { ResetViewDialog } from "./ResetViewDialog";
 import { SelectAllDialog } from "./SelectAllDialog";
 import { useVisualization } from "../VisualizationProvider";
+import { isLowerJawTooth, isUpperJawTooth } from "../../teeth";
 import { resolveScanVolumeIndex } from "../hooks/useVolumeDisplayControls";
 import { ViewPhase } from "../types";
 
@@ -677,6 +679,21 @@ export function VisualizationSidebar() {
   );
   const showToothSelection = teeth.hasToothLabels && maskVisible;
   const teethPickerEnabled = teeth.teethDisplay.visible;
+  const upperPresentIds = teeth.presentToothIds.filter((id) => {
+    const fdi = toothIdToFdi(id);
+    return fdi !== null && isUpperJawTooth(fdi);
+  });
+  const lowerPresentIds = teeth.presentToothIds.filter((id) => {
+    const fdi = toothIdToFdi(id);
+    return fdi !== null && isLowerJawTooth(fdi);
+  });
+  // Binary UI: on only when the whole jaw is selected; partial looks like off.
+  const upperJawAllSelected =
+    upperPresentIds.length > 0 &&
+    upperPresentIds.every((id) => teeth.selectedToothIds.includes(id));
+  const lowerJawAllSelected =
+    lowerPresentIds.length > 0 &&
+    lowerPresentIds.every((id) => teeth.selectedToothIds.includes(id));
 
   // Sections open by default; clip appears only where a 3D tile is shown.
   // Render View (slice type + zoom) stays available for every slice type.
@@ -871,40 +888,118 @@ export function VisualizationSidebar() {
                           ? PICK_MODE_HELP
                           : "Select on the chart below, or enable pick mode.\nColors match the labels in the viewer."}
                   </p>
-                  <div
-                    className={cn(
-                      "toothviz-odontogram w-full overflow-x-auto",
-                      teeth.pickModePending && "toothviz-odontogram--pending",
-                    )}
-                    onClick={(e) => {
-                      if (!teethPickerEnabled || teeth.pickModePending) {
-                        return;
-                      }
-                      const toothId = toothIdFromOdontogramTarget(e.target);
-                      if (!toothId) {
-                        return;
-                      }
-                      const changed = teeth.toggleToothFromChart(toothId);
-                      if (!changed || !teeth.pickFromPreview) {
-                        return;
-                      }
-                      const fdi = toothIdToFdi(toothId);
-                      if (fdi) {
-                        showPickFlash(
-                          slicePickMessage(fdi, !teeth.selectedToothIds.includes(toothId)),
-                        );
-                      }
-                    }}
-                  >
-                    <Odontogram
-                      notation="FDI"
-                      layout="square"
-                      showTooltip={teethPickerEnabled}
-                      showLabels={false}
-                      readOnly
-                      teethConditions={teeth.detectedConditions}
-                      className="w-full"
-                    />
+                  <div className="toothviz-odontogram-row">
+                    <div
+                      className={cn(
+                        "toothviz-odontogram",
+                        teeth.pickModePending && "toothviz-odontogram--pending",
+                      )}
+                      onClick={(e) => {
+                        if (!teethPickerEnabled || teeth.pickModePending) {
+                          return;
+                        }
+                        const toothId = toothIdFromOdontogramTarget(e.target);
+                        if (!toothId) {
+                          return;
+                        }
+                        const changed = teeth.toggleToothFromChart(toothId);
+                        if (!changed || !teeth.pickFromPreview) {
+                          return;
+                        }
+                        const fdi = toothIdToFdi(toothId);
+                        if (fdi) {
+                          showPickFlash(
+                            slicePickMessage(
+                              fdi,
+                              !teeth.selectedToothIds.includes(toothId),
+                            ),
+                          );
+                        }
+                      }}
+                    >
+                      <Odontogram
+                        notation="FDI"
+                        layout="square"
+                        showTooltip={teethPickerEnabled}
+                        showLabels={false}
+                        readOnly
+                        teethConditions={teeth.detectedConditions}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="toothviz-jaw-toggles" aria-hidden={false}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span data-jaw="upper" className="inline-flex">
+                            <button
+                              type="button"
+                              className="toothviz-jaw-toggle"
+                              data-state={upperJawAllSelected ? "on" : "off"}
+                              disabled={
+                                !teethPickerEnabled ||
+                                teeth.pickModePending ||
+                                upperPresentIds.length === 0
+                              }
+                              aria-label={
+                                upperJawAllSelected
+                                  ? "Deselect all upper jaw teeth"
+                                  : "Select all upper jaw teeth"
+                              }
+                              onClick={(event) => {
+                                teeth.toggleJawSelection("upper");
+                                // Drop focus so the hover band does not stick after click.
+                                event.currentTarget.blur();
+                              }}
+                            >
+                              <ChevronLeft className="size-4" strokeWidth={2.25} />
+                            </button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="left"
+                          className="z-[100] max-w-56 text-balance text-primary-foreground"
+                        >
+                          {upperJawAllSelected
+                            ? "Deselect upper jaw"
+                            : "Select upper jaw"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span data-jaw="lower" className="inline-flex">
+                            <button
+                              type="button"
+                              className="toothviz-jaw-toggle"
+                              data-state={lowerJawAllSelected ? "on" : "off"}
+                              disabled={
+                                !teethPickerEnabled ||
+                                teeth.pickModePending ||
+                                lowerPresentIds.length === 0
+                              }
+                              aria-label={
+                                lowerJawAllSelected
+                                  ? "Deselect all lower jaw teeth"
+                                  : "Select all lower jaw teeth"
+                              }
+                              onClick={(event) => {
+                                teeth.toggleJawSelection("lower");
+                                event.currentTarget.blur();
+                              }}
+                            >
+                              <ChevronLeft className="size-4" strokeWidth={2.25} />
+                            </button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="left"
+                          className="z-[100] max-w-56 text-balance text-primary-foreground"
+                        >
+                          {lowerJawAllSelected
+                            ? "Deselect lower jaw"
+                            : "Select lower jaw"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                   </div>
                   <p className="whitespace-pre-line text-xs text-muted-foreground tabular-nums text-balance">
                     {teeth.selectedToothIds.length === 0
@@ -913,7 +1008,7 @@ export function VisualizationSidebar() {
                         ? `All ${teeth.presentToothIds.length} detected teeth selected.`
                         : `Selected ${teeth.selectedToothIds.length} of ${teeth.presentToothIds.length}:\n${formatFdiList(teeth.selectedToothIds)}`}
                   </p>
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="outline"
                       size="sm"

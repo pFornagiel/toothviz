@@ -28,8 +28,11 @@ import {
   type BoneClass,
   type LabelColorMap,
 } from "../toothLabels";
+import { isLowerJawTooth, isUpperJawTooth } from "../../teeth";
 import { sameToothSelection } from "../selectionSummary";
 import { setRotationPivot } from "./niivueRotationPivot";
+
+export type JawArch = "upper" | "lower";
 
 const FILTER_DEBOUNCE_MS = 80;
 
@@ -126,6 +129,11 @@ export interface ToothSelectionControls {
   clearSelection: () => void;
   /** Select every detected tooth. */
   selectAll: () => void;
+  /**
+   * Toggle selection for all present teeth in the upper or lower arch:
+   * if every present tooth in that jaw is selected, clear them; otherwise select them.
+   */
+  toggleJawSelection: (jaw: JawArch) => void;
   /** Scan overlay img after volumes load; identity-stable. */
   syncFromVolumes: (nv: NiiVueGPU) => void;
   reset: () => void;
@@ -642,6 +650,28 @@ export default function useToothSelectionControls({
     setSelectedToothIds(classesToToothIds(presentClassIdsRef.current));
   }, []);
 
+  const toggleJawSelection = useCallback((jaw: JawArch) => {
+    const present = classesToToothIds(presentClassIdsRef.current);
+    const inJaw = (toothId: string) => {
+      const fdi = toothIdToFdi(toothId);
+      if (!fdi) {
+        return false;
+      }
+      return jaw === "upper" ? isUpperJawTooth(fdi) : isLowerJawTooth(fdi);
+    };
+    const jawIds = present.filter(inJaw);
+    if (jawIds.length === 0) {
+      return;
+    }
+    setSelectedToothIds((prev) => {
+      const allSelected = jawIds.every((id) => prev.includes(id));
+      if (allSelected) {
+        return prev.filter((id) => !jawIds.includes(id));
+      }
+      return [...new Set([...prev, ...jawIds])];
+    });
+  }, []);
+
   const reset = useCallback(() => {
     pickModePendingGenRef.current += 1;
     setPickModePending(false);
@@ -691,6 +721,7 @@ export default function useToothSelectionControls({
     overlayIndex,
     clearSelection,
     selectAll,
+    toggleJawSelection,
     syncFromVolumes,
     reset,
   };
