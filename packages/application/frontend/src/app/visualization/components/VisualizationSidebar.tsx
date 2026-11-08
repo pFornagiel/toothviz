@@ -1,7 +1,6 @@
 import * as React from "react";
 import {
   Layers,
-  SlidersHorizontal,
   Crosshair,
   Scissors,
   Box,
@@ -34,13 +33,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "../../components/ui/accordion";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
 import {
   Collapsible,
   CollapsibleContent,
@@ -82,6 +74,7 @@ import { CrosshairColorPicker } from "./CrosshairColorPicker";
 import { ResetViewDialog } from "./ResetViewDialog";
 import { SelectAllDialog } from "./SelectAllDialog";
 import { useVisualization } from "../VisualizationProvider";
+import { resolveScanVolumeIndex } from "../hooks/useVolumeDisplayControls";
 import { ViewPhase } from "../types";
 
 const BONE_NAMES: Record<BoneClass, string> = {
@@ -181,6 +174,39 @@ function ControlSection({
 }
 
 /** Label on the left, monospace value readout on the right, slider underneath. */
+/** Quiet opacity control: label, thin track, and value on one line. */
+function SubtleOpacitySlider({
+  name,
+  value,
+  onChange,
+  disabled,
+}: {
+  name: string;
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className={cn("flex items-center gap-2.5", disabled && "opacity-50")}>
+      <span className="shrink-0 text-xs text-muted-foreground">Opacity</span>
+      <input
+        type="range"
+        aria-label={`${name} opacity`}
+        value={value}
+        min={OPACITY_RANGE.min}
+        max={OPACITY_RANGE.max}
+        step={OPACITY_RANGE.step}
+        disabled={disabled}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="h-1 min-w-0 flex-1 cursor-pointer accent-muted-foreground disabled:cursor-not-allowed"
+      />
+      <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+        {value.toFixed(2)}
+      </span>
+    </div>
+  );
+}
+
 /** A jaw bone's toggle; its opacity slider stays folded away until asked for. */
 function BoneRow({
   name,
@@ -211,16 +237,14 @@ function BoneRow({
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent>
-        <SliderRow
-          label="Opacity"
-          valueLabel={display.opacity.toFixed(2)}
-          value={display.opacity}
-          min={OPACITY_RANGE.min}
-          max={OPACITY_RANGE.max}
-          step={OPACITY_RANGE.step}
-          onChange={onOpacityChange}
-          disabled={!display.visible}
-        />
+        <div className="ml-6.5">
+          <SubtleOpacitySlider
+            name={name}
+            value={display.opacity}
+            onChange={onOpacityChange}
+            disabled={!display.visible}
+          />
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -262,6 +286,48 @@ function SliderRow({
         <span className="w-12 shrink-0 text-right text-sm text-foreground">
           {valueLabel}
         </span>
+      </div>
+    </div>
+  );
+}
+
+/** Visibility on the name row; subtle opacity and optional scan controls underneath. */
+function LayerRow({
+  name,
+  visible,
+  opacity,
+  onVisibleChange,
+  onOpacityChange,
+  children,
+}: {
+  name: string;
+  visible: boolean;
+  opacity: number;
+  onVisibleChange: () => void;
+  onOpacityChange: (value: number) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+        <Checkbox checked={visible} onCheckedChange={onVisibleChange} />
+        <span className="truncate" title={name}>
+          {name}
+        </span>
+      </label>
+      <div
+        className={cn(
+          "ml-6.5 space-y-2",
+          !visible && "pointer-events-none opacity-50",
+        )}
+      >
+        <SubtleOpacitySlider
+          name={name}
+          value={opacity}
+          onChange={onOpacityChange}
+          disabled={!visible}
+        />
+        {children}
       </div>
     </div>
   );
@@ -323,12 +389,7 @@ export function VisualizationSidebar() {
 
   const ready = viewer.viewPhase === ViewPhase.Ready;
   const hasMultipleVolumes = volumes.length > 1;
-  const visibleVolumeIndices = volumes
-    .map((_, idx) => idx)
-    .filter((idx) => display.volumeVisibility[idx] ?? true);
-  const hasActiveVolume = visibleVolumeIndices.includes(display.selectedVolume);
-  const isMaskActive =
-    teeth.overlayIndex >= 0 && display.selectedVolume === teeth.overlayIndex;
+  const scanVolumeIdx = resolveScanVolumeIndex(volumes.length, teeth.overlayIndex);
   const maskVisible =
     teeth.overlayIndex >= 0 && (display.volumeVisibility[teeth.overlayIndex] ?? true);
   // Only show tooth picking when a mask overlay is loaded, visible, and has labels.
@@ -352,7 +413,6 @@ export function VisualizationSidebar() {
     "measurements",
     ...(showToothSelection ? ["teeth"] : []),
     "render",
-    "display",
     "scene",
     ...(view.showsRender ? ["clip"] : []),
   ];
@@ -392,33 +452,51 @@ export function VisualizationSidebar() {
             defaultValue={openSections}
             className="w-full"
           >
-            {/* Volume selection */}
+            {/* Volume selection + per-layer appearance */}
             {volumes.length > 0 && (
               <ControlSection value="volumes" icon={Layers} title="Layers">
-                <div className="space-y-2.5">
-                  {volumes.map((vol, idx) => (
-                    <React.Fragment key={idx}>
-                      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
-                        <Checkbox
-                          checked={display.volumeVisibility[idx] ?? true}
-                          onCheckedChange={() => display.handleVolumeVisibilityToggle(idx)}
-                        />
-                        <span className="truncate" title={vol.name}>
-                          {volumeLabel(idx, teeth.overlayIndex, vol.name)}
-                        </span>
-                      </label>
-                      {idx === 0 && hasMultipleVolumes && (
-                        <label className="ml-6.5 flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
-                          <Checkbox
-                            checked={display.scanIn3d}
-                            disabled={!(display.volumeVisibility[0] ?? true)}
-                            onCheckedChange={(checked) => display.setScanIn3d(checked === true)}
+                <div className="space-y-3.5">
+                  {volumes.map((vol, idx) => {
+                    const visible = display.volumeVisibility[idx] ?? true;
+                    const opacity =
+                      display.volumeOpacities[idx] ?? OPACITY_RANGE.max;
+                    const isScan = idx === scanVolumeIdx;
+                    const name = volumeLabel(idx, teeth.overlayIndex, vol.name);
+                    return (
+                      <LayerRow
+                        key={idx}
+                        name={name}
+                        visible={visible}
+                        opacity={opacity}
+                        onVisibleChange={() => display.handleVolumeVisibilityToggle(idx)}
+                        onOpacityChange={(value) => display.handleOpacityChange(idx, value)}
+                      >
+                        {isScan && (
+                          <DisplayRangeSlider
+                            lower={display.cal_min}
+                            upper={display.cal_max}
+                            min={display.cal_minGlobal}
+                            max={display.cal_maxGlobal}
+                            onLowerChange={display.handleCalMinChange}
+                            onUpperChange={display.handleCalMaxChange}
+                            disabled={!visible}
                           />
-                          Show in 3D view
-                        </label>
-                      )}
-                    </React.Fragment>
-                  ))}
+                        )}
+                        {isScan && hasMultipleVolumes && (
+                          <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+                            <Checkbox
+                              checked={display.scanIn3d}
+                              disabled={!visible}
+                              onCheckedChange={(checked) =>
+                                display.setScanIn3d(checked === true)
+                              }
+                            />
+                            Show in 3D view
+                          </label>
+                        )}
+                      </LayerRow>
+                    );
+                  })}
                 </div>
               </ControlSection>
             )}
@@ -605,53 +683,6 @@ export function VisualizationSidebar() {
                 </>
               )}
               <ZoomControl zoom={render.renderZoom} onChange={render.handleRenderZoomChange} />
-            </ControlSection>
-
-            {/* Display: volume appearance */}
-            <ControlSection value="display" icon={SlidersHorizontal} title="Display">
-              {hasMultipleVolumes && (
-                <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Settings for</span>
-                  <Select
-                    value={String(display.selectedVolume)}
-                    onValueChange={(v) => display.handleVolumeChange(parseInt(v))}
-                    disabled={visibleVolumeIndices.length === 0}
-                  >
-                    <SelectTrigger className="w-full bg-card">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {visibleVolumeIndices.map((idx) => (
-                        <SelectItem key={idx} value={String(idx)}>
-                          {volumeLabel(idx, teeth.overlayIndex, volumes[idx]?.name)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <SliderRow
-                label="Opacity"
-                valueLabel={display.opacity.toFixed(2)}
-                value={display.opacity}
-                min={OPACITY_RANGE.min}
-                max={OPACITY_RANGE.max}
-                step={OPACITY_RANGE.step}
-                onChange={display.handleOpacityChange}
-                disabled={!hasActiveVolume}
-              />
-              {!isMaskActive && (
-                <DisplayRangeSlider
-                  lower={display.cal_min}
-                  upper={display.cal_max}
-                  min={display.cal_minGlobal}
-                  max={display.cal_maxGlobal}
-                  onLowerChange={display.handleCalMinChange}
-                  onUpperChange={display.handleCalMaxChange}
-                  disabled={!hasActiveVolume}
-                />
-              )}
             </ControlSection>
 
             {/* Clip plane (3D only) */}

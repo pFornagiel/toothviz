@@ -17,29 +17,61 @@ export function resolveDefaultCalMin(calMin: number, calMax: number): number {
   return DEFAULT_CAL_MIN < calMax ? DEFAULT_CAL_MIN : calMin;
 }
 
+/** Overlay index from a known mask slot (`-1` when there is no mask). */
+export function resolveOverlayVolumeIndex(
+  volumeCount: number,
+  overlayIndexByName: number,
+): number {
+  if (overlayIndexByName >= 0) {
+    return overlayIndexByName;
+  }
+  return volumeCount > 1 ? 1 : -1;
+}
+
+/** Scan index: first volume that is not the mask overlay (normally 0). */
+export function resolveScanVolumeIndex(
+  volumeCount: number,
+  overlayIndex: number,
+): number {
+  if (volumeCount <= 0) {
+    return 0;
+  }
+  for (let i = 0; i < volumeCount; i++) {
+    if (i !== overlayIndex) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 /** Same resolution as tooth-selection overlay lookup. */
-function isOverlayVolumeIndex(nv: NiiVueGPU, index: number): boolean {
+function overlayVolumeIndex(nv: NiiVueGPU): number {
   const byName = nv.volumes.findIndex(
     (v) => (v.name ?? "").toLowerCase() === DEFAULT_OVERLAY_NAME,
   );
-  if (byName >= 0) {
-    return index === byName;
-  }
-  return nv.volumes.length > 1 && index === 1;
+  return resolveOverlayVolumeIndex(nv.volumes.length, byName);
 }
+
+function isOverlayVolumeIndex(nv: NiiVueGPU, index: number): boolean {
+  const overlay = overlayVolumeIndex(nv);
+  return overlay >= 0 && index === overlay;
+}
+
+function scanVolumeIndex(nv: NiiVueGPU): number {
+  return resolveScanVolumeIndex(nv.volumes.length, overlayVolumeIndex(nv));
+}
+
 export interface VolumeDisplayControls {
-  // Volumes
-  selectedVolume: number;
-  handleVolumeChange: (index: number) => void;
   volumeVisibility: boolean[];
   handleVolumeVisibilityToggle: (index: number) => void;
+  /** Stored opacity per volume (kept while a layer is hidden). */
+  volumeOpacities: number[];
+  handleOpacityChange: (index: number, value: number) => void;
   /** Whether the scan is drawn in the 3D render; 2D slices are not affected. */
   scanIn3d: boolean;
   setScanIn3d: (visible: boolean) => void;
 
-  // Display (active volume)
-  opacity: number;
-  handleOpacityChange: (value: number) => void;
+  // Scan windowing (intensity display range)
   cal_min: number;
   cal_max: number;
   cal_minGlobal: number;
@@ -49,25 +81,23 @@ export interface VolumeDisplayControls {
 
   /** Post-load UI sync: mirrors the loaded volumes into control state. */
   syncFromVolumes: (nv: NiiVueGPU) => void;
-  /** Restores the active volume's display params and all volumes' visibility. */
+  /** Restores display params and all volumes' visibility. */
   reset: () => void;
 }
 
 /**
- * Volume selection plus the active volume's display parameters (opacity,
- * cal_min/max windowing). These two concerns share state — switching the active
- * volume mirrors that volume's display params into the controls, and the opacity
- * slider writes back into the per-volume opacity store used for show/hide — so
- * they live in one hook. niivue updates flow through the shared per-frame queue;
- * instance lifecycle/loading lives in `useNiivueViewer`, which talks back only
- * through the identity-stable `syncFromVolumes` bridge.
+ * Per-layer visibility/opacity plus the scan's intensity window. Each layer's
+ * opacity sits under its name in Layers; windowing always targets the scan.
+ * niivue updates flow through the shared per-frame queue; instance
+ * lifecycle/loading lives in `useNiivueViewer`, which talks back only through
+ * the identity-stable `syncFromVolumes` bridge.
  */
 /**
  * Patched into NiiVue: overrides the scan's opacity in the 3D render only. Without a mask the
  * scan is all the 3D view has, and the checkbox that could bring it back is not shown.
  */
 function applyScanIn3d(nv: NiiVueGPU, visible: boolean): void {
-  const scan = nv.volumes[0] as { renderOpacity?: number } | undefined;
+  const scan = nv.volumes[scanVolumeIndex(nv)] as { renderOpacity?: number } | undefined;
   if (scan) {
     scan.renderOpacity = visible || nv.volumes.length < 2 ? undefined : HIDDEN_OPACITY;
   }
@@ -80,12 +110,9 @@ export default function useVolumeDisplayControls({
   nvRef: RefObject<NiiVueGPU | null>;
   queueNvUpdate: QueueNvUpdate;
 }): VolumeDisplayControls {
-  // Volume controls
-  const [selectedVolume, setSelectedVolume] = useState(0);
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
   const [scanIn3d, setScanIn3d] = useState(false);
-  const [opacity, setOpacity] = useState(DEFAULT_VISIBLE_OPACITY);
   const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
   const [cal_minGlobal, _setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
@@ -148,31 +175,33 @@ export default function useVolumeDisplayControls({
 
   useEffect(() => {
     const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume] || isOverlayVolumeIndex(nv, selectedVolume)) {
+    if (!nv || nv.volumes.length === 0) {
+      return;
+    }
+    const scanIdx = scanVolumeIndex(nv);
+    if (isOverlayVolumeIndex(nv, scanIdx)) {
       return;
     }
 
     queueNvUpdate(NvUpdateKey.CalMin, () => {
-      void nv.setVolume(selectedVolume, { calMin: cal_min });
+      void nv.setVolume(scanIdx, { calMin: cal_min });
     });
-    // Deliberately omits selectedVolume: switching the active volume must not
-    // push the previous volume's cal_min into the new one.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cal_min, queueNvUpdate]);
+  }, [cal_min, nvRef, queueNvUpdate]);
 
   useEffect(() => {
     const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume] || isOverlayVolumeIndex(nv, selectedVolume)) {
+    if (!nv || nv.volumes.length === 0) {
+      return;
+    }
+    const scanIdx = scanVolumeIndex(nv);
+    if (isOverlayVolumeIndex(nv, scanIdx)) {
       return;
     }
 
     queueNvUpdate(NvUpdateKey.CalMax, () => {
-      void nv.setVolume(selectedVolume, { calMax: cal_max });
+      void nv.setVolume(scanIdx, { calMax: cal_max });
     });
-    // Deliberately omits selectedVolume: switching the active volume must not
-    // push the previous volume's cal_max into the new one.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cal_max, queueNvUpdate]);
+  }, [cal_max, nvRef, queueNvUpdate]);
 
   const setCalMinGlobal = (value: number | undefined) => {
     if (Number.isNaN(value) || value === undefined) {
@@ -188,55 +217,33 @@ export default function useVolumeDisplayControls({
     _setCalMaxGlobal(value);
   };
 
-  const activateVolume = (index: number, opacityOverride?: number) => {
+  const handleOpacityChange = (index: number, value: number) => {
     const nv = nvRef.current;
     if (!nv || !nv.volumes[index]) {
       return;
     }
-
-    setSelectedVolume(index);
-    const vol = nv.volumes[index];
-    setOpacity(opacityOverride ?? vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
-    setCalMin(vol.calMin);
-    setCalMax(vol.calMax);
-  };
-
-  const handleVolumeChange = (index: number) => {
-    // Hidden volumes cannot become the active volume
+    // Do not write opacity to a hidden volume (would unhide it without the checkbox).
     if (!(volumeVisibility[index] ?? true)) {
       return;
     }
-    activateVolume(index);
-  };
 
-  const handleOpacityChange = (value: number) => {
-    const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume]) {
-      return;
-    }
-    // Do not write opacity to a hidden volume (would unhide it without the checkbox).
-    if (!(volumeVisibility[selectedVolume] ?? true)) {
-      return;
-    }
-
-    setOpacity(value);
-    queueNvUpdate(NvUpdateKey.Opacity, () => nv.setVolume(selectedVolume, { opacity: value }));
+    queueNvUpdate(NvUpdateKey.Opacity, () => nv.setVolume(index, { opacity: value }));
 
     const newOpacities = [...volumeOpacities];
-    newOpacities[selectedVolume] = value;
+    newOpacities[index] = value;
     setVolumeOpacities(newOpacities);
   };
 
   const handleCalMinChange = (value: number) => {
     const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume]) {
+    if (!nv || nv.volumes.length === 0) {
       return;
     }
-    if (!(volumeVisibility[selectedVolume] ?? true)) {
+    const scanIdx = scanVolumeIndex(nv);
+    if (!(volumeVisibility[scanIdx] ?? true)) {
       return;
     }
-    // Label mask: discrete class IDs — intensity windowing does not apply.
-    if (isOverlayVolumeIndex(nv, selectedVolume)) {
+    if (isOverlayVolumeIndex(nv, scanIdx)) {
       return;
     }
     setCalMin(value);
@@ -244,13 +251,14 @@ export default function useVolumeDisplayControls({
 
   const handleCalMaxChange = (value: number) => {
     const nv = nvRef.current;
-    if (!nv || !nv.volumes[selectedVolume]) {
+    if (!nv || nv.volumes.length === 0) {
       return;
     }
-    if (!(volumeVisibility[selectedVolume] ?? true)) {
+    const scanIdx = scanVolumeIndex(nv);
+    if (!(volumeVisibility[scanIdx] ?? true)) {
       return;
     }
-    if (isOverlayVolumeIndex(nv, selectedVolume)) {
+    if (isOverlayVolumeIndex(nv, scanIdx)) {
       return;
     }
 
@@ -275,31 +283,14 @@ export default function useVolumeDisplayControls({
     newVisibility[index] = !newVisibility[index];
     setVolumeVisibility(newVisibility);
 
-    // Set opacity to 0 to hide, restore stored opacity to show
     if (newVisibility[index]) {
-      // Restore the stored opacity
       const opacityToRestore = volumeOpacities[index] ?? DEFAULT_VISIBLE_OPACITY;
       void nv.setVolume(index, { opacity: opacityToRestore });
-
-      // If active is still on a hidden volume, move it to the one just shown.
-      if (!newVisibility[selectedVolume]) {
-        activateVolume(index, opacityToRestore);
-      }
     } else {
-      // Store current opacity before hiding
       const newOpacities = [...volumeOpacities];
       newOpacities[index] = nv.volumes[index].opacity ?? DEFAULT_VISIBLE_OPACITY;
       setVolumeOpacities(newOpacities);
-      // Hide by setting opacity to 0
       void nv.setVolume(index, { opacity: HIDDEN_OPACITY });
-
-      // Active volume must stay on a visible volume when possible
-      if (index === selectedVolume) {
-        const nextVisible = newVisibility.findIndex((visible) => visible);
-        if (nextVisible >= 0) {
-          activateVolume(nextVisible);
-        }
-      }
     }
   };
 
@@ -315,27 +306,26 @@ export default function useVolumeDisplayControls({
     if (nv.volumes.length === 0) {
       return;
     }
-    const vol = nv.volumes[0];
+    const scanIdx = scanVolumeIndex(nv);
+    const vol = nv.volumes[scanIdx] ?? nv.volumes[0];
     // A freshly loaded scan does not carry the override yet.
     applyScanIn3d(nv, scanIn3d);
-    setOpacity(vol.opacity ?? DEFAULT_VISIBLE_OPACITY);
     setCalMinGlobal(vol.globalMin);
     setCalMaxGlobal(vol.globalMax);
     const isNewBaseVolume = windowInitializedFor.current !== vol;
     windowInitializedFor.current = vol;
     let calMin = vol.calMin;
-    if (isNewBaseVolume && !isOverlayVolumeIndex(nv, 0)) {
+    if (isNewBaseVolume && !isOverlayVolumeIndex(nv, scanIdx)) {
       calMin = resolveDefaultCalMin(vol.calMin, vol.calMax);
       // Written directly: the cal_min effect stays silent if the state already matches.
-      void nv.setVolume(0, { calMin });
+      void nv.setVolume(scanIdx, { calMin });
     }
     setCalMin(calMin, isNewBaseVolume);
     setCalMax(vol.calMax, isNewBaseVolume);
-    // Initialize visibility and store opacities for all volumes
     setVolumeVisibility(nv.volumes.map(() => true));
     setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
   };
-  
+
   const syncFromVolumes = useCallback((nv: NiiVueGPU) => syncFromVolumesRef.current(nv), []);
 
   const reset = () => {
@@ -346,10 +336,8 @@ export default function useVolumeDisplayControls({
 
     const restoredCalMin = initialCalMin.current;
     const restoredCalMax = initialCalMax.current;
-    setSelectedVolume(0);
     setCalMin(restoredCalMin);
     setCalMax(restoredCalMax);
-    setOpacity(DEFAULT_VISIBLE_OPACITY);
     setVolumeVisibility(nv.volumes.map(() => true));
     setScanIn3d(false);
 
@@ -374,14 +362,12 @@ export default function useVolumeDisplayControls({
   };
 
   return {
-    selectedVolume,
-    handleVolumeChange,
     volumeVisibility,
     handleVolumeVisibilityToggle,
+    volumeOpacities,
+    handleOpacityChange,
     scanIn3d,
     setScanIn3d,
-    opacity,
-    handleOpacityChange,
     cal_min,
     cal_max,
     cal_minGlobal,
