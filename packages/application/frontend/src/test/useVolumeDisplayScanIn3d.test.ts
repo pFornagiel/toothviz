@@ -79,6 +79,15 @@ describe("useVolumeDisplayControls scanIn3d", () => {
   });
 });
 
+describe("useVolumeDisplayControls applyCalRange", () => {
+  it("applies both ends of the density window in one step", () => {
+    const { result } = setup();
+    act(() => result.current.applyCalRange(400, 2500));
+    expect(result.current.cal_min).toBe(400);
+    expect(result.current.cal_max).toBe(2500);
+  });
+});
+
 describe("useVolumeDisplayControls per-layer opacity", () => {
   it("writes opacity only to the requested volume index", () => {
     const { result, nv } = setup();

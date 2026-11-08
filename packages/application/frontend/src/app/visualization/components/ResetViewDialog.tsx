@@ -30,8 +30,8 @@ export function ResetViewDialog({
   const confirmedRef = useRef(false);
   const resetsTeeth = pickMode || selectedCount !== presentCount;
   const description = resetsTeeth
-    ? "Restore default view settings. Also select all teeth and exit pick mode."
-    : "Restore default view settings.";
+    ? "Restore default view settings (Default density window, 2D slices only for the scan). Also select all teeth and exit pick mode."
+    : "Restore default view settings (Default density window, 2D slices only for the scan).";
 
   return (
     <AlertDialog

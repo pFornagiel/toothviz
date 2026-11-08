@@ -1,15 +1,16 @@
 import * as React from "react";
+import type { KeyboardEvent } from "react";
 import {
   Layers,
   Crosshair,
   Scissors,
   Box,
+  PanelsTopLeft,
   PanelLeftClose,
   RotateCcw,
   Minus,
   Plus,
   Ruler,
-  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
@@ -33,11 +34,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "../../components/ui/accordion";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "../../components/ui/collapsible";
 import { Tooth } from "../../components/icons/tooth";
 import type { BoneDisplay } from "../hooks/useToothSelectionControls";
 import {
@@ -207,7 +203,7 @@ function SubtleOpacitySlider({
   );
 }
 
-/** A jaw bone's toggle; its opacity slider stays folded away until asked for. */
+/** A jaw bone's toggle with always-visible subtle opacity (same pattern as Layers). */
 function BoneRow({
   name,
   display,
@@ -220,33 +216,28 @@ function BoneRow({
   onOpacityChange: (opacity: number) => void;
 }) {
   return (
-    <Collapsible className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
-          <Checkbox
-            checked={display.visible}
-            onCheckedChange={(checked) => onVisibleChange(checked === true)}
-          />
-          {name}
-        </label>
-        <CollapsibleTrigger
-          aria-label={`${name} opacity`}
-          className="group inline-flex size-6 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" />
-        </CollapsibleTrigger>
+    <div className="space-y-2">
+      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+        <Checkbox
+          checked={display.visible}
+          onCheckedChange={(checked) => onVisibleChange(checked === true)}
+        />
+        {name}
+      </label>
+      <div
+        className={cn(
+          "ml-6.5",
+          !display.visible && "pointer-events-none opacity-50",
+        )}
+      >
+        <SubtleOpacitySlider
+          name={name}
+          value={display.opacity}
+          onChange={onOpacityChange}
+          disabled={!display.visible}
+        />
       </div>
-      <CollapsibleContent>
-        <div className="ml-6.5">
-          <SubtleOpacitySlider
-            name={name}
-            value={display.opacity}
-            onChange={onOpacityChange}
-            disabled={!display.visible}
-          />
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+    </div>
   );
 }
 
@@ -298,6 +289,8 @@ function LayerRow({
   opacity,
   onVisibleChange,
   onOpacityChange,
+  trailing,
+  emphasis = "default",
   children,
 }: {
   name: string;
@@ -305,16 +298,33 @@ function LayerRow({
   opacity: number;
   onVisibleChange: () => void;
   onOpacityChange: (value: number) => void;
+  /** Optional control on the name row (e.g. scan 2D/3D mode). */
+  trailing?: React.ReactNode;
+  /** Scan is supporting context when a mask is also present. */
+  emphasis?: "default" | "secondary";
   children?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2">
-      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
-        <Checkbox checked={visible} onCheckedChange={onVisibleChange} />
-        <span className="truncate" title={name}>
-          {name}
-        </span>
-      </label>
+    <div
+      className={cn(
+        "space-y-2 rounded-md",
+        emphasis === "secondary" && "opacity-90",
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <label
+          className={cn(
+            "flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-sm",
+            emphasis === "secondary" ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          <Checkbox checked={visible} onCheckedChange={onVisibleChange} />
+          <span className="truncate" title={name}>
+            {name}
+          </span>
+        </label>
+        {trailing}
+      </div>
       <div
         className={cn(
           "ml-6.5 space-y-2",
@@ -329,6 +339,130 @@ function LayerRow({
         />
         {children}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Where the CBCT scan is drawn when a mask is also loaded.
+ * Compact icon+label switch; tooltips carry the full dentist-facing wording.
+ * Hover/focus previews the mode; click or arrows commit it.
+ */
+function ScanViewMode({
+  includeIn3d,
+  onChange,
+  disabled,
+}: {
+  includeIn3d: boolean;
+  onChange: (includeIn3d: boolean) => void;
+  disabled?: boolean;
+}) {
+  const previewBaselineRef = React.useRef<boolean | null>(null);
+
+  const options = [
+    {
+      includeIn3d: false,
+      label: "2D",
+      fullLabel: "2D slices only",
+      icon: PanelsTopLeft,
+      help: "Show the scan in the 2D slice views only. The 3D view stays focused on teeth and bone.",
+    },
+    {
+      includeIn3d: true,
+      label: "2D+3D",
+      fullLabel: "2D + 3D",
+      icon: Box,
+      help: "Also draw the scan volume in the 3D view. The Bone density window often makes hard tissue clearer.",
+    },
+  ] as const;
+
+  const commit = (value: boolean) => {
+    previewBaselineRef.current = null;
+    onChange(value);
+  };
+
+  const preview = (value: boolean) => {
+    if (disabled) {
+      return;
+    }
+    if (previewBaselineRef.current === null) {
+      previewBaselineRef.current = includeIn3d;
+    }
+    onChange(value);
+  };
+
+  const endPreview = () => {
+    if (previewBaselineRef.current === null) {
+      return;
+    }
+    const baseline = previewBaselineRef.current;
+    previewBaselineRef.current = null;
+    onChange(baseline);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+      return;
+    }
+    event.preventDefault();
+    const next = (index + (event.key === "ArrowRight" ? 1 : -1) + options.length) % options.length;
+    commit(options[next].includeIn3d);
+    const buttons = event.currentTarget.parentElement?.querySelectorAll("button");
+    (buttons?.[next] as HTMLButtonElement | undefined)?.focus();
+  };
+
+  return (
+    <div
+      className={cn(
+        "grid w-full shrink-0 grid-cols-2 gap-0.5 rounded-md bg-muted/60 p-0.5 sm:w-auto",
+        disabled && "pointer-events-none opacity-50",
+      )}
+      role="radiogroup"
+      aria-label="Show scan in"
+      onMouseLeave={endPreview}
+    >
+      {options.map((option, index) => {
+        const selected = includeIn3d === option.includeIn3d;
+        const Icon = option.icon;
+        return (
+          <Tooltip key={option.label}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                aria-label={option.fullLabel}
+                disabled={disabled}
+                onClick={() => commit(option.includeIn3d)}
+                onMouseEnter={() => preview(option.includeIn3d)}
+                onFocus={() => preview(option.includeIn3d)}
+                onBlur={(event) => {
+                  const next = event.relatedTarget as Node | null;
+                  if (event.currentTarget.parentElement?.contains(next)) {
+                    return;
+                  }
+                  endPreview();
+                }}
+                onKeyDown={(event) => onKeyDown(event, index)}
+                className={cn(
+                  "inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 text-[10px] leading-none transition-colors",
+                  "disabled:cursor-not-allowed",
+                  selected
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="size-3.5 shrink-0" aria-hidden />
+                <span>{option.label}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-56 text-balance">
+              <p className="font-medium text-primary-foreground">{option.fullLabel}</p>
+              <p className="text-primary-foreground/85">{option.help}</p>
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
     </div>
   );
 }
@@ -470,6 +604,18 @@ export function VisualizationSidebar() {
                         opacity={opacity}
                         onVisibleChange={() => display.handleVolumeVisibilityToggle(idx)}
                         onOpacityChange={(value) => display.handleOpacityChange(idx, value)}
+                        emphasis={
+                          isScan && hasMultipleVolumes ? "secondary" : "default"
+                        }
+                        trailing={
+                          isScan && hasMultipleVolumes ? (
+                            <ScanViewMode
+                              includeIn3d={display.scanIn3d}
+                              onChange={display.setScanIn3d}
+                              disabled={!visible}
+                            />
+                          ) : undefined
+                        }
                       >
                         {isScan && (
                           <DisplayRangeSlider
@@ -479,20 +625,9 @@ export function VisualizationSidebar() {
                             max={display.cal_maxGlobal}
                             onLowerChange={display.handleCalMinChange}
                             onUpperChange={display.handleCalMaxChange}
+                            onApplyRange={display.applyCalRange}
                             disabled={!visible}
                           />
-                        )}
-                        {isScan && hasMultipleVolumes && (
-                          <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
-                            <Checkbox
-                              checked={display.scanIn3d}
-                              disabled={!visible}
-                              onCheckedChange={(checked) =>
-                                display.setScanIn3d(checked === true)
-                              }
-                            />
-                            Show in 3D view
-                          </label>
                         )}
                       </LayerRow>
                     );

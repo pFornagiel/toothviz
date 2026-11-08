@@ -9,13 +9,10 @@ import {
   HIDDEN_OPACITY,
   DEFAULT_OVERLAY_OPACITY,
   DEFAULT_OVERLAY_NAME,
+  DEFAULT_CAL_MAX,
   DEFAULT_CAL_MIN,
 } from "../constants";
-
-/** Default lower window bound, unless it would leave the scan with an empty window. */
-export function resolveDefaultCalMin(calMin: number, calMax: number): number {
-  return DEFAULT_CAL_MIN < calMax ? DEFAULT_CAL_MIN : calMin;
-}
+import { resolveDensityPreset } from "../densityPresets";
 
 /** Overlay index from a known mask slot (`-1` when there is no mask). */
 export function resolveOverlayVolumeIndex(
@@ -78,6 +75,8 @@ export interface VolumeDisplayControls {
   cal_maxGlobal: number;
   handleCalMinChange: (value: number) => void;
   handleCalMaxChange: (value: number) => void;
+  /** Apply both ends of the scan window in one step (presets). */
+  applyCalRange: (calMin: number, calMax: number) => void;
 
   /** Post-load UI sync: mirrors the loaded volumes into control state. */
   syncFromVolumes: (nv: NiiVueGPU) => void;
@@ -112,15 +111,15 @@ export default function useVolumeDisplayControls({
 }): VolumeDisplayControls {
   const [volumeVisibility, setVolumeVisibility] = useState<boolean[]>([]);
   const [volumeOpacities, setVolumeOpacities] = useState<number[]>([]);
-  const [scanIn3d, setScanIn3d] = useState(false);
-  const [cal_min, _setCalMin] = useState(CAL_MIN_GLOBAL_VAL);
-  const [cal_max, _setCalMax] = useState(CAL_MAX_GLOBAL_VAL);
+  const [scanIn3d, setScanIn3dState] = useState(false);
+  const [cal_min, _setCalMin] = useState(DEFAULT_CAL_MIN);
+  const [cal_max, _setCalMax] = useState(DEFAULT_CAL_MAX);
   const [cal_minGlobal, _setCalMinGlobal] = useState(CAL_MIN_GLOBAL_VAL);
   const [cal_maxGlobal, _setCalMaxGlobal] = useState(CAL_MAX_GLOBAL_VAL);
 
-  // Initialised cal_min and cal_max for reset
-  const initialCalMin = useRef(CAL_MIN_GLOBAL_VAL);
-  const initialCalMax = useRef(CAL_MAX_GLOBAL_VAL);
+  // Initialised cal_min and cal_max for reset (Default density window).
+  const initialCalMin = useRef(DEFAULT_CAL_MIN);
+  const initialCalMax = useRef(DEFAULT_CAL_MAX);
   // Sync also runs when an overlay arrives later; that must not undo the user's windowing.
   const windowInitializedFor = useRef<object | null>(null);
 
@@ -234,6 +233,10 @@ export default function useVolumeDisplayControls({
     setVolumeOpacities(newOpacities);
   };
 
+  const setScanIn3d = useCallback((visible: boolean) => {
+    setScanIn3dState(visible);
+  }, []);
+
   const handleCalMinChange = (value: number) => {
     const nv = nvRef.current;
     if (!nv || nv.volumes.length === 0) {
@@ -261,8 +264,40 @@ export default function useVolumeDisplayControls({
     if (isOverlayVolumeIndex(nv, scanIdx)) {
       return;
     }
-
     setCalMax(value);
+  };
+
+  const applyCalRange = (nextMin: number, nextMax: number) => {
+    const nv = nvRef.current;
+    if (!nv || nv.volumes.length === 0) {
+      return;
+    }
+    const scanIdx = scanVolumeIndex(nv);
+    if (!(volumeVisibility[scanIdx] ?? true)) {
+      return;
+    }
+    if (isOverlayVolumeIndex(nv, scanIdx)) {
+      return;
+    }
+
+    if (Number.isNaN(nextMin) || Number.isNaN(nextMax)) {
+      return;
+    }
+    let lo = Math.min(cal_maxGlobal, Math.max(cal_minGlobal, nextMin));
+    let hi = Math.min(cal_maxGlobal, Math.max(cal_minGlobal, nextMax));
+    if (lo > hi) {
+      [lo, hi] = [hi, lo];
+    }
+    if (lo === hi) {
+      if (hi < cal_maxGlobal) {
+        hi += 1;
+      } else if (lo > cal_minGlobal) {
+        lo -= 1;
+      }
+    }
+    // Set both ends directly so mid-update clamping cannot fight a preset jump.
+    _setCalMin(lo);
+    _setCalMax(hi);
   };
 
   useEffect(() => {
@@ -315,13 +350,22 @@ export default function useVolumeDisplayControls({
     const isNewBaseVolume = windowInitializedFor.current !== vol;
     windowInitializedFor.current = vol;
     let calMin = vol.calMin;
+    let calMax = vol.calMax;
     if (isNewBaseVolume && !isOverlayVolumeIndex(nv, scanIdx)) {
-      calMin = resolveDefaultCalMin(vol.calMin, vol.calMax);
-      // Written directly: the cal_min effect stays silent if the state already matches.
-      void nv.setVolume(scanIdx, { calMin });
+      // Same window as the Default density preset chip.
+      const preferred = resolveDensityPreset("default", vol.globalMin, vol.globalMax);
+      calMin = preferred.calMin;
+      calMax = preferred.calMax;
+      // Written directly: effects stay silent if state already matches.
+      void nv.setVolume(scanIdx, { calMin, calMax });
     }
-    setCalMin(calMin, isNewBaseVolume);
-    setCalMax(vol.calMax, isNewBaseVolume);
+    // Direct setters avoid mid-update clamping when both ends change together.
+    _setCalMin(calMin);
+    _setCalMax(calMax);
+    if (isNewBaseVolume) {
+      initialCalMin.current = calMin;
+      initialCalMax.current = calMax;
+    }
     setVolumeVisibility(nv.volumes.map(() => true));
     setVolumeOpacities(nv.volumes.map((v) => v.opacity ?? DEFAULT_VISIBLE_OPACITY));
   };
@@ -374,6 +418,7 @@ export default function useVolumeDisplayControls({
     cal_maxGlobal,
     handleCalMinChange,
     handleCalMaxChange,
+    applyCalRange,
     syncFromVolumes,
     reset,
   };
