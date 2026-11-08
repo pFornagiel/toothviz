@@ -20,6 +20,7 @@ import {
   presentNonToothClassesFromCounts,
   toggleToothId,
   toothIdToFdi,
+  toothOpacityToAlpha,
   visibilityKey,
   visibleClassesFromSelection,
   withColormapVisibility,
@@ -49,10 +50,17 @@ export interface BoneDisplay {
 }
 export type BoneDisplays = Record<BoneClass, BoneDisplay>;
 
+/** Master Teeth toggle under Tooth segmentation (selection still filters which teeth). */
+export type TeethDisplay = BoneDisplay;
+
 function defaultBoneDisplays(): BoneDisplays {
   return Object.fromEntries(
     BONE_CLASSES.map((c) => [c, { visible: true, opacity: DEFAULT_BONE_OPACITY }]),
   ) as BoneDisplays;
+}
+
+function defaultTeethDisplay(): TeethDisplay {
+  return { visible: true, opacity: 1 };
 }
 
 function boneAlphasFrom(displays: BoneDisplays, overlayOpacity: number): BoneAlphas {
@@ -64,12 +72,20 @@ function boneAlphasFrom(displays: BoneDisplays, overlayOpacity: number): BoneAlp
   ) as BoneAlphas;
 }
 
+function teethAlphaFrom(display: TeethDisplay): number {
+  return display.visible ? toothOpacityToAlpha(display.opacity) : 0;
+}
+
 export interface ToothSelectionControls {
   /** Jaw bone classes that have voxels in the loaded mask. */
   presentBoneClasses: BoneClass[];
   boneDisplays: BoneDisplays;
   setBoneVisible: (bone: BoneClass, visible: boolean) => void;
   setBoneOpacity: (bone: BoneClass, opacity: number) => void;
+  /** Show/hide and opacity for all selected teeth as a group. */
+  teethDisplay: TeethDisplay;
+  setTeethVisible: (visible: boolean) => void;
+  setTeethOpacity: (opacity: number) => void;
   /** True when the loaded overlay has at least one tooth class. */
   hasToothLabels: boolean;
   presentToothIds: string[];
@@ -176,6 +192,7 @@ export default function useToothSelectionControls({
   const [presentClassIds, setPresentClassIds] = useState<number[]>([]);
   const [presentNonToothClassIds, setPresentNonToothClassIds] = useState<number[]>([]);
   const [boneDisplays, setBoneDisplays] = useState<BoneDisplays>(defaultBoneDisplays);
+  const [teethDisplay, setTeethDisplay] = useState<TeethDisplay>(defaultTeethDisplay);
   const [selectedToothIds, setSelectedToothIds] = useState<string[]>([]);
   const [pickFromPreview, setPickFromPreviewState] = useState(false);
   const [pickModePending, setPickModePending] = useState(false);
@@ -202,12 +219,14 @@ export default function useToothSelectionControls({
   const labelColormapInstalledRef = useRef(false);
   const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boneDisplaysRef = useRef(boneDisplays);
+  const teethDisplayRef = useRef(teethDisplay);
   /** Tooth visibility last sent to `pushVisibility`, re-applied when only a bone changes. */
   const lastVisibleClassIdsRef = useRef<number[] | null>(null);
 
   presentClassIdsRef.current = presentClassIds;
   selectedToothIdsRef.current = selectedToothIds;
   pickFromPreviewRef.current = pickFromPreview;
+  teethDisplayRef.current = teethDisplay;
 
   const maskVisible = volumeVisibility[overlayIndex] ?? true;
   const maskVisibleRef = useRef(maskVisible);
@@ -230,13 +249,14 @@ export default function useToothSelectionControls({
       // A hidden mask has opacity 0 and restores its opacity later; this is only a divisor.
       const overlayOpacity = nv.volumes[idx]?.opacity || DEFAULT_OVERLAY_OPACITY;
       const boneAlphas = boneAlphasFrom(boneDisplaysRef.current, overlayOpacity);
-      const key = visibilityKey(visibleClassIds, boneAlphas);
+      const toothAlpha = teethAlphaFrom(teethDisplayRef.current);
+      const key = visibilityKey(visibleClassIds, boneAlphas, toothAlpha);
       if (appliedVisibilityKeyRef.current === key && labelColormapInstalledRef.current) {
         overlayShowsAllRef.current = showsAll;
         return Promise.resolve();
       }
 
-      const cmap = withColormapVisibility(base, visibleClassIds, boneAlphas);
+      const cmap = withColormapVisibility(base, visibleClassIds, boneAlphas, toothAlpha);
 
       return new Promise((resolve) => {
         queueNvUpdate(NvUpdateKey.ToothLabels, () => {
@@ -418,6 +438,26 @@ export default function useToothSelectionControls({
   const setBoneOpacity = useCallback(
     (bone: BoneClass, opacity: number) => updateBone(bone, { opacity }),
     [updateBone],
+  );
+
+  const updateTeethDisplay = useCallback(
+    (change: Partial<TeethDisplay>) => {
+      const next = { ...teethDisplayRef.current, ...change };
+      teethDisplayRef.current = next;
+      setTeethDisplay(next);
+      void pushVisibility(lastVisibleClassIdsRef.current, overlayShowsAllRef.current);
+    },
+    [pushVisibility],
+  );
+
+  const setTeethVisible = useCallback(
+    (visible: boolean) => updateTeethDisplay({ visible }),
+    [updateTeethDisplay],
+  );
+
+  const setTeethOpacity = useCallback(
+    (opacity: number) => updateTeethDisplay({ opacity }),
+    [updateTeethDisplay],
   );
 
   // Chart/selection changes while pick mode is off: debounced filter.
@@ -616,6 +656,9 @@ export default function useToothSelectionControls({
     const bones = defaultBoneDisplays();
     boneDisplaysRef.current = bones;
     setBoneDisplays(bones);
+    const teeth = defaultTeethDisplay();
+    teethDisplayRef.current = teeth;
+    setTeethDisplay(teeth);
     void showAllTeeth();
     if (nvRef.current) {
       setRotationPivot(nvRef.current, null);
@@ -627,6 +670,9 @@ export default function useToothSelectionControls({
     boneDisplays,
     setBoneVisible,
     setBoneOpacity,
+    teethDisplay,
+    setTeethVisible,
+    setTeethOpacity,
     hasToothLabels,
     presentToothIds,
     selectedToothIds,

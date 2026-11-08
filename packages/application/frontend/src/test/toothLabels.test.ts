@@ -5,6 +5,7 @@ import {
   MAXILLA_CLASS,
   METAL_CLASS,
   boneOpacityToAlpha,
+  toothOpacityToAlpha,
   maskVoxelCounts,
   presentClassesFromCounts,
   presentNonToothClassesFromCounts,
@@ -144,8 +145,15 @@ describe("jaw bones in the label colormap", () => {
     expect(alphaOf(cmap, MAXILLA_CLASS)).toBe(40);
   });
 
-  it("changes the visibility key when only a bone changes", () => {
+  it("changes the visibility key when only a bone or teeth alpha changes", () => {
     expect(visibilityKey([1], { [MANDIBLE_CLASS]: 40 })).not.toBe(visibilityKey([1]));
+    expect(visibilityKey([1], {}, 128)).not.toBe(visibilityKey([1]));
+  });
+
+  it("scales selected teeth by the Teeth opacity", () => {
+    const cmap = withColormapVisibility(base, null, {}, 128);
+    expect(alphaOf(cmap, 1)).toBe(128);
+    expect(alphaOf(cmap, MANDIBLE_CLASS)).toBe(0);
   });
 
   it("lists non-tooth classes present in a mask", () => {
@@ -246,9 +254,15 @@ describe("selection visibility", () => {
   });
 
   it("builds stable visibility keys", () => {
-    expect(visibilityKey(null)).toBe("*|0/0");
-    expect(visibilityKey([])).toBe("|0/0");
-    expect(visibilityKey([9, 1])).toBe("1,9|0/0");
+    expect(visibilityKey(null)).toBe("*|0/0|255");
+    expect(visibilityKey([])).toBe("|0/0|255");
+    expect(visibilityKey([9, 1])).toBe("1,9|0/0|255");
+  });
+
+  it("maps Teeth opacity linearly onto colormap alpha", () => {
+    expect(toothOpacityToAlpha(0)).toBe(0);
+    expect(toothOpacityToAlpha(1)).toBe(255);
+    expect(toothOpacityToAlpha(0.5)).toBe(128);
   });
 
   it("parses tooth ids from odontogram event targets", () => {

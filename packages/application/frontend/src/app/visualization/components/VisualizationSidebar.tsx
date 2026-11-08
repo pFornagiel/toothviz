@@ -11,6 +11,8 @@ import {
   Minus,
   Plus,
   Ruler,
+  Eye,
+  EyeOff,
   type LucideIcon,
 } from "lucide-react";
 import { Odontogram } from "react-odontogram";
@@ -35,8 +37,8 @@ import {
   AccordionTrigger,
 } from "../../components/ui/accordion";
 import { Tooth } from "../../components/icons/tooth";
-import type { BoneDisplay } from "../hooks/useToothSelectionControls";
 import {
+  BONE_CLASSES,
   MANDIBLE_CLASS,
   MAXILLA_CLASS,
   toothIdFromOdontogramTarget,
@@ -74,9 +76,179 @@ import { resolveScanVolumeIndex } from "../hooks/useVolumeDisplayControls";
 import { ViewPhase } from "../types";
 
 const BONE_NAMES: Record<BoneClass, string> = {
-  [MAXILLA_CLASS]: "Upper jaw bone",
-  [MANDIBLE_CLASS]: "Lower jaw bone",
+  [MAXILLA_CLASS]: "Upper jaw",
+  [MANDIBLE_CLASS]: "Lower jaw",
 };
+
+/** Matches the widest part chip ("Upper jaw" + eye) so Opacity sits over the tracks. */
+const MASK_PART_LABEL_COL = "w-[5.75rem] shrink-0";
+
+type MaskPartItem = {
+  id: string;
+  name: string;
+  visible: boolean;
+  opacity: number;
+  onVisibleChange: (visible: boolean) => void;
+  onOpacityChange: (opacity: number) => void;
+};
+
+function MaskPartsOpacityHeader() {
+  return (
+    <div className="flex items-center gap-2" aria-hidden="true">
+      <div className={MASK_PART_LABEL_COL} />
+      <span className="min-w-0 flex-1 text-center text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+        Opacity
+      </span>
+      <span className="w-9 shrink-0" />
+    </div>
+  );
+}
+
+/** Compact part row: clickable name chip toggles visibility; slider sets opacity. */
+function MaskPartRow({
+  name,
+  visible,
+  opacity,
+  onCommit,
+  onPreview,
+  onEndPreview,
+  onOpacityChange,
+}: {
+  name: string;
+  visible: boolean;
+  opacity: number;
+  onCommit: () => void;
+  onPreview: () => void;
+  onEndPreview: () => void;
+  onOpacityChange: (opacity: number) => void;
+}) {
+  const VisibilityIcon = visible ? Eye : EyeOff;
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        aria-pressed={visible}
+        aria-label={visible ? `Hide ${name}` : `Show ${name}`}
+        onClick={onCommit}
+        onMouseEnter={onPreview}
+        onFocus={onPreview}
+        onBlur={(event) => {
+          const next = event.relatedTarget as Node | null;
+          if (event.currentTarget.parentElement?.parentElement?.contains(next)) {
+            return;
+          }
+          onEndPreview();
+        }}
+        className={cn(
+          MASK_PART_LABEL_COL,
+          // Same pressed/idle language as density preset chips.
+          "inline-flex cursor-pointer items-center gap-1 rounded-md border px-1 py-0.5 text-left text-[11px] leading-tight transition-colors",
+          "focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-hidden",
+          visible
+            ? "border-foreground/25 bg-accent text-foreground"
+            : "border-border bg-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+        )}
+      >
+        <VisibilityIcon className="size-3 shrink-0" aria-hidden />
+        <span className="min-w-0 truncate">{name}</span>
+      </button>
+      <input
+        type="range"
+        aria-label={`${name} opacity`}
+        value={opacity}
+        min={OPACITY_RANGE.min}
+        max={OPACITY_RANGE.max}
+        step={OPACITY_RANGE.step}
+        disabled={!visible}
+        onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+        className={cn(
+          "h-1 min-w-0 flex-1 cursor-pointer accent-muted-foreground disabled:cursor-not-allowed",
+          !visible && "pointer-events-none opacity-50",
+        )}
+      />
+      <span
+        className={cn(
+          "w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground",
+          !visible && "opacity-50",
+        )}
+      >
+        {opacity.toFixed(2)}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Teeth / jaw visibility chips with hover preview (LUT hot path — same cost as a click).
+ * Leave the group to restore the pre-hover visibility snapshot.
+ */
+function MaskPartsControls({ parts }: { parts: MaskPartItem[] }) {
+  const previewBaselineRef = React.useRef<Record<string, boolean> | null>(null);
+
+  const applyVisibilities = (next: Record<string, boolean>) => {
+    for (const part of parts) {
+      const desired = next[part.id];
+      if (desired !== undefined && desired !== part.visible) {
+        part.onVisibleChange(desired);
+      }
+    }
+  };
+
+  const preview = (id: string) => {
+    if (previewBaselineRef.current === null) {
+      previewBaselineRef.current = Object.fromEntries(
+        parts.map((part) => [part.id, part.visible]),
+      );
+    }
+    const baseline = previewBaselineRef.current;
+    const previewed: Record<string, boolean> = { ...baseline, [id]: !baseline[id] };
+    applyVisibilities(previewed);
+  };
+
+  const endPreview = () => {
+    if (previewBaselineRef.current === null) {
+      return;
+    }
+    const baseline = previewBaselineRef.current;
+    previewBaselineRef.current = null;
+    applyVisibilities(baseline);
+  };
+
+  const commit = (id: string) => {
+    const committed = previewBaselineRef.current?.[id];
+    previewBaselineRef.current = null;
+    const part = parts.find((p) => p.id === id);
+    if (!part) {
+      return;
+    }
+    // Toggle from the lasting state (baseline if a preview was active).
+    const from = committed ?? part.visible;
+    if (part.visible === !from) {
+      return;
+    }
+    part.onVisibleChange(!from);
+  };
+
+  return (
+    <div className="space-y-1.5" onMouseLeave={endPreview}>
+      <MaskPartsOpacityHeader />
+      <div className="space-y-1">
+        {parts.map((part) => (
+          <MaskPartRow
+            key={part.id}
+            name={part.name}
+            visible={part.visible}
+            opacity={part.opacity}
+            onCommit={() => commit(part.id)}
+            onPreview={() => preview(part.id)}
+            onEndPreview={endPreview}
+            onOpacityChange={part.onOpacityChange}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function MultiplanarIcon({ className }: { className?: string }) {
   return (
@@ -203,44 +375,6 @@ function SubtleOpacitySlider({
   );
 }
 
-/** A jaw bone's toggle with always-visible subtle opacity (same pattern as Layers). */
-function BoneRow({
-  name,
-  display,
-  onVisibleChange,
-  onOpacityChange,
-}: {
-  name: string;
-  display: BoneDisplay;
-  onVisibleChange: (visible: boolean) => void;
-  onOpacityChange: (opacity: number) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
-        <Checkbox
-          checked={display.visible}
-          onCheckedChange={(checked) => onVisibleChange(checked === true)}
-        />
-        {name}
-      </label>
-      <div
-        className={cn(
-          "ml-6.5",
-          !display.visible && "pointer-events-none opacity-50",
-        )}
-      >
-        <SubtleOpacitySlider
-          name={name}
-          value={display.opacity}
-          onChange={onOpacityChange}
-          disabled={!display.visible}
-        />
-      </div>
-    </div>
-  );
-}
-
 function SliderRow({
   label,
   valueLabel,
@@ -282,7 +416,7 @@ function SliderRow({
   );
 }
 
-/** Visibility on the name row; subtle opacity and optional scan controls underneath. */
+/** Visibility on the name row; subtle opacity and optional nested controls underneath. */
 function LayerRow({
   name,
   visible,
@@ -291,6 +425,7 @@ function LayerRow({
   onOpacityChange,
   trailing,
   emphasis = "default",
+  showOpacity = true,
   children,
 }: {
   name: string;
@@ -302,8 +437,14 @@ function LayerRow({
   trailing?: React.ReactNode;
   /** Scan is supporting context when a mask is also present. */
   emphasis?: "default" | "secondary";
+  /**
+   * When false, skip the layer opacity slider (e.g. Tooth segmentation with
+   * Parts — per-part opacity is the clearer control).
+   */
+  showOpacity?: boolean;
   children?: React.ReactNode;
 }) {
+  const hasBody = showOpacity || Boolean(children);
   return (
     <div
       className={cn(
@@ -325,20 +466,24 @@ function LayerRow({
         </label>
         {trailing}
       </div>
-      <div
-        className={cn(
-          "ml-6.5 space-y-2",
-          !visible && "pointer-events-none opacity-50",
-        )}
-      >
-        <SubtleOpacitySlider
-          name={name}
-          value={opacity}
-          onChange={onOpacityChange}
-          disabled={!visible}
-        />
-        {children}
-      </div>
+      {hasBody && (
+        <div
+          className={cn(
+            "ml-6.5 space-y-2",
+            !visible && "pointer-events-none opacity-50",
+          )}
+        >
+          {showOpacity && (
+            <SubtleOpacitySlider
+              name={name}
+              value={opacity}
+              onChange={onOpacityChange}
+              disabled={!visible}
+            />
+          )}
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -526,18 +671,12 @@ export function VisualizationSidebar() {
   const scanVolumeIdx = resolveScanVolumeIndex(volumes.length, teeth.overlayIndex);
   const maskVisible =
     teeth.overlayIndex >= 0 && (display.volumeVisibility[teeth.overlayIndex] ?? true);
-  // Only show tooth picking when a mask overlay is loaded, visible, and has labels.
-  const showToothSelection =
-    (teeth.hasToothLabels || teeth.presentBoneClasses.length > 0) && maskVisible;
-  const boneRow = (bone: BoneClass) =>
-    teeth.presentBoneClasses.includes(bone) && (
-      <BoneRow
-        name={BONE_NAMES[bone]}
-        display={teeth.boneDisplays[bone]}
-        onVisibleChange={(visible) => teeth.setBoneVisible(bone, visible)}
-        onOpacityChange={(opacity) => teeth.setBoneOpacity(bone, opacity)}
-      />
-    );
+  // Jaw bones sit in Layers like the CBCT scan; Teeth keeps the odontogram.
+  const presentBones = BONE_CLASSES.filter((bone) =>
+    teeth.presentBoneClasses.includes(bone),
+  );
+  const showToothSelection = teeth.hasToothLabels && maskVisible;
+  const teethPickerEnabled = teeth.teethDisplay.visible;
 
   // Sections open by default; clip appears only where a 3D tile is shown.
   // Render View (slice type + zoom) stays available for every slice type.
@@ -595,6 +734,11 @@ export function VisualizationSidebar() {
                     const opacity =
                       display.volumeOpacities[idx] ?? OPACITY_RANGE.max;
                     const isScan = idx === scanVolumeIdx;
+                    const isMask =
+                      teeth.overlayIndex >= 0 && idx === teeth.overlayIndex;
+                    const hasMaskParts =
+                      isMask &&
+                      (teeth.hasToothLabels || presentBones.length > 0);
                     const name = volumeLabel(idx, teeth.overlayIndex, vol.name);
                     return (
                       <LayerRow
@@ -604,6 +748,9 @@ export function VisualizationSidebar() {
                         opacity={opacity}
                         onVisibleChange={() => display.handleVolumeVisibilityToggle(idx)}
                         onOpacityChange={(value) => display.handleOpacityChange(idx, value)}
+                        // Parts already expose per-structure opacity; a second
+                        // whole-mask slider on top of them is confusing.
+                        showOpacity={!hasMaskParts}
                         emphasis={
                           isScan && hasMultipleVolumes ? "secondary" : "default"
                         }
@@ -629,6 +776,37 @@ export function VisualizationSidebar() {
                             disabled={!visible}
                           />
                         )}
+                        {hasMaskParts && (
+                          <MaskPartsControls
+                            parts={[
+                              ...(teeth.hasToothLabels
+                                ? [
+                                    {
+                                      id: "teeth",
+                                      name: "Teeth",
+                                      visible: teeth.teethDisplay.visible,
+                                      opacity: teeth.teethDisplay.opacity,
+                                      onVisibleChange: teeth.setTeethVisible,
+                                      onOpacityChange: teeth.setTeethOpacity,
+                                    } satisfies MaskPartItem,
+                                  ]
+                                : []),
+                              ...presentBones.map((bone) => {
+                                const boneDisplay = teeth.boneDisplays[bone];
+                                return {
+                                  id: String(bone),
+                                  name: BONE_NAMES[bone],
+                                  visible: boneDisplay.visible,
+                                  opacity: boneDisplay.opacity,
+                                  onVisibleChange: (next: boolean) =>
+                                    teeth.setBoneVisible(bone, next),
+                                  onOpacityChange: (value: number) =>
+                                    teeth.setBoneOpacity(bone, value),
+                                } satisfies MaskPartItem;
+                              }),
+                            ]}
+                          />
+                        )}
                       </LayerRow>
                     );
                   })}
@@ -643,30 +821,37 @@ export function VisualizationSidebar() {
             )}
 
             {showToothSelection && (
-              <ControlSection value="teeth" icon={Tooth} title="Teeth & Jaws">
-                {teeth.hasToothLabels && (
-                  <>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-foreground">{PICK_MODE_LABEL}</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-flex">
-                            <Switch
-                              checked={teeth.pickFromPreview}
-                              disabled={teeth.pickModePending}
-                              aria-label={PICK_MODE_LABEL}
-                              onCheckedChange={(enabled) => {
-                                if (enabled) {
-                                  teeth.setPickFromPreview(true);
-                                } else {
-                                  teeth.requestPickModeExit("choose");
-                                }
-                              }}
-                            />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-60 text-balance">
-                          {!teeth.pickFromPreview
+              <ControlSection value="teeth" icon={Tooth} title="Teeth">
+                <fieldset
+                  disabled={!teethPickerEnabled}
+                  className={cn(
+                    "m-0 min-w-0 space-y-4 border-0 p-0",
+                    !teethPickerEnabled && "pointer-events-none opacity-50",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-foreground">{PICK_MODE_LABEL}</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Switch
+                            checked={teeth.pickFromPreview}
+                            disabled={teeth.pickModePending || !teethPickerEnabled}
+                            aria-label={PICK_MODE_LABEL}
+                            onCheckedChange={(enabled) => {
+                              if (enabled) {
+                                teeth.setPickFromPreview(true);
+                              } else {
+                                teeth.requestPickModeExit("choose");
+                              }
+                            }}
+                          />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-60 text-balance">
+                        {!teethPickerEnabled
+                          ? "Turn on Teeth under Tooth segmentation to use the picker."
+                          : !teeth.pickFromPreview
                             ? PICK_MODE_HELP_OFF
                             : sameToothSelection(
                                   teeth.selectedToothIds,
@@ -674,27 +859,25 @@ export function VisualizationSidebar() {
                                 )
                               ? PICK_MODE_HELP_ON
                               : PICK_MODE_HELP_ON_DIRTY}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <p className="whitespace-pre-line text-xs text-muted-foreground">
-                      {teeth.pickModePending
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <p className="whitespace-pre-line text-xs text-muted-foreground">
+                    {!teethPickerEnabled
+                      ? "Teeth are hidden. Show them under Tooth segmentation to pick and filter."
+                      : teeth.pickModePending
                         ? PICK_MODE_PENDING
                         : teeth.pickFromPreview
                           ? PICK_MODE_HELP
                           : "Select on the chart below, or enable pick mode.\nColors match the labels in the viewer."}
-                    </p>
-                  </>
-                )}
-                {boneRow(MAXILLA_CLASS)}
-                {teeth.hasToothLabels && (
+                  </p>
                   <div
                     className={cn(
                       "toothviz-odontogram w-full overflow-x-auto",
                       teeth.pickModePending && "toothviz-odontogram--pending",
                     )}
                     onClick={(e) => {
-                      if (teeth.pickModePending) {
+                      if (!teethPickerEnabled || teeth.pickModePending) {
                         return;
                       }
                       const toothId = toothIdFromOdontogramTarget(e.target);
@@ -716,49 +899,49 @@ export function VisualizationSidebar() {
                     <Odontogram
                       notation="FDI"
                       layout="square"
-                      showTooltip
+                      showTooltip={teethPickerEnabled}
                       showLabels={false}
                       readOnly
                       teethConditions={teeth.detectedConditions}
                       className="w-full"
                     />
                   </div>
-                )}
-                {boneRow(MANDIBLE_CLASS)}
-                {teeth.hasToothLabels && (
-                  <>
-                    <p className="whitespace-pre-line text-xs text-muted-foreground tabular-nums text-balance">
-                      {teeth.selectedToothIds.length === 0
-                        ? "No teeth selected."
-                        : teeth.selectedToothIds.length === teeth.presentToothIds.length
-                          ? `All ${teeth.presentToothIds.length} detected teeth selected.`
-                          : `Selected ${teeth.selectedToothIds.length} of ${teeth.presentToothIds.length}:\n${formatFdiList(teeth.selectedToothIds)}`}
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full bg-card"
-                        disabled={
-                          teeth.pickModePending ||
-                          teeth.selectedToothIds.length === teeth.presentToothIds.length
-                        }
-                        onClick={() => setSelectAllOpen(true)}
-                      >
-                        Select all
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full bg-card"
-                        disabled={teeth.pickModePending || teeth.selectedToothIds.length === 0}
-                        onClick={() => setClearSelectionOpen(true)}
-                      >
-                        Clear selection
-                      </Button>
-                    </div>
-                  </>
-                )}
+                  <p className="whitespace-pre-line text-xs text-muted-foreground tabular-nums text-balance">
+                    {teeth.selectedToothIds.length === 0
+                      ? "No teeth selected."
+                      : teeth.selectedToothIds.length === teeth.presentToothIds.length
+                        ? `All ${teeth.presentToothIds.length} detected teeth selected.`
+                        : `Selected ${teeth.selectedToothIds.length} of ${teeth.presentToothIds.length}:\n${formatFdiList(teeth.selectedToothIds)}`}
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-card"
+                      disabled={
+                        !teethPickerEnabled ||
+                        teeth.pickModePending ||
+                        teeth.selectedToothIds.length === teeth.presentToothIds.length
+                      }
+                      onClick={() => setSelectAllOpen(true)}
+                    >
+                      Select all
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-card"
+                      disabled={
+                        !teethPickerEnabled ||
+                        teeth.pickModePending ||
+                        teeth.selectedToothIds.length === 0
+                      }
+                      onClick={() => setClearSelectionOpen(true)}
+                    >
+                      Clear selection
+                    </Button>
+                  </div>
+                </fieldset>
               </ControlSection>
             )}
 

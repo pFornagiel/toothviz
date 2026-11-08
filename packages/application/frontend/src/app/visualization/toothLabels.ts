@@ -356,6 +356,7 @@ export function withColormapVisibility(
   base: LabelColorMap,
   visibleClassIds: number[] | null,
   boneAlphas: BoneAlphas = {},
+  toothAlpha = 255,
 ): LabelColorMap {
   const visible = visibleClassIds === null ? null : new Set(visibleClassIds);
   const A = base.I.map((id) => {
@@ -365,7 +366,7 @@ export function withColormapVisibility(
     if (id > MAX_TOOTH_CLASS) {
       return boneAlphas[id as BoneClass] ?? 0;
     }
-    return visible === null || visible.has(id) ? 255 : 0;
+    return visible === null || visible.has(id) ? toothAlpha : 0;
   });
   // The mask texture is interpolated without premultiplying, so even at alpha 0 a class's
   // colour bleeds into the neighbouring voxels. A hidden bone must stay black, or the teeth
@@ -434,15 +435,30 @@ export function boneOpacityToAlpha(opacity: number, overlayOpacity: number): num
   return Math.min(255, Math.ceil((255 * sampleAlpha) / overlayOpacity));
 }
 
-/** Stable key for a visibility set (`*` = all present teeth opaque) plus the bone alphas. */
+/**
+ * Colormap alpha for the Teeth opacity slider under Tooth segmentation.
+ * Linear: teeth stay readable as solid labels, unlike the bone ray-sample curve.
+ */
+export function toothOpacityToAlpha(opacity: number): number {
+  if (opacity <= 0) {
+    return 0;
+  }
+  if (opacity >= 1) {
+    return 255;
+  }
+  return Math.min(255, Math.round(255 * opacity));
+}
+
+/** Stable key for a visibility set (`*` = all present teeth) plus bone/teeth alphas. */
 export function visibilityKey(
   visibleClassIds: number[] | null,
   boneAlphas: BoneAlphas = {},
+  toothAlpha = 255,
 ): string {
   const bones = BONE_CLASSES.map((c) => boneAlphas[c] ?? 0).join("/");
   const teeth =
     visibleClassIds === null ? "*" : [...visibleClassIds].sort((a, b) => a - b).join(",");
-  return `${teeth}|${bones}`;
+  return `${teeth}|${bones}|${toothAlpha}`;
 }
 
 /**
