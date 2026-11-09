@@ -1,8 +1,111 @@
 diff --git a/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js b/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
-index dcb4298..40fc62a 100644
+index dcb4298..998893c 100644
 --- a/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
 +++ b/node_modules/@niivue/niivue/dist/NVControlBase-BuG5mofc.js
-@@ -17987,7 +17987,7 @@ let gb = class extends EventTarget {
+@@ -9521,6 +9521,31 @@ function qy(n, t) {
+   let s = n.toFixed(e);
+   return t && (s += " mm"), s;
+ }
++function __clipLineToTile(x0, y0, x1, y1, ltwh) {
++  const left = ltwh[0], top = ltwh[1], right = left + ltwh[2], bottom = top + ltwh[3];
++  let t0 = 0, t1 = 1;
++  const dx = x1 - x0, dy = y1 - y0;
++  const p = [-dx, dx, -dy, dy];
++  const q = [x0 - left, right - x0, y0 - top, bottom - y0];
++  for (let i = 0; i < 4; i++) {
++    if (p[i] === 0) {
++      if (q[i] < 0) return null;
++    } else {
++      const r = q[i] / p[i];
++      if (p[i] < 0) {
++        if (r > t1) return null;
++        if (r > t0) t0 = r;
++      } else {
++        if (r < t0) return null;
++        if (r < t1) t1 = r;
++      }
++    }
++  }
++  return [x0 + t0 * dx, y0 + t0 * dy, x0 + t1 * dx, y0 + t1 * dy];
++}
++function __pointInTile(x, y, ltwh) {
++  return x >= ltwh[0] && y >= ltwh[1] && x <= ltwh[0] + ltwh[2] && y <= ltwh[1] + ltwh[3];
++}
+ function n3(n, t, e, s) {
+   const i = n.completedMeasurements, o = n.completedAngles;
+   if (i.length === 0 && o.length === 0) return null;
+@@ -9533,36 +9558,48 @@ function n3(n, t, e, s) {
+       if (!ue(M.startMM, b, v, d) || !ue(M.endMM, b, v, d))
+         continue;
+       const [A, y] = Ut(M.startMM, g, p), [x, w] = Ut(M.endMM, g, p);
+-      u.push(s(A, y, x, w, l, a));
++      const clipped = __clipLineToTile(A, y, x, w, p);
++      if (!clipped) continue;
++      const [cA, cY, cX, cW] = clipped;
++      u.push(s(cA, cY, cX, cW, l, a));
+       const S = x - A, I = w - y, P = Math.sqrt(S * S + I * I);
+       if (P > 0) {
+         const F = -I / P * 6, U = S / P * 6;
+-        u.push(
+-          s(A - F, y - U, A + F, y + U, l, a),
+-          s(x - F, w - U, x + F, w + U, l, a)
+-        );
++        if (__pointInTile(A, y, p)) {
++          const tick = __clipLineToTile(A - F, y - U, A + F, y + U, p);
++          tick && u.push(s(tick[0], tick[1], tick[2], tick[3], l, a));
++        }
++        if (__pointInTile(x, w, p)) {
++          const tick = __clipLineToTile(x - F, w - U, x + F, w + U, p);
++          tick && u.push(s(tick[0], tick[1], tick[2], tick[3], l, a));
++        }
++      }
++      const R = qy(M.distance, r.isMeasureUnitsVisible), L = (cA + cX) * 0.5, V = (cY + cW) * 0.5;
++      if (__pointInTile(L, V, p)) {
++        const N = e(R, L, V, 0.8, c, 0.5, 1, f);
++        N.count > 0 && h.push(N);
+       }
+-      const R = qy(M.distance, r.isMeasureUnitsVisible), L = (A + x) * 0.5, V = (y + w) * 0.5, N = e(R, L, V, 0.8, c, 0.5, 1, f);
+-      N.count > 0 && h.push(N);
+     }
+     for (const M of o) {
+       if (!ue(M.firstLine.endMM, b, v, d)) continue;
+       const [A, y] = Ut(M.firstLine.startMM, g, p), [x, w] = Ut(M.firstLine.endMM, g, p), [S, I] = Ut(M.secondLine.endMM, g, p);
+-      u.push(
+-        s(A, y, x, w, l, a),
+-        s(x, w, S, I, l, a)
+-      );
+-      const P = `${M.angle.toFixed(1)}°`, R = e(
+-        P,
+-        x,
+-        w,
+-        0.8,
+-        c,
+-        0.5,
+-        1,
+-        f
+-      );
+-      R.count > 0 && h.push(R);
++      const leg1 = __clipLineToTile(A, y, x, w, p);
++      const leg2 = __clipLineToTile(x, w, S, I, p);
++      leg1 && u.push(s(leg1[0], leg1[1], leg1[2], leg1[3], l, a));
++      leg2 && u.push(s(leg2[0], leg2[1], leg2[2], leg2[3], l, a));
++      if (__pointInTile(x, w, p)) {
++        const P = `${M.angle.toFixed(1)}°`, R = e(
++          P,
++          x,
++          w,
++          0.8,
++          c,
++          0.5,
++          1,
++          f
++        );
++        R.count > 0 && h.push(R);
++      }
+     }
+   }
+   return u.length === 0 && h.length === 0 ? null : { lines: u, labels: h };
+@@ -17987,7 +18024,7 @@ let gb = class extends EventTarget {
      return this.model.volume.illumination;
    }
    set volumeIllumination(t) {
@@ -12,7 +115,7 @@ index dcb4298..40fc62a 100644
    get volumeOutlineWidth() {
      return this.model.volume.outlineWidth;
 diff --git a/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js b/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
-index 475cb18..f7f9823 100644
+index 475cb18..cdffe98 100644
 --- a/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
 +++ b/node_modules/@niivue/niivue/dist/NVViewGL-ChZkTHkv.js
 @@ -426,6 +426,17 @@ void clipSampleRange(vec3 dir, vec4 rayStart, vec4 clipPlane, inout vec2 sampleS

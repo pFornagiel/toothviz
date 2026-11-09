@@ -48,14 +48,23 @@ honored it). The patch fades the composited background by
 `volumes[0].opacity` before the overlay passes, so `nv.setVolume(0, { opacity })` works in 3D.
 
 - `NVViewGL @@ -2344` — `uniform float backOpacity;` declaration in the render fragment.
-- `NVViewGL @@ -2704` (SHARED hunk, also D) — the `colAcc *= backOpacity;` line.
+- `NVViewGL @@ -2704` (SHARED hunk, also E) — the `colAcc *= backOpacity;` line.
 - `NVViewGL @@ -2987` — `draw(..., __backOpacity = 1)` parameter.
 - `NVViewGL @@ -3006` — uploads the clamped uniform.
 - `NVViewGL @@ -3814` — draw-loop caller passes `x.renderOpacity ?? x.opacity ?? 1` (the
   background NVImage). `renderOpacity` is a 3D-only override: the jaw bone view sets it to 0 to
   drop the scan from the 3D render while 2D slices keep showing it.
 
-### D. Clip planes affect ALL volumes, not just the background
+### D. Completed measurements stay inside their 2D tile
+
+Stock rc.8 projects saved measurement endpoints into each matching slice tile but draws the
+full line without clipping to that tile's `leftTopWidthHeight`. After zoom/pan the line can
+cross into neighbouring tiles. The patch Liang–Barsky-clips each segment (and ticks/labels)
+to the tile rect in `n3` (`NVControlBase`).
+
+- `NVControlBase` — `__clipLineToTile` / `__pointInTile` helpers and clipped draw path in `n3`.
+
+### E. Clip planes affect ALL volumes, not just the background
 
 Stock rc.8 clips only the background pass; overlay/PAQD/drawing passes deliberately marched
 the original unclipped ray, so overlays floated over the cut surface. The patch threads the
@@ -81,7 +90,7 @@ Granularity is per-pass (all overlays share one composited texture), not per ove
 original position is matched with up to ±20 lines of drift, and insert offsets are bookkept
 only at apply time. Consequence: **deleting all hunks of one change from the patch file does
 not break the remaining hunks.** Mind the two SHARED hunks though — `@@ -2857` mixes A+B and
-`@@ -2704` mixes C+D; splitting those means editing inside a hunk and fixing the
+`@@ -2704` mixes C+E; splitting those means editing inside a hunk and fixing the
 `@@ -a,b +c,d` line counts by hand, which is fragile.
 
 The always-safe procedure (also the only sane one for the shared hunks):
