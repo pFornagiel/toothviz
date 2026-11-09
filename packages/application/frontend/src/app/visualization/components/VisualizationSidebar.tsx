@@ -82,6 +82,13 @@ const BONE_NAMES: Record<BoneClass, string> = {
   [MANDIBLE_CLASS]: "Lower jaw",
 };
 
+/** Longer phrasing for tooltips (chips stay short). */
+const MASK_PART_TOOLTIP_NAME: Record<string, string> = {
+  teeth: "all detected teeth",
+  [String(MAXILLA_CLASS)]: "upper jaw bone",
+  [String(MANDIBLE_CLASS)]: "lower jaw bone",
+};
+
 /** Matches the widest part chip ("Upper jaw" + eye) so Opacity sits over the tracks. */
 const MASK_PART_LABEL_COL = "w-[5.75rem] shrink-0";
 
@@ -98,7 +105,7 @@ function MaskPartsOpacityHeader() {
   return (
     <div className="flex items-center gap-2" aria-hidden="true">
       <div className={MASK_PART_LABEL_COL} />
-      <span className="min-w-0 flex-1 text-center text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+      <span className="min-w-0 flex-1 text-center text-xs font-medium tracking-wider text-foreground uppercase">
         Opacity
       </span>
       <span className="w-9 shrink-0" />
@@ -109,38 +116,50 @@ function MaskPartsOpacityHeader() {
 /** Compact part row: clickable name chip toggles visibility; slider sets opacity. */
 function MaskPartRow({
   name,
+  tooltipName,
   visible,
   opacity,
   onVisibleChange,
   onOpacityChange,
 }: {
   name: string;
+  tooltipName: string;
   visible: boolean;
   opacity: number;
   onVisibleChange: (visible: boolean) => void;
   onOpacityChange: (opacity: number) => void;
 }) {
   const VisibilityIcon = visible ? Eye : EyeOff;
+  const actionLabel = visible ? `Hide ${tooltipName}` : `Show ${tooltipName}`;
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        aria-pressed={visible}
-        aria-label={visible ? `Hide ${name}` : `Show ${name}`}
-        onClick={() => onVisibleChange(!visible)}
-        className={cn(
-          MASK_PART_LABEL_COL,
-          // Same pressed/idle language as density preset chips.
-          "inline-flex cursor-pointer items-center gap-1 rounded-md border px-1 py-0.5 text-left text-[11px] leading-tight transition-colors",
-          "focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-hidden",
-          visible
-            ? "border-foreground/25 bg-accent text-foreground hover:border-foreground/40 hover:bg-accent/80"
-            : "border-border bg-transparent text-muted-foreground hover:border-foreground/20 hover:bg-accent/60 hover:text-foreground",
-        )}
-      >
-        <VisibilityIcon className="size-3 shrink-0" aria-hidden />
-        <span className="min-w-0 truncate">{name}</span>
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-pressed={visible}
+            aria-label={actionLabel}
+            onClick={() => onVisibleChange(!visible)}
+            className={cn(
+              MASK_PART_LABEL_COL,
+              // Same pressed/idle language as density preset chips (AA contrast on both).
+              "inline-flex cursor-pointer items-center gap-1 rounded-md border px-1 py-0.5 text-left text-[11px] leading-tight transition-colors",
+              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden",
+              visible
+                ? "border-foreground/40 bg-accent text-accent-foreground hover:border-foreground/55 hover:bg-accent/80"
+                : "border-foreground/35 bg-transparent text-foreground hover:border-foreground/50 hover:bg-accent/60",
+            )}
+          >
+            <VisibilityIcon className="size-3 shrink-0" aria-hidden />
+            <span className="min-w-0 truncate">{name}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="left" className="text-primary-foreground">
+          {visible
+            ? `Click to hide ${tooltipName}`
+            : `Click to show ${tooltipName}`}
+        </TooltipContent>
+      </Tooltip>
       <input
         type="range"
         aria-label={`${name} opacity`}
@@ -151,13 +170,13 @@ function MaskPartRow({
         disabled={!visible}
         onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
         className={cn(
-          "h-1 min-w-0 flex-1 cursor-pointer accent-muted-foreground disabled:cursor-not-allowed",
+          "h-1 min-w-0 flex-1 cursor-pointer accent-foreground disabled:cursor-not-allowed",
           !visible && "pointer-events-none opacity-50",
         )}
       />
       <span
         className={cn(
-          "w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground",
+          "w-9 shrink-0 text-right text-xs tabular-nums text-foreground",
           !visible && "opacity-50",
         )}
       >
@@ -177,6 +196,7 @@ function MaskPartsControls({ parts }: { parts: MaskPartItem[] }) {
           <MaskPartRow
             key={part.id}
             name={part.name}
+            tooltipName={MASK_PART_TOOLTIP_NAME[part.id] ?? part.name.toLowerCase()}
             visible={part.visible}
             opacity={part.opacity}
             onVisibleChange={part.onVisibleChange}
@@ -362,7 +382,6 @@ function LayerRow({
   onVisibleChange,
   onOpacityChange,
   trailing,
-  emphasis = "default",
   showOpacity = true,
   children,
 }: {
@@ -373,8 +392,6 @@ function LayerRow({
   onOpacityChange: (value: number) => void;
   /** Optional control on the name row (e.g. scan 2D/3D mode). */
   trailing?: React.ReactNode;
-  /** Scan is supporting context when a mask is also present. */
-  emphasis?: "default" | "secondary";
   /**
    * When false, skip the layer opacity slider (e.g. Tooth segmentation with
    * Parts — per-part opacity is the clearer control).
@@ -384,19 +401,9 @@ function LayerRow({
 }) {
   const hasBody = showOpacity || Boolean(children);
   return (
-    <div
-      className={cn(
-        "space-y-2 rounded-md",
-        emphasis === "secondary" && "opacity-90",
-      )}
-    >
+    <div className="space-y-2 rounded-md">
       <div className="flex flex-wrap items-center gap-2">
-        <label
-          className={cn(
-            "flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-sm",
-            emphasis === "secondary" ? "text-muted-foreground" : "text-foreground",
-          )}
-        >
+        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-sm text-foreground">
           <Checkbox checked={visible} onCheckedChange={onVisibleChange} />
           <span className="truncate" title={name}>
             {name}
@@ -704,9 +711,6 @@ export function VisualizationSidebar() {
                         // Parts already expose per-structure opacity; a second
                         // whole-mask slider on top of them is confusing.
                         showOpacity={!hasMaskParts}
-                        emphasis={
-                          isScan && hasMultipleVolumes ? "secondary" : "default"
-                        }
                         trailing={
                           isScan && hasMultipleVolumes ? (
                             <ScanViewMode

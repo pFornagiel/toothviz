@@ -208,9 +208,10 @@ export default function DisplayRangeSlider({
                     className={cn(
                       "min-w-0 flex-1 truncate rounded-md border px-1 py-0.5 text-center text-[11px] leading-tight transition-colors",
                       "disabled:cursor-not-allowed",
+                      "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden",
                       selected
-                        ? "border-foreground/25 bg-accent text-foreground"
-                        : "border-border bg-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                        ? "border-foreground/40 bg-accent text-accent-foreground"
+                        : "border-foreground/35 bg-transparent text-foreground hover:border-foreground/50 hover:bg-accent/60",
                     )}
                   >
                     {preset.label}
