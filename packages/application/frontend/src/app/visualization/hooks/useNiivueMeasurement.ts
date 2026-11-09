@@ -12,12 +12,19 @@ export interface MeasurementItem {
   distance: number;
   /** The plane it was measured on, or `null` for any other slice type. */
   plane: SliceTypeKey | null;
+  /** User-given label; empty means the list shows a default placeholder. */
+  name: string;
 }
 
 export interface MeasurementControls {
   phase: MeasurePhase;
   /** Every measurement, in the order they were made. */
   measurements: MeasurementItem[];
+  /**
+   * Index of a measurement that was just finished and should open rename.
+   * Cleared by the list once it starts editing (or when measurements are cleared).
+   */
+  pendingRenameIndex: number | null;
   /** False where measuring cannot work: pick mode, or the 3D-only view. */
   available: boolean;
   start: () => void;
@@ -26,6 +33,10 @@ export interface MeasurementControls {
   clear: () => void;
   /** Removes one measurement. */
   remove: (index: number) => void;
+  /** Sets the display name of one measurement. */
+  rename: (index: number, name: string) => void;
+  /** Consumes {@link pendingRenameIndex} after the list opens rename. */
+  clearPendingRename: () => void;
   /** Moves the crosshair to a measurement and makes sure its plane is on screen. */
   goTo: (index: number) => void;
   /** Cancels measuring and removes every measurement (Reset View). */
@@ -83,7 +94,10 @@ export default function useNiivueMeasurement({
 }): MeasurementControls {
   const [phase, setPhaseState] = useState<MeasurePhase>("off");
   const [measurements, setMeasurements] = useState<MeasurementItem[]>([]);
+  const [pendingRenameIndex, setPendingRenameIndex] = useState<number | null>(null);
   const phaseRef = useRef<MeasurePhase>("off");
+  /** Names live here so syncing distances from NiiVue does not wipe them. */
+  const namesRef = useRef<string[]>([]);
   const previousDragModeRef = useRef<number | null>(null);
   const pointerIdRef = useRef(0);
   const firstPressRef = useRef<{ x: number; y: number } | null>(null);
@@ -100,7 +114,20 @@ export default function useNiivueMeasurement({
 
   const syncList = useCallback(() => {
     const list = nvRef.current?.model.completedMeasurements ?? [];
-    setMeasurements(list.map((m) => ({ distance: m.distance, plane: planeOf(m.sliceType) })));
+    const names = namesRef.current;
+    while (names.length > list.length) {
+      names.pop();
+    }
+    while (names.length < list.length) {
+      names.push("");
+    }
+    setMeasurements(
+      list.map((m, i) => ({
+        distance: m.distance,
+        plane: planeOf(m.sliceType),
+        name: names[i] ?? "",
+      })),
+    );
   }, [nvRef]);
 
   const leave = useCallback(() => {
@@ -123,14 +150,20 @@ export default function useNiivueMeasurement({
   const finish = useCallback(() => {
     finishedAtRef.current = performance.now();
     const nv = nvRef.current;
+    let addedIndex: number | null = null;
     if (nv) {
       const list = nv.model.completedMeasurements;
       if (list.length > 0 && list[list.length - 1].distance < MIN_DISTANCE_MM) {
         list.pop();
         nv.drawScene();
+      } else if (list.length > 0) {
+        addedIndex = list.length - 1;
       }
     }
     leave();
+    if (addedIndex !== null) {
+      setPendingRenameIndex(addedIndex);
+    }
   }, [leave, nvRef]);
 
   const cancel = useCallback(() => {
@@ -167,6 +200,8 @@ export default function useNiivueMeasurement({
   }, [canvasRef, nvRef, setPhase]);
 
   const clear = useCallback(() => {
+    namesRef.current = [];
+    setPendingRenameIndex(null);
     nvRef.current?.clearMeasurements();
     syncList();
   }, [nvRef, syncList]);
@@ -178,12 +213,26 @@ export default function useNiivueMeasurement({
         return;
       }
       cancel();
+      namesRef.current.splice(index, 1);
       nv.model.completedMeasurements.splice(index, 1);
       nv.drawScene();
+      setPendingRenameIndex(null);
       syncList();
     },
     [cancel, nvRef, syncList],
   );
+
+  const rename = useCallback((index: number, name: string) => {
+    if (index < 0 || index >= namesRef.current.length) {
+      return;
+    }
+    namesRef.current[index] = name;
+    setMeasurements((prev) => prev.map((m, i) => (i === index ? { ...m, name } : m)));
+  }, []);
+
+  const clearPendingRename = useCallback(() => {
+    setPendingRenameIndex(null);
+  }, []);
 
   const goTo = useCallback(
     (index: number) => {
@@ -368,5 +417,18 @@ export default function useNiivueMeasurement({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewPhase, cancel, finish]);
 
-  return { phase, measurements, available, start, cancel, clear, remove, goTo, reset };
+  return {
+    phase,
+    measurements,
+    pendingRenameIndex,
+    available,
+    start,
+    cancel,
+    clear,
+    remove,
+    rename,
+    clearPendingRename,
+    goTo,
+    reset,
+  };
 }

@@ -250,9 +250,31 @@ describe("useNiivueMeasurement", () => {
     const ctx = setup();
     await measureTwice(ctx);
     expect(ctx.hook.result.current.measurements).toEqual([
-      { distance: 12, plane: SliceTypeKey.Coronal },
-      { distance: 30, plane: SliceTypeKey.Coronal },
+      { distance: 12, plane: SliceTypeKey.Coronal, name: "" },
+      { distance: 30, plane: SliceTypeKey.Coronal, name: "" },
     ]);
+  });
+
+  it("renames a measurement and keeps the name after removing another", async () => {
+    const ctx = setup();
+    await measureTwice(ctx);
+    act(() => ctx.hook.result.current.rename(1, "Root length"));
+    expect(ctx.hook.result.current.measurements[1]?.name).toBe("Root length");
+    act(() => ctx.hook.result.current.remove(0));
+    expect(ctx.hook.result.current.measurements).toEqual([
+      { distance: 30, plane: SliceTypeKey.Coronal, name: "Root length" },
+    ]);
+  });
+
+  it("marks a finished measurement for rename", async () => {
+    const { hook, click } = setup();
+    expect(hook.result.current.pendingRenameIndex).toBeNull();
+    act(() => hook.result.current.start());
+    await click(10, 10);
+    await click(50, 50);
+    expect(hook.result.current.pendingRenameIndex).toBe(0);
+    act(() => hook.result.current.clearPendingRename());
+    expect(hook.result.current.pendingRenameIndex).toBeNull();
   });
 
   it("removes only the chosen measurement", async () => {
