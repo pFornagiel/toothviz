@@ -111,17 +111,13 @@ function MaskPartRow({
   name,
   visible,
   opacity,
-  onCommit,
-  onPreview,
-  onEndPreview,
+  onVisibleChange,
   onOpacityChange,
 }: {
   name: string;
   visible: boolean;
   opacity: number;
-  onCommit: () => void;
-  onPreview: () => void;
-  onEndPreview: () => void;
+  onVisibleChange: (visible: boolean) => void;
   onOpacityChange: (opacity: number) => void;
 }) {
   const VisibilityIcon = visible ? Eye : EyeOff;
@@ -131,24 +127,15 @@ function MaskPartRow({
         type="button"
         aria-pressed={visible}
         aria-label={visible ? `Hide ${name}` : `Show ${name}`}
-        onClick={onCommit}
-        onMouseEnter={onPreview}
-        onFocus={onPreview}
-        onBlur={(event) => {
-          const next = event.relatedTarget as Node | null;
-          if (event.currentTarget.parentElement?.parentElement?.contains(next)) {
-            return;
-          }
-          onEndPreview();
-        }}
+        onClick={() => onVisibleChange(!visible)}
         className={cn(
           MASK_PART_LABEL_COL,
           // Same pressed/idle language as density preset chips.
           "inline-flex cursor-pointer items-center gap-1 rounded-md border px-1 py-0.5 text-left text-[11px] leading-tight transition-colors",
           "focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-hidden",
           visible
-            ? "border-foreground/25 bg-accent text-foreground"
-            : "border-border bg-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+            ? "border-foreground/25 bg-accent text-foreground hover:border-foreground/40 hover:bg-accent/80"
+            : "border-border bg-transparent text-muted-foreground hover:border-foreground/20 hover:bg-accent/60 hover:text-foreground",
         )}
       >
         <VisibilityIcon className="size-3 shrink-0" aria-hidden />
@@ -180,59 +167,10 @@ function MaskPartRow({
   );
 }
 
-/**
- * Teeth / jaw visibility chips with hover preview (LUT hot path — same cost as a click).
- * Leave the group to restore the pre-hover visibility snapshot.
- */
+/** Teeth / jaw visibility chips — commit on click only (no hover preview). */
 function MaskPartsControls({ parts }: { parts: MaskPartItem[] }) {
-  const previewBaselineRef = React.useRef<Record<string, boolean> | null>(null);
-
-  const applyVisibilities = (next: Record<string, boolean>) => {
-    for (const part of parts) {
-      const desired = next[part.id];
-      if (desired !== undefined && desired !== part.visible) {
-        part.onVisibleChange(desired);
-      }
-    }
-  };
-
-  const preview = (id: string) => {
-    if (previewBaselineRef.current === null) {
-      previewBaselineRef.current = Object.fromEntries(
-        parts.map((part) => [part.id, part.visible]),
-      );
-    }
-    const baseline = previewBaselineRef.current;
-    const previewed: Record<string, boolean> = { ...baseline, [id]: !baseline[id] };
-    applyVisibilities(previewed);
-  };
-
-  const endPreview = () => {
-    if (previewBaselineRef.current === null) {
-      return;
-    }
-    const baseline = previewBaselineRef.current;
-    previewBaselineRef.current = null;
-    applyVisibilities(baseline);
-  };
-
-  const commit = (id: string) => {
-    const committed = previewBaselineRef.current?.[id];
-    previewBaselineRef.current = null;
-    const part = parts.find((p) => p.id === id);
-    if (!part) {
-      return;
-    }
-    // Toggle from the lasting state (baseline if a preview was active).
-    const from = committed ?? part.visible;
-    if (part.visible === !from) {
-      return;
-    }
-    part.onVisibleChange(!from);
-  };
-
   return (
-    <div className="space-y-1.5" onMouseLeave={endPreview}>
+    <div className="space-y-1.5">
       <MaskPartsOpacityHeader />
       <div className="space-y-1">
         {parts.map((part) => (
@@ -241,9 +179,7 @@ function MaskPartsControls({ parts }: { parts: MaskPartItem[] }) {
             name={part.name}
             visible={part.visible}
             opacity={part.opacity}
-            onCommit={() => commit(part.id)}
-            onPreview={() => preview(part.id)}
-            onEndPreview={endPreview}
+            onVisibleChange={part.onVisibleChange}
             onOpacityChange={part.onOpacityChange}
           />
         ))}
