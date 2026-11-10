@@ -103,7 +103,7 @@ describe("VisualizationPage", () => {
     await waitFor(() => {
       expect(mockLoadVolumes).toHaveBeenCalled();
     });
-    expect(screen.getByText("Study")).toBeInTheDocument();
+    expect(screen.getByText("Scan")).toBeInTheDocument();
     expect(screen.getByText("Test")).toBeInTheDocument();
   });
 });

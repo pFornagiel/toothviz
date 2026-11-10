@@ -31,8 +31,8 @@ export function CancelPipelineDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Cancel processing?</AlertDialogTitle>
           <AlertDialogDescription>
-            Stops the current run. You can retry this study afterward from Browse
-            Studies.
+            Stops the current run. You can retry this scan afterward from Browse
+            screen.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
