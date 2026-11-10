@@ -13,7 +13,7 @@ Katarzyna Bęben, Łukasz Dragon, and Emil Żychowicz.
 
 [How it works](#how-it-works) · [Quick start](#quick-start) · [Extendability](#extendability) · [Segmentation model](#segmentation-model) · [Development](#development) · [Architecture](#architecture)
 
-![Toothviz scan](docs/screenshots/visualisation.png)
+![Toothviz scan](docs/screenshots/application_light_mode.png)
 
 
 ## How it works
