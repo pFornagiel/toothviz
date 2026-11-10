@@ -28,7 +28,7 @@ backend.setUnexpectedExitHandler(({ code, signal }) => {
 });
 
 async function createWindow(): Promise<void> {
-  const preloadPath = path.join(__dirname, "../preload/index.mjs");
+  const preloadPath = path.join(__dirname, "../preload/index.cjs");
   const backendUrl = backend.baseUrl();
   const backendPort = getBackendPort();
 
