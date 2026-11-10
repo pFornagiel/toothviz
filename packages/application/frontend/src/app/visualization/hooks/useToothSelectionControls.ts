@@ -53,7 +53,7 @@ export interface BoneDisplay {
 }
 export type BoneDisplays = Record<BoneClass, BoneDisplay>;
 
-/** Master Teeth toggle under Tooth segmentation (selection still filters which teeth). */
+/** Master Teeth toggle under Dental segmentation (selection still filters which teeth). */
 export type TeethDisplay = BoneDisplay;
 
 function defaultBoneDisplays(): BoneDisplays {

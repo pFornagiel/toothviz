@@ -35,6 +35,8 @@ export interface VolumeInfo {
 /** Viewer lifecycle + error-screen state, surfaced to the page shell. */
 export interface ViewerInfo extends NiivueViewerState {
   isVolatile: boolean;
+  /** Study name, or the opened file's name in a volatile preview. */
+  title: string;
   errorBackLabel: string;
   onBackFromError: () => void;
   processingNotice: ProcessingNotice;

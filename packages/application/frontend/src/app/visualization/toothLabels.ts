@@ -436,7 +436,7 @@ export function boneOpacityToAlpha(opacity: number, overlayOpacity: number): num
 }
 
 /**
- * Colormap alpha for the Teeth opacity slider under Tooth segmentation.
+ * Colormap alpha for the Teeth opacity slider under Dental segmentation.
  * Linear: teeth stay readable as solid labels, unlike the bone ray-sample curve.
  */
 export function toothOpacityToAlpha(opacity: number): number {

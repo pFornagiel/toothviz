@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { VisualizationPage } from "@/app/pages/VisualizationPage";
 
@@ -41,6 +41,14 @@ vi.mock("@niivue/niivue", () => ({
   DRAG_MODE: { none: 0, contrast: 1, measurement: 2, pan: 3 },
 }));
 
+// Data routers break under jsdom (AbortSignal mismatch), so the test keeps
+// MemoryRouter and feeds the route loader's study in directly.
+const loaderStudy = { current: null as unknown };
+vi.mock("react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-router")>()),
+  useLoaderData: () => loaderStudy.current,
+}));
+
 const getStudyMock = vi.fn();
 const listFilesMock = vi.fn();
 
@@ -75,12 +83,14 @@ describe("VisualizationPage", () => {
   });
 
   it("loads viewer volumes when study has persisted files", async () => {
-    getStudyMock.mockResolvedValue({
+    const study = {
       id: "s1",
       name: "Test",
       status: "ready",
       created_at: "2025-01-01T00:00:00Z",
-    });
+    };
+    getStudyMock.mockResolvedValue(study);
+    loaderStudy.current = study;
 
     render(
       <MemoryRouter initialEntries={["/visualize/s1"]}>
@@ -93,5 +103,7 @@ describe("VisualizationPage", () => {
     await waitFor(() => {
       expect(mockLoadVolumes).toHaveBeenCalled();
     });
+    expect(screen.getByText("Study")).toBeInTheDocument();
+    expect(screen.getByText("Test")).toBeInTheDocument();
   });
 });

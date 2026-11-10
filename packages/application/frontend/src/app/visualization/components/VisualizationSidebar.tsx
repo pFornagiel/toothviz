@@ -430,7 +430,7 @@ function LayerRow({
   /** Optional control on the name row (e.g. scan 2D/3D mode). */
   trailing?: React.ReactNode;
   /**
-   * When false, skip the layer opacity slider (e.g. Tooth segmentation with
+   * When false, skip the layer opacity slider (e.g. Dental segmentation with
    * Parts — per-part opacity is the clearer control).
    */
   showOpacity?: boolean;
@@ -697,10 +697,16 @@ export function VisualizationSidebar() {
       {/* Header */}
       <div className="flex items-start justify-between gap-2 border-b border-border px-4 py-4">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold tracking-tight text-foreground">NiiVue Controls</h2>
-          <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={viewer.statusText}>
-            {viewer.isVolatile ? "Volatile mode" : viewer.statusText}
+          {/* What is open: a saved study, or a file opened just for preview. */}
+          <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+            {viewer.isVolatile ? "Preview" : "Study"}
           </p>
+          <h2
+            className="mt-0.5 truncate text-base font-semibold tracking-tight text-foreground"
+            title={viewer.title}
+          >
+            {viewer.title || "Untitled"}
+          </h2>
         </div>
         <Button
           variant="ghost"
@@ -864,7 +870,7 @@ export function VisualizationSidebar() {
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-60 text-balance">
                         {!teethPickerEnabled
-                          ? "Turn on Teeth under Tooth segmentation to use the picker."
+                          ? "Turn on Teeth under Dental segmentation to use the picker."
                           : !teeth.pickFromPreview
                             ? PICK_MODE_HELP_OFF
                             : sameToothSelection(
@@ -878,7 +884,7 @@ export function VisualizationSidebar() {
                   </div>
                   <p className="whitespace-pre-line text-xs text-muted-foreground">
                     {!teethPickerEnabled
-                      ? "Teeth are hidden. Show them under Tooth segmentation to pick and filter."
+                      ? "Teeth are hidden. Show them under Dental segmentation to pick and filter."
                       : teeth.pickModePending
                         ? PICK_MODE_PENDING
                         : teeth.pickFromPreview
