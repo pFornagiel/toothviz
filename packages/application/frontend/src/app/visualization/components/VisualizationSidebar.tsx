@@ -26,6 +26,7 @@ import { volumeLabel } from "../volumeLabels";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Checkbox } from "../../components/ui/checkbox";
+import { Skeleton } from "../../components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -296,6 +297,42 @@ function ControlSection({
       </AccordionTrigger>
       <AccordionContent className="space-y-4 pb-5">{children}</AccordionContent>
     </AccordionItem>
+  );
+}
+
+/** Loading stand-in for a Layers row: eye + name, then a slider track. */
+function LayerRowSkeleton({ nameWidth }: { nameWidth: string }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-2">
+        <Skeleton className="size-4 rounded-sm" />
+        <Skeleton className={cn("h-3.5", nameWidth)} />
+      </div>
+      <Skeleton className="h-1.5 w-full rounded-full" />
+    </div>
+  );
+}
+
+/** Loading stand-in for the Layers section (scan + mask). */
+function LayersSkeleton() {
+  return (
+    <div className="space-y-3.5" aria-hidden>
+      <LayerRowSkeleton nameWidth="w-24" />
+      <LayerRowSkeleton nameWidth="w-32" />
+    </div>
+  );
+}
+
+/** Loading stand-in for the Teeth section: pick-mode switch + odontogram. */
+function TeethSkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      <div className="flex items-center justify-between gap-3">
+        <Skeleton className="h-3.5 w-28" />
+        <Skeleton className="h-5 w-9 rounded-full" />
+      </div>
+      <Skeleton className="mx-auto aspect-[4/5] w-full max-w-56 rounded-xl" />
+    </div>
   );
 }
 
@@ -621,6 +658,11 @@ export function VisualizationSidebar() {
     teeth.presentBoneClasses.includes(bone),
   );
   const showToothSelection = teeth.hasToothLabels && maskVisible;
+  // While the study loads, hold the place of the data-driven sections so the
+  // sidebar does not open with only the generic controls and then jump.
+  const loading = viewer.viewPhase === ViewPhase.Loading;
+  const showLayersSkeleton = loading && volumes.length === 0;
+  const showTeethSkeleton = loading && !showToothSelection;
   const teethPickerEnabled = teeth.teethDisplay.visible;
   const upperPresentIds = teeth.presentToothIds.filter((id) => {
     const fdi = toothIdToFdi(id);
@@ -644,7 +686,7 @@ export function VisualizationSidebar() {
     "volumes",
     // Listed even while empty, so the section is open when the first measurement adds it.
     "measurements",
-    ...(showToothSelection ? ["teeth"] : []),
+    ...(showToothSelection || showTeethSkeleton ? ["teeth"] : []),
     "render",
     "scene",
     ...(view.showsRender ? ["clip"] : []),
@@ -680,7 +722,10 @@ export function VisualizationSidebar() {
       >
         <fieldset disabled={!ready} className="m-0 min-w-0 border-0 p-0">
           <Accordion
-            key={showToothSelection ? "with-teeth" : "no-teeth"}
+            // Remount when sections come or go so their default-open state applies.
+            key={
+              showTeethSkeleton ? "loading" : showToothSelection ? "with-teeth" : "no-teeth"
+            }
             type="multiple"
             defaultValue={openSections}
             className="w-full"
@@ -771,9 +816,21 @@ export function VisualizationSidebar() {
               </ControlSection>
             )}
 
+            {showLayersSkeleton && (
+              <ControlSection value="volumes" icon={Layers} title="Layers">
+                <LayersSkeleton />
+              </ControlSection>
+            )}
+
             {measure.measurements.length > 0 && (
               <ControlSection value="measurements" icon={Ruler} title="Measurements">
                 <MeasurementList measure={measure} />
+              </ControlSection>
+            )}
+
+            {showTeethSkeleton && (
+              <ControlSection value="teeth" icon={Tooth} title="Teeth">
+                <TeethSkeleton />
               </ControlSection>
             )}
 
