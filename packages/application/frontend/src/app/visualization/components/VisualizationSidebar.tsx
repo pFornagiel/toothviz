@@ -658,7 +658,7 @@ export function VisualizationSidebar() {
     teeth.presentBoneClasses.includes(bone),
   );
   const showToothSelection = teeth.hasToothLabels && maskVisible;
-  // While the study loads, hold the place of the data-driven sections so the
+  // While the scan loads, hold the place of the data-driven sections so the
   // sidebar does not open with only the generic controls and then jump.
   const loading = viewer.viewPhase === ViewPhase.Loading;
   const showLayersSkeleton = loading && volumes.length === 0;
@@ -697,9 +697,9 @@ export function VisualizationSidebar() {
       {/* Header */}
       <div className="flex items-start justify-between gap-2 border-b border-border px-4 py-4">
         <div className="min-w-0">
-          {/* What is open: a saved study, or a file opened just for preview. */}
+          {/* What is open: a saved scan, or a file opened just for preview. */}
           <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-            {viewer.isVolatile ? "Preview" : "Study"}
+            {viewer.isVolatile ? "Preview" : "Scan"}
           </p>
           <h2
             className="mt-0.5 truncate text-base font-semibold tracking-tight text-foreground"

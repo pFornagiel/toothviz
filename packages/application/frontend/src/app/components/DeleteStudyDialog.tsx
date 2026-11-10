@@ -26,15 +26,15 @@ export function DeleteStudyDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete this study?</AlertDialogTitle>
+          <AlertDialogTitle>Delete this scan?</AlertDialogTitle>
           <AlertDialogDescription>
             {studyName
               ? `“${studyName}” and its files will be permanently removed. This cannot be undone.`
-              : "This study and its files will be permanently removed. This cannot be undone."}
+              : "This scan and its files will be permanently removed. This cannot be undone."}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Keep study</AlertDialogCancel>
+          <AlertDialogCancel>Keep scan</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={() => {
@@ -42,7 +42,7 @@ export function DeleteStudyDialog({
               onConfirm();
             }}
           >
-            Delete study
+            Delete scan
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
