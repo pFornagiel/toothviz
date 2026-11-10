@@ -8,9 +8,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { useLoaderData, useLocation, useNavigate, useParams } from "react-router";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { FromPage } from "../pipeline";
+import type { StudyResponse } from "@/api/types/study";
 import useNvUpdateQueue from "./hooks/useNvUpdateQueue";
 import useViewLayoutControls from "./hooks/useViewLayoutControls";
 import useVolumeDisplayControls from "./hooks/useVolumeDisplayControls";
@@ -46,6 +47,8 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     () => (location.state ?? {}) as VisualizationLocationState,
     [location.state],
   );
+  // The route loader fetches the study; volatile previews have none.
+  const study = useLoaderData() as StudyResponse | null | undefined;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nvRef = useRef<NiiVueGPU | null>(null);
@@ -259,6 +262,7 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
       errorMessage: viewer.errorMessage,
       errorHints: viewer.errorHints,
       isVolatile: !studyId,
+      title: (studyId ? study?.name : routeState.primary?.name) ?? "",
       errorBackLabel: routeState.from === FromPage.Browse ? "Back to studies" : "Back to home",
       onBackFromError: handleBackFromError,
       processingNotice,

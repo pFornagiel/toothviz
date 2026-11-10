@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { hexToRgba } from "@/app/utils/hexToRgba";
-import { resolveDefaultCalMin } from "@/app/visualization/hooks/useVolumeDisplayControls";
-import { DEFAULT_CAL_MIN } from "@/app/visualization/constants";
+import { DEFAULT_CAL_MAX, DEFAULT_CAL_MIN } from "@/app/visualization/constants";
+import { resolveDensityPreset } from "@/app/visualization/densityPresets";
 
 describe("hexToRgba", () => {
   it("normalises channels and keeps the colour opaque", () => {
@@ -10,13 +10,18 @@ describe("hexToRgba", () => {
   });
 });
 
-describe("resolveDefaultCalMin", () => {
-  it("uses the default when it fits below the upper bound", () => {
-    expect(resolveDefaultCalMin(-1000, 2000)).toBe(DEFAULT_CAL_MIN);
+describe("default density window on load", () => {
+  it("matches the Default preset for a typical CBCT range", () => {
+    expect(resolveDensityPreset("default", -1000, 3000)).toEqual({
+      calMin: DEFAULT_CAL_MIN,
+      calMax: DEFAULT_CAL_MAX,
+    });
   });
 
-  it("keeps the volume's own value when the window would be empty", () => {
-    expect(resolveDefaultCalMin(0, 1)).toBe(0);
-    expect(resolveDefaultCalMin(0, DEFAULT_CAL_MIN)).toBe(0);
+  it("clamps into a scan that cannot fit the preferred window", () => {
+    expect(resolveDensityPreset("default", 0, 1)).toEqual({
+      calMin: 0,
+      calMax: 1,
+    });
   });
 });

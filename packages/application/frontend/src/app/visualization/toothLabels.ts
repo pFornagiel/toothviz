@@ -6,6 +6,34 @@
 
 export const MAX_TOOTH_CLASS = 32;
 
+/**
+ * Classes the model segments besides teeth. The repository has no label list: these
+ * meanings were read off rendered masks. Class 33 looks like metal (crowns); it is not
+ * displayed, but must stay in the colormap (see `buildToothLabelColormap`).
+ */
+export const METAL_CLASS = 33;
+export const MANDIBLE_CLASS = 34;
+export const MAXILLA_CLASS = 35;
+const MAX_MASK_CLASS = MAXILLA_CLASS;
+
+export type BoneClass = typeof MANDIBLE_CLASS | typeof MAXILLA_CLASS;
+export const BONE_CLASSES: readonly BoneClass[] = [MAXILLA_CLASS, MANDIBLE_CLASS];
+/** Colormap alpha per bone class (0-255); a missing class is hidden. */
+export type BoneAlphas = Partial<Record<BoneClass, number>>;
+const BONE_RGB: [number, number, number] = [205, 205, 195];
+/**
+ * Alpha range of one 3D ray sample for a translucent bone. The ray march skips samples
+ * below 0.01 and the mask is stored in 8 bits, so the faintest usable value is 3/255. Alpha
+ * accumulates along the ray, so a bone looks solid long before the top of this range.
+ */
+const BONE_SAMPLE_ALPHA_MIN = 3 / 255;
+const BONE_SAMPLE_ALPHA_MAX = 0.15;
+const NON_TOOTH_LABELS: Record<number, string> = {
+  [METAL_CLASS]: "metal",
+  [MANDIBLE_CLASS]: "mandible",
+  [MAXILLA_CLASS]: "maxilla",
+};
+
 const UPPER_RIGHT = [11, 12, 13, 14, 15, 16, 17, 18] as const;
 const UPPER_LEFT = [21, 22, 23, 24, 25, 26, 27, 28] as const;
 const LOWER_LEFT = [31, 32, 33, 34, 35, 36, 37, 38] as const;
@@ -88,12 +116,12 @@ export function toggleToothId(selected: string[], toothId: string): string[] {
     : [...selected, toothId];
 }
 
-/** Voxels per tooth class in a segmentation mask, indexed by class ID (1–32 only). */
-export function toothVoxelCounts(img: ArrayLike<number>): Uint32Array {
-  const counts = new Uint32Array(MAX_TOOTH_CLASS + 1);
+/** Voxels per class in a segmentation mask, indexed by class ID (background not counted). */
+export function maskVoxelCounts(img: ArrayLike<number>): Uint32Array {
+  const counts = new Uint32Array(MAX_MASK_CLASS + 1);
   for (let i = 0; i < img.length; i++) {
     const v = img[i] | 0;
-    if (v >= 1 && v <= MAX_TOOTH_CLASS) {
+    if (v >= 1 && v <= MAX_MASK_CLASS) {
       counts[v]++;
     }
   }
@@ -113,7 +141,18 @@ export function presentClassesFromCounts(counts: ArrayLike<number>): number[] {
 
 /** Unique tooth class IDs present in a segmentation mask (1–32 only). */
 export function presentClassesFromImg(img: ArrayLike<number>): number[] {
-  return presentClassesFromCounts(toothVoxelCounts(img));
+  return presentClassesFromCounts(maskVoxelCounts(img));
+}
+
+/** Non-tooth class IDs with at least one voxel. */
+export function presentNonToothClassesFromCounts(counts: ArrayLike<number>): number[] {
+  const out: number[] = [];
+  for (let c = MAX_TOOTH_CLASS + 1; c <= MAX_MASK_CLASS; c++) {
+    if (counts[c] > 0) {
+      out.push(c);
+    }
+  }
+  return out;
 }
 
 /**
@@ -270,6 +309,7 @@ export type LabelColorMap = {
 export function buildToothLabelColormap(
   presentClassIds: number[],
   visibleClassIds: number[] | null,
+  presentNonToothClassIds: number[] = [],
 ): LabelColorMap {
   const visible =
     visibleClassIds === null || visibleClassIds === undefined
@@ -297,6 +337,17 @@ export function buildToothLabelColormap(
     labels.push(String(fdi));
   }
 
+  // Hidden by default. NiiVue clamps a label above the colormap's range to its last
+  // entry, so without these entries a bone voxel would be drawn as a tooth.
+  for (const classId of presentNonToothClassIds) {
+    R.push(0);
+    G.push(0);
+    B.push(0);
+    A.push(0);
+    I.push(classId);
+    labels.push(NON_TOOTH_LABELS[classId]);
+  }
+
   return { R, G, B, A, I, labels };
 }
 
@@ -304,17 +355,30 @@ export function buildToothLabelColormap(
 export function withColormapVisibility(
   base: LabelColorMap,
   visibleClassIds: number[] | null,
+  boneAlphas: BoneAlphas = {},
+  toothAlpha = 255,
 ): LabelColorMap {
-  if (visibleClassIds === null) {
-    return {
-      ...base,
-      A: base.I.map((id) => (id === 0 ? 0 : 255)),
-    };
-  }
-  const visible = new Set(visibleClassIds);
+  const visible = visibleClassIds === null ? null : new Set(visibleClassIds);
+  const A = base.I.map((id) => {
+    if (id === 0) {
+      return 0;
+    }
+    if (id > MAX_TOOTH_CLASS) {
+      return boneAlphas[id as BoneClass] ?? 0;
+    }
+    return visible === null || visible.has(id) ? toothAlpha : 0;
+  });
+  // The mask texture is interpolated without premultiplying, so even at alpha 0 a class's
+  // colour bleeds into the neighbouring voxels. A hidden bone must stay black, or the teeth
+  // it touches look bleached.
+  const boneChannel = (channel: number[], bone: number) =>
+    channel.map((v, i) => (base.I[i] > MAX_TOOTH_CLASS ? (A[i] > 0 ? bone : 0) : v));
   return {
     ...base,
-    A: base.I.map((id) => (id !== 0 && visible.has(id) ? 255 : 0)),
+    R: boneChannel(base.R, BONE_RGB[0]),
+    G: boneChannel(base.G, BONE_RGB[1]),
+    B: boneChannel(base.B, BONE_RGB[2]),
+    A,
   };
 }
 
@@ -354,15 +418,47 @@ export function buildLabelLut(cmap: LabelColorMap): {
   return { lut, min, max };
 }
 
-/** Stable key for a visibility set (`*` = all present teeth opaque). */
-export function visibilityKey(visibleClassIds: number[] | null): string {
-  if (visibleClassIds === null) {
-    return "*";
+/**
+ * Colormap alpha for a bone opacity slider value. The slider is spread exponentially over
+ * the usable per-sample range, so its whole length has a visible effect in 3D. NiiVue
+ * multiplies the colormap alpha by the mask's `overlayOpacity`, which is undone here.
+ */
+export function boneOpacityToAlpha(opacity: number, overlayOpacity: number): number {
+  if (opacity <= 0) {
+    return 0;
   }
-  if (visibleClassIds.length === 0) {
-    return "";
+  if (opacity >= 1) {
+    return 255;
   }
-  return [...visibleClassIds].sort((a, b) => a - b).join(",");
+  const sampleAlpha =
+    BONE_SAMPLE_ALPHA_MIN * (BONE_SAMPLE_ALPHA_MAX / BONE_SAMPLE_ALPHA_MIN) ** opacity;
+  return Math.min(255, Math.ceil((255 * sampleAlpha) / overlayOpacity));
+}
+
+/**
+ * Colormap alpha for the Teeth opacity slider under Dental segmentation.
+ * Linear: teeth stay readable as solid labels, unlike the bone ray-sample curve.
+ */
+export function toothOpacityToAlpha(opacity: number): number {
+  if (opacity <= 0) {
+    return 0;
+  }
+  if (opacity >= 1) {
+    return 255;
+  }
+  return Math.min(255, Math.round(255 * opacity));
+}
+
+/** Stable key for a visibility set (`*` = all present teeth) plus bone/teeth alphas. */
+export function visibilityKey(
+  visibleClassIds: number[] | null,
+  boneAlphas: BoneAlphas = {},
+  toothAlpha = 255,
+): string {
+  const bones = BONE_CLASSES.map((c) => boneAlphas[c] ?? 0).join("/");
+  const teeth =
+    visibleClassIds === null ? "*" : [...visibleClassIds].sort((a, b) => a - b).join(",");
+  return `${teeth}|${bones}|${toothAlpha}`;
 }
 
 /**

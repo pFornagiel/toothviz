@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  isLowerJawTooth,
   isLowerLeftTooth,
   isLowerRightTooth,
+  isUpperJawTooth,
   isUpperLeftTooth,
   isUpperRightTooth,
 } from "@/app/teeth";
@@ -15,6 +17,15 @@ describe("FDI quadrant helpers", () => {
 
     expect(isUpperRightTooth(21)).toBe(false);
     expect(isLowerLeftTooth(41)).toBe(false);
+  });
+
+  it("groups quadrants into upper and lower jaws", () => {
+    expect(isUpperJawTooth(11)).toBe(true);
+    expect(isUpperJawTooth(28)).toBe(true);
+    expect(isUpperJawTooth(31)).toBe(false);
+    expect(isLowerJawTooth(31)).toBe(true);
+    expect(isLowerJawTooth(48)).toBe(true);
+    expect(isLowerJawTooth(21)).toBe(false);
   });
 
   it("rejects non two-digit FDI values", () => {

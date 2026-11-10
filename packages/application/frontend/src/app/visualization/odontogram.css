@@ -16,7 +16,7 @@
   cursor: default;
 }
 
-/* Clickable detected teeth pointer cursor */— 
+/* Clickable detected teeth pointer cursor */
 .toothviz-odontogram
   .Odontogram
   g[class^="teeth-"]:has(path[data-colored="true"]),
@@ -43,4 +43,108 @@
   g[class^="teeth-"]:has(path[data-colored="true"]):hover
   path:nth-of-type(2) {
   opacity: 0.85;
+}
+
+/* Jaw toggles sit on the chart's right edge, centered on each arch half. */
+.toothviz-odontogram-row {
+  position: relative;
+}
+
+.toothviz-odontogram-row .toothviz-odontogram {
+  position: relative;
+  min-width: 0;
+  /* Room for the overlaid chevrons so they don't cover molars. */
+  padding-right: 1.35rem;
+}
+
+.toothviz-odontogram-row .toothviz-odontogram::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 1.35rem;
+  pointer-events: none;
+  border-radius: 0.375rem;
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  opacity: 0;
+  z-index: 0;
+  transition: opacity 120ms ease;
+}
+
+/* Hover/focus only drives the band — never override tooth fills (selection colors). */
+.toothviz-odontogram-row:has([data-jaw="upper"]:is(:hover, :focus-visible, :focus-within))
+  .toothviz-odontogram::before {
+  top: 0;
+  height: 50%;
+  opacity: 1;
+}
+
+.toothviz-odontogram-row:has([data-jaw="lower"]:is(:hover, :focus-visible, :focus-within))
+  .toothviz-odontogram::before {
+  bottom: 0;
+  height: 50%;
+  opacity: 1;
+}
+
+.toothviz-odontogram-row .toothviz-odontogram .Odontogram {
+  position: relative;
+  z-index: 1;
+}
+
+.toothviz-jaw-toggles {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  width: 1.35rem;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.toothviz-jaw-toggles > * {
+  pointer-events: auto;
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.toothviz-jaw-toggle {
+  display: inline-flex;
+  height: 1.25rem;
+  width: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: 9999px;
+  /* foreground (not muted) so the control meets WCAG 1.4.11 (≥3:1). */
+  color: var(--foreground);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.toothviz-jaw-toggle:hover:not(:disabled),
+.toothviz-jaw-toggle:focus-visible {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--accent) 45%, var(--card));
+  outline: none;
+}
+
+.toothviz-jaw-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.toothviz-jaw-toggle[data-state="on"] {
+  color: var(--accent-foreground);
+  background: var(--accent);
+}
+
+.toothviz-jaw-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }

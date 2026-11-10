@@ -93,12 +93,27 @@ export const OVERLAY_COLORMAP = "Red";
 export const DEFAULT_OVERLAY_OPACITY = 0.5;
 export const DEFAULT_VOLUME_NAME = "volume";
 export const DEFAULT_OVERLAY_NAME = "overlay";
+export const DEFAULT_BONE_OPACITY = 0.3;
 
 // useVolumeDisplayControls - HU intensity fallback range and fully-hidden opacity
 export const CAL_MIN_GLOBAL_VAL = -1000;
 export const CAL_MAX_GLOBAL_VAL = 3000;
-// Lower window bound applied when a scan loads. There is no standard dental CBCT
-// preset; this rounds the lower edge of level 1131 / width 1858, a windowing
-// protocol reported for tooth segmentation on CBCT (Adv Clin Exp Med 2018;27(7)).
+// Dental CBCT windowing (HU). Default follows level 1131 / width 1858
+// (≈200–2100), a protocol reported for tooth segmentation on CBCT
+// (Adv Clin Exp Med 2018;27(7)). Other presets are practical viewing windows
+// for the same modality — not diagnostic DICOM soft-tissue CT defaults.
 export const DEFAULT_CAL_MIN = 200;
+export const DEFAULT_CAL_MAX = 2100;
+/** Bone / teeth emphasis: drops soft haze for clearer 3D and hard tissue. */
+export const BONE_CAL_MIN = 400;
+export const BONE_CAL_MAX = 2500;
+/** Wider low end for soft structures on CBCT (still limited soft contrast). */
+export const SOFT_TISSUE_CAL_MIN = -150;
+export const SOFT_TISSUE_CAL_MAX = 1000;
+/**
+ * Interactive slider band. Full-range and out-of-band windows expand the track
+ * so thumbs stay reachable without making everyday drags span all of air→metal.
+ */
+export const DENTAL_SLIDER_MIN = -500;
+export const DENTAL_SLIDER_MAX = 3000;
 export const HIDDEN_OPACITY = 0;

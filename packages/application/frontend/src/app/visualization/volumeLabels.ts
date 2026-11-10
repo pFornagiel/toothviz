@@ -1,5 +1,5 @@
 export const SCAN_LABEL = "CBCT scan";
-export const SEGMENTATION_LABEL = "Tooth segmentation";
+export const SEGMENTATION_LABEL = "Dental segmentation";
 
 /**
  * Name shown to the user for a loaded volume. Display only: NiiVue's `volume.name`

@@ -57,4 +57,60 @@ describe("DisplayRangeSlider", () => {
     expect(onLowerChange).not.toHaveBeenCalled();
     expect(onUpperChange).not.toHaveBeenCalled();
   });
+
+  it("applies a density preset in one step and marks the matching chip", () => {
+    const onApplyRange = vi.fn();
+    const { rerender } = render(
+      <TooltipProvider>
+        <DisplayRangeSlider
+          lower={200}
+          upper={2100}
+          min={-1000}
+          max={3000}
+          onLowerChange={vi.fn()}
+          onUpperChange={vi.fn()}
+          onApplyRange={onApplyRange}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByRole("button", { name: /Default/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /Bone/ }));
+    expect(onApplyRange).toHaveBeenCalledWith(400, 2500);
+    rerender(
+      <TooltipProvider>
+        <DisplayRangeSlider
+          lower={400}
+          upper={2500}
+          min={-1000}
+          max={3000}
+          onLowerChange={vi.fn()}
+          onUpperChange={vi.fn()}
+          onApplyRange={onApplyRange}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByRole("button", { name: /Bone/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Bone/ })).toHaveAccessibleName("Bone, 400 to 2500");
+  });
+
+  it("previews a density preset on hover and restores on leave", () => {
+    const onApplyRange = vi.fn();
+    render(
+      <TooltipProvider>
+        <DisplayRangeSlider
+          lower={200}
+          upper={2100}
+          min={-1000}
+          max={3000}
+          onLowerChange={vi.fn()}
+          onUpperChange={vi.fn()}
+          onApplyRange={onApplyRange}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.mouseEnter(screen.getByRole("button", { name: /Bone/ }));
+    expect(onApplyRange).toHaveBeenCalledWith(400, 2500);
+    fireEvent.mouseLeave(screen.getByRole("group", { name: "Density range presets" }));
+    expect(onApplyRange).toHaveBeenLastCalledWith(200, 2100);
+  });
 });
