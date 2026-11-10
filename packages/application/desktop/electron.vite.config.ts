@@ -21,6 +21,13 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: path.resolve(__dirname, "electron/preload/index.ts"),
+        // Sandboxed preloads must be CommonJS: an ESM build fails to run
+        // ("sandboxed_renderer.bundle.js script failed to run") and
+        // window.desktop never appears.
+        output: {
+          format: "cjs",
+          entryFileNames: "[name].cjs",
+        },
       },
     },
   },
