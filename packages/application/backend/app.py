@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
     config.DATA_ROOT.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
 
-    # 2. Build storage objects (engine facade separate from session factory)
+    # 2. Build storage objects
     storage_engine = LocalStorageEngine(config.DATA_ROOT)
     storage_service = StorageService(storage_engine)
     broadcaster = WSBroadcaster(hydrate_job=build_pipeline_ws_hydrate(SessionLocal))
