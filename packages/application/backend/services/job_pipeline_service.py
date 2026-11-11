@@ -188,6 +188,7 @@ class JobPipelineService:
                 steps,
                 ctx,
                 self._storage_service,
+                self._session_factory,
             ),
             self._loop,
         )

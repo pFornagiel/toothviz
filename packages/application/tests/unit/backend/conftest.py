@@ -15,8 +15,8 @@ def storage_engine(tmp_data_root):
 
 
 @pytest.fixture()
-def storage_service(storage_engine, session_factory):
-    return StorageService(storage_engine, session_factory)
+def storage_service(storage_engine):
+    return StorageService(storage_engine)
 
 
 @pytest.fixture()

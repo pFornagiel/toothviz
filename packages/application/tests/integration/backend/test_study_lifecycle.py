@@ -113,7 +113,7 @@ def test_list_studies_date_filter_and_sort(client, integration_app):
         assert resp.status_code == 201
         ids.append(resp.json()["id"])
 
-    with integration_app.state.storage_service.session_factory() as db:
+    with integration_app.state.session_factory() as db:
         db.get(Study, ids[0]).created_at = datetime(2024, 6, 1, 12, 0, 0)
         db.get(Study, ids[1]).created_at = datetime(2024, 6, 15, 12, 0, 0)
         db.get(Study, ids[2]).created_at = datetime(2024, 6, 30, 12, 0, 0)

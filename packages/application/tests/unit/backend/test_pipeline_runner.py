@@ -68,7 +68,7 @@ async def test_run_pipeline_success(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     job = _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     artifact_file = tmp_path / "mask.nii"
     artifact_file.write_bytes(b"mask_content")
@@ -89,7 +89,7 @@ async def test_run_pipeline_success(
 
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
-    await run_pipeline("j1", steps, ctx, storage_service)
+    await run_pipeline("j1", steps, ctx, storage_service, session_factory)
 
     with session_factory() as db:
         j = PipelineJobRepo(db).get("j1")
@@ -111,7 +111,7 @@ async def test_run_pipeline_failure(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     job = _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     steps = [MockStep("bad_step", error=RuntimeError("boom"))]
 
@@ -125,7 +125,7 @@ async def test_run_pipeline_failure(
 
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
-    await run_pipeline("j1", steps, ctx, storage_service)
+    await run_pipeline("j1", steps, ctx, storage_service, session_factory)
 
     with session_factory() as db:
         j = PipelineJobRepo(db).get("j1")
@@ -139,7 +139,7 @@ async def test_run_pipeline_skips_when_already_cancelled(
 ):
     """Cancel before begin-run transition must not resurrect the job as running."""
     _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
     with session_factory() as db:
         PipelineJobRepo(db).set_status("j1", "cancelled")
 
@@ -158,7 +158,7 @@ async def test_run_pipeline_skips_when_already_cancelled(
     broadcaster = AsyncMock(spec=WSBroadcaster)
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, MagicMock(), MagicMock())
 
-    await run_pipeline("j1", [ShouldNotRun()], ctx, storage_service)
+    await run_pipeline("j1", [ShouldNotRun()], ctx, storage_service, session_factory)
 
     assert ran["value"] is False
     with session_factory() as db:
@@ -173,7 +173,7 @@ async def test_run_pipeline_does_not_overwrite_cancelled_with_failed(
 ):
     """If cancel already persisted cancelled, a kill-induced Exception stays cancelled."""
     _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     class CancelThenBoom:
         name = "seg"
@@ -193,7 +193,7 @@ async def test_run_pipeline_does_not_overwrite_cancelled_with_failed(
     broadcaster = AsyncMock(spec=WSBroadcaster)
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, MagicMock(), MagicMock())
 
-    await run_pipeline("j1", steps, ctx, storage_service)
+    await run_pipeline("j1", steps, ctx, storage_service, session_factory)
 
     with session_factory() as db:
         j = PipelineJobRepo(db).get("j1")
@@ -209,7 +209,7 @@ async def test_run_pipeline_does_not_overwrite_cancelled_with_completed(
 ):
     """Cancel after the last step returns must not resurrect the job as completed."""
     _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     class CancelAfterSuccess:
         name = "seg"
@@ -225,7 +225,7 @@ async def test_run_pipeline_does_not_overwrite_cancelled_with_completed(
     broadcaster = AsyncMock(spec=WSBroadcaster)
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, MagicMock(), MagicMock())
 
-    await run_pipeline("j1", [CancelAfterSuccess()], ctx, storage_service)
+    await run_pipeline("j1", [CancelAfterSuccess()], ctx, storage_service, session_factory)
 
     with session_factory() as db:
         assert PipelineJobRepo(db).get("j1").status == "cancelled"
@@ -239,7 +239,7 @@ async def test_run_pipeline_stores_partial_artifacts_on_later_failure(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     ok_artifact = tmp_path / "would_store.nii"
     ok_artifact.write_bytes(b"x")
@@ -262,7 +262,7 @@ async def test_run_pipeline_stores_partial_artifacts_on_later_failure(
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
     with patch.object(storage_service, "store_derived") as mock_store:
-        await run_pipeline("j1", steps, ctx, storage_service)
+        await run_pipeline("j1", steps, ctx, storage_service, session_factory)
         mock_store.assert_called_once()
 
     with session_factory() as db:
@@ -275,7 +275,7 @@ async def test_step_completed_broadcasts_volume_artifact(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     volume_artifact = tmp_path / "volume.nii"
     volume_artifact.write_bytes(b"vol")
@@ -297,7 +297,7 @@ async def test_step_completed_broadcasts_volume_artifact(
 
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
-    await run_pipeline("j1", steps, ctx, storage_service)
+    await run_pipeline("j1", steps, ctx, storage_service, session_factory)
 
     completed_calls = [
         call
@@ -313,7 +313,7 @@ async def test_run_pipeline_duplicate_purpose_fails(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     a1 = tmp_path / "a.nii"
     a2 = tmp_path / "b.nii"
@@ -338,7 +338,7 @@ async def test_run_pipeline_duplicate_purpose_fails(
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
     with patch.object(storage_service, "store_derived") as mock_store:
-        await run_pipeline("j1", steps, ctx, storage_service)
+        await run_pipeline("j1", steps, ctx, storage_service, session_factory)
         mock_store.assert_not_called()
 
     with session_factory() as db:
@@ -353,7 +353,7 @@ async def test_run_pipeline_cleans_work_dir(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     job = _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     steps = [MockStep("ok")]
     input_file = tmp_path / "input.nii"
@@ -366,5 +366,5 @@ async def test_run_pipeline_cleans_work_dir(
 
     ctx = _make_ctx(tmp_path, input_file, work_dir, broadcaster, dicom_pool, seg_pool)
 
-    await run_pipeline("j1", steps, ctx, storage_service)
+    await run_pipeline("j1", steps, ctx, storage_service, session_factory)
     assert not work_dir.exists()

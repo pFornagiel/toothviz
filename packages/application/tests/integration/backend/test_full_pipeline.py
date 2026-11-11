@@ -57,7 +57,7 @@ def test_cas_dedup(client, created_study, integration_app):
     r2 = _upload_file(client, study_id, kind="nifti_raw", filename="b.nii", data=data)
 
     svc = integration_app.state.storage_service
-    with svc.session_factory() as db:
+    with integration_app.state.session_factory() as db:
         f1 = FileRepo(db).get(r1["file_id"])
         f2 = FileRepo(db).get(r2["file_id"])
         assert f1.blob_hash == f2.blob_hash
