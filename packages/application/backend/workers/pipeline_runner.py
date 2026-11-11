@@ -5,6 +5,9 @@ import logging
 import re
 import shutil
 from dataclasses import replace
+from typing import Callable
+
+from sqlalchemy.orm import Session
 
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
 from backend.schemas import (
@@ -44,7 +47,7 @@ async def _broadcast_cancelled(job_id: str, broadcaster: WSBroadcaster) -> None:
 
 async def _commit_terminal(
     job_id: str,
-    storage_service: StorageService,
+    session_factory: Callable[[], Session],
     broadcaster: WSBroadcaster,
     *,
     new_status: str,
@@ -58,7 +61,7 @@ async def _commit_terminal(
     that status without applying ``new_status``. If the row is already in some
     other unexpected terminal state, skips the success/failure broadcast.
     """
-    with storage_service.session_factory() as db:
+    with session_factory() as db:
         status = PipelineJobRepo(db).update_status_if(
             job_id,
             new_status,
@@ -101,6 +104,7 @@ async def run_pipeline(
     steps: list[PipelineStep],
     ctx: StepContext,
     storage_service: StorageService,
+    session_factory: Callable[[], Session],
 ) -> None:
     """Async orchestrator - runs steps sequentially and stores artifacts as each step finishes.
 
@@ -113,7 +117,7 @@ async def run_pipeline(
 
     ctx.work_dir.mkdir(parents=True, exist_ok=True)
 
-    with storage_service.session_factory() as db:
+    with session_factory() as db:
         # Policy: only enter running from an active job. Atomic so cancel that
         # already wrote ``cancelled`` is not overwritten by a plain set_status.
         status = PipelineJobRepo(db).update_status_if(
@@ -179,13 +183,15 @@ async def run_pipeline(
             step_committed: dict[str, str] = {}
             for artifact in result.artifacts:
                 collected[artifact.purpose] = artifact
-                record = storage_service.store_derived(
-                    src_path=artifact.path,
-                    study_id=ctx.study_id,
-                    filename=artifact.path.name,
-                    kind=artifact.kind,
-                    viewer_purpose=artifact.purpose,
-                )
+                with session_factory() as db:
+                    record = storage_service.store_derived(
+                        src_path=artifact.path,
+                        study_id=ctx.study_id,
+                        filename=artifact.path.name,
+                        kind=artifact.kind,
+                        viewer_purpose=artifact.purpose,
+                        db=db,
+                    )
                 step_committed[artifact.purpose] = record.id
 
             if total:
@@ -204,7 +210,7 @@ async def run_pipeline(
 
         await _commit_terminal(
             job_id,
-            storage_service,
+            session_factory,
             ctx.broadcaster,
             new_status="completed",
             from_statuses=("running",),
@@ -214,7 +220,7 @@ async def run_pipeline(
         # Do not overwrite completed/failed if cancel lost the race.
         await _commit_terminal(
             job_id,
-            storage_service,
+            session_factory,
             ctx.broadcaster,
             new_status="cancelled",
             from_statuses=("queued", "running", "created"),
@@ -227,7 +233,7 @@ async def run_pipeline(
         error_text = _format_error(exc)
         status = await _commit_terminal(
             job_id,
-            storage_service,
+            session_factory,
             ctx.broadcaster,
             new_status="failed",
             from_statuses=("queued", "running"),

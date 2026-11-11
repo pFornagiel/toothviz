@@ -43,16 +43,16 @@ async def lifespan(app: FastAPI):
     config.DATA_ROOT.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
 
-    # 2. Build storage objects
+    # 2. Build storage objects (engine facade separate from session factory)
     storage_engine = LocalStorageEngine(config.DATA_ROOT)
-    storage_service = StorageService(storage_engine, SessionLocal)
+    storage_service = StorageService(storage_engine)
     broadcaster = WSBroadcaster(hydrate_job=build_pipeline_ws_hydrate(SessionLocal))
 
     # 3. Wipe on Startup: abort lingering active UploadSessions
     with SessionLocal() as db:
         hanging = UploadSessionRepo(db).list_by_state("active")
 
-    tmp_upload_svc = UploadService(storage_service, job_pipeline_service=None)
+    tmp_upload_svc = UploadService(storage_service, SessionLocal, job_pipeline_service=None)
     for session in hanging:
         try:
             tmp_upload_svc.abort_session(session.id)
@@ -96,14 +96,19 @@ async def lifespan(app: FastAPI):
     )
 
     # 7. Final service instances with full wiring
-    study_service = StudyService(storage_service, job_pipeline_service)
-    upload_service = UploadService(storage_service, job_pipeline_service)
+    study_service = StudyService(
+        storage_service, SessionLocal, job_pipeline_service,
+    )
+    upload_service = UploadService(
+        storage_service, SessionLocal, job_pipeline_service,
+    )
 
     # 8. Expose on app.state
     app.state.upload_service = upload_service
     app.state.study_service = study_service
     app.state.job_pipeline_service = job_pipeline_service
     app.state.storage_service = storage_service
+    app.state.session_factory = SessionLocal
     app.state.broadcaster = broadcaster
 
     yield

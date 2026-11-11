@@ -7,8 +7,8 @@ from backend.services.study_service import StudyService
 
 
 @pytest.fixture()
-def study_service(storage_service):
-    return StudyService(storage_service, job_pipeline_service=None)
+def study_service(storage_service, session_factory):
+    return StudyService(storage_service, session_factory, job_pipeline_service=None)
 
 
 def test_create_study(study_service, session_factory):
@@ -143,9 +143,10 @@ def test_delete_study_removes_files_and_dirs(
 
     storage_service.engine.initialize_upload("u1")
     storage_service.engine.write_chunk("u1", 0, b"data")
-    storage_service.store_original(
-        "u1", study.id, "file.nii", "nifti_raw", None, None, None,
-    )
+    with session_factory() as db:
+        storage_service.store_original(
+            "u1", study.id, "file.nii", "nifti_raw", None, None, None, db=db,
+        )
 
     study_service.delete(study.id)
 

@@ -6,7 +6,6 @@ from fastapi import APIRouter, Query, Request
 
 from backend.db.repos.study_repo import (
     DEFAULT_STUDY_SORT,
-    StudyRepo,
     StudySortField,
     StudySortOrder,
 )
@@ -48,9 +47,7 @@ def _study_response(study, pipeline_job) -> StudyResponse:
 
 @router.get("/{study_id}", response_model=StudyResponse)
 def get_study(request: Request, study_id: str):
-    storage_svc = request.app.state.storage_service
-    with storage_svc.session_factory() as db:
-        s = StudyRepo(db).get_with_pipeline_job(study_id)
+    s = _svc(request).get_with_pipeline(study_id)
     return _study_response(s, s.pipeline_job)
 
 
@@ -94,18 +91,14 @@ def list_studies(
 @router.post("", response_model=StudyResponse, status_code=201)
 def create_study(request: Request, body: CreateStudyRequest):
     study = _svc(request).create(name=body.name)
-    storage_svc = request.app.state.storage_service
-    with storage_svc.session_factory() as db:
-        s = StudyRepo(db).get_with_pipeline_job(study.id)
+    s = _svc(request).get_with_pipeline(study.id)
     return _study_response(s, s.pipeline_job)
 
 
 @router.patch("/{study_id}", response_model=StudyResponse)
 def rename_study(request: Request, study_id: str, body: RenameStudyRequest):
     _svc(request).rename(study_id, body.name)
-    storage_svc = request.app.state.storage_service
-    with storage_svc.session_factory() as db:
-        s = StudyRepo(db).get_with_pipeline_job(study_id)
+    s = _svc(request).get_with_pipeline(study_id)
     return _study_response(s, s.pipeline_job)
 
 
@@ -117,20 +110,12 @@ def delete_study(request: Request, study_id: str):
 @router.post("/{study_id}/pipeline:retry", response_model=StudyResponse)
 def retry_pipeline(request: Request, study_id: str):
     """Re-dispatch the pipeline for a failed/cancelled study that still has a source file."""
-    storage_svc = request.app.state.storage_service
-    pipeline_svc = request.app.state.job_pipeline_service
-    with storage_svc.session_factory() as db:
-        pipeline_svc.retry(study_id, db)
-        s = StudyRepo(db).get_with_pipeline_job(study_id)
+    s = _svc(request).retry_pipeline(study_id)
     return _study_response(s, s.pipeline_job)
 
 
 @router.post("/{study_id}/pipeline:cancel", response_model=StudyResponse)
 def cancel_pipeline(request: Request, study_id: str):
     """Stop an in-flight (or not-yet-started) pipeline; keeps the study for retry."""
-    storage_svc = request.app.state.storage_service
-    pipeline_svc = request.app.state.job_pipeline_service
-    with storage_svc.session_factory() as db:
-        pipeline_svc.cancel_for_study(study_id, db)
-        s = StudyRepo(db).get_with_pipeline_job(study_id)
+    s = _svc(request).cancel_pipeline(study_id)
     return _study_response(s, s.pipeline_job)

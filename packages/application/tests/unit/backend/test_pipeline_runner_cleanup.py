@@ -39,7 +39,7 @@ async def test_failure_keeps_study_and_marks_job_failed(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     input_file = tmp_path / "input.nii"
     input_file.write_bytes(b"data")
@@ -56,7 +56,7 @@ async def test_failure_keeps_study_and_marks_job_failed(
         },
     )
 
-    await run_pipeline("j1", [BoomStep()], ctx, storage_service)
+    await run_pipeline("j1", [BoomStep()], ctx, storage_service, session_factory)
 
     with session_factory() as db:
         job = PipelineJobRepo(db).get("j1")
@@ -70,7 +70,7 @@ async def test_failure_broadcasts_pipeline_failed(
     db_session, session_factory, storage_engine, tmp_path,
 ):
     _setup_db(db_session)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
 
     broadcaster = AsyncMock(spec=WSBroadcaster)
 
@@ -89,7 +89,7 @@ async def test_failure_broadcasts_pipeline_failed(
         },
     )
 
-    await run_pipeline("j1", [BoomStep()], ctx, storage_service)
+    await run_pipeline("j1", [BoomStep()], ctx, storage_service, session_factory)
 
     failed_calls = [
         call
