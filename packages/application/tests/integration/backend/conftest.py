@@ -46,7 +46,7 @@ async def integration_app(tmp_path):
     session_factory = sessionmaker(bind=eng, expire_on_commit=False)
 
     storage_engine = LocalStorageEngine(data_root)
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
     broadcaster = WSBroadcaster()
 
     # No real process pool in integration tests - return valid NIfTI stubs if a
@@ -93,8 +93,12 @@ async def integration_app(tmp_path):
         step_registry=step_registry,
     )
 
-    study_service = StudyService(storage_service, job_pipeline_service)
-    upload_service = UploadService(storage_service, job_pipeline_service)
+    study_service = StudyService(
+        storage_service, session_factory, job_pipeline_service,
+    )
+    upload_service = UploadService(
+        storage_service, session_factory, job_pipeline_service,
+    )
 
     from fastapi.responses import JSONResponse
 
@@ -113,6 +117,7 @@ async def integration_app(tmp_path):
     app.state.study_service = study_service
     app.state.job_pipeline_service = job_pipeline_service
     app.state.storage_service = storage_service
+    app.state.session_factory = session_factory
     app.state.broadcaster = broadcaster
 
     return app

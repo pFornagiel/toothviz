@@ -4,17 +4,18 @@ from backend.db.repos.file_repo import FileRepo
 
 
 def test_store_original_creates_file_record_and_links_cas(
-    storage_service, storage_engine, db_session, session_factory, make_study,
+    storage_service, storage_engine, session_factory, make_study,
 ):
     study = make_study(name="test")
     storage_engine.initialize_upload("u1")
     storage_engine.write_chunk("u1", 0, b"data123")
 
-    record = storage_service.store_original(
-        upload_id="u1", study_id=study.id, filename="test.nii",
-        kind="nifti_raw", viewer_purpose="viewer_volume",
-        expected_sha256=None, expected_size=None,
-    )
+    with session_factory() as db:
+        record = storage_service.store_original(
+            upload_id="u1", study_id=study.id, filename="test.nii",
+            kind="nifti_raw", viewer_purpose="viewer_volume",
+            expected_sha256=None, expected_size=None, db=db,
+        )
     path = storage_engine.get_study_file_path(
         study.id, record.id, "test.nii",
     )
@@ -35,15 +36,17 @@ def test_store_original_viewer_purpose_supersede(
 
     storage_engine.initialize_upload("u1")
     storage_engine.write_chunk("u1", 0, b"first")
-    r1 = storage_service.store_original(
-        "u1", study.id, "a.nii", "nifti_raw", "viewer_volume", None, None,
-    )
+    with session_factory() as db:
+        storage_service.store_original(
+            "u1", study.id, "a.nii", "nifti_raw", "viewer_volume", None, None, db=db,
+        )
 
     storage_engine.initialize_upload("u2")
     storage_engine.write_chunk("u2", 0, b"second")
-    r2 = storage_service.store_original(
-        "u2", study.id, "b.nii", "nifti_raw", "viewer_volume", None, None,
-    )
+    with session_factory() as db:
+        r2 = storage_service.store_original(
+            "u2", study.id, "b.nii", "nifti_raw", "viewer_volume", None, None, db=db,
+        )
 
     with session_factory() as db:
         repo = FileRepo(db)
@@ -60,11 +63,12 @@ def test_store_derived_creates_file_record(
     src = tmp_path / "mask.nii"
     src.write_bytes(b"mask_data")
 
-    record = storage_service.store_derived(
-        src_path=src, study_id=study.id,
-        filename="mask.nii", kind="segmentation_mask",
-        viewer_purpose="viewer_overlay",
-    )
+    with session_factory() as db:
+        record = storage_service.store_derived(
+            src_path=src, study_id=study.id,
+            filename="mask.nii", kind="segmentation_mask",
+            viewer_purpose="viewer_overlay", db=db,
+        )
     path = storage_engine.get_study_file_path(
         study.id, record.id, "mask.nii",
     )
@@ -78,15 +82,17 @@ def test_store_original_cas_dedup(
 
     storage_engine.initialize_upload("u1")
     storage_engine.write_chunk("u1", 0, b"same_data")
-    r1 = storage_service.store_original(
-        "u1", study.id, "a.nii", "nifti_raw", None, None, None,
-    )
+    with session_factory() as db:
+        r1 = storage_service.store_original(
+            "u1", study.id, "a.nii", "nifti_raw", None, None, None, db=db,
+        )
 
     storage_engine.initialize_upload("u2")
     storage_engine.write_chunk("u2", 0, b"same_data")
-    r2 = storage_service.store_original(
-        "u2", study.id, "b.nii", "nifti_raw", None, None, None,
-    )
+    with session_factory() as db:
+        r2 = storage_service.store_original(
+            "u2", study.id, "b.nii", "nifti_raw", None, None, None, db=db,
+        )
 
     assert r1.blob_hash == r2.blob_hash
 

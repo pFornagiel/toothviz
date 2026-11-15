@@ -5,8 +5,8 @@ from backend.services.upload_service import UploadService
 
 
 @pytest.fixture()
-def upload_service(storage_service):
-    return UploadService(storage_service, job_pipeline_service=None)
+def upload_service(storage_service, session_factory):
+    return UploadService(storage_service, session_factory, job_pipeline_service=None)
 
 
 def test_begin_session_creates_upload_and_parts_dir(

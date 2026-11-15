@@ -28,7 +28,7 @@ def _setup_db(db_session, kind="nifti_raw"):
 
 @pytest_asyncio.fixture()
 async def jps(session_factory, storage_engine, tmp_data_root):
-    storage_service = StorageService(storage_engine, session_factory)
+    storage_service = StorageService(storage_engine)
     broadcaster = AsyncMock(spec=WSBroadcaster)
     dicom_pool = MagicMock(spec=WorkerPool)
     seg_pool = MagicMock(spec=WorkerPool)

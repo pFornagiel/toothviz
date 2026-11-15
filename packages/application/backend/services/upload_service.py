@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
+
+from sqlalchemy.orm import Session
 
 from backend import config
 from backend.db.repos.pipeline_job_repo import PipelineJobRepo
@@ -23,9 +25,11 @@ class UploadService:
     def __init__(
         self,
         storage_service: StorageService,
+        session_factory: Callable[[], Session],
         job_pipeline_service: JobPipelineService | None,
     ) -> None:
         self._storage = storage_service
+        self._session_factory = session_factory
         self._pipeline = job_pipeline_service
 
     def begin_session(
@@ -37,7 +41,7 @@ class UploadService:
         db=None,
     ) -> dict:
         if db is None:
-            with self._storage.session_factory() as db:
+            with self._session_factory() as db:
                 return self._begin_session_inner(db, study_id, kind, filename)
         return self._begin_session_inner(db, study_id, kind, filename)
 
@@ -53,7 +57,7 @@ class UploadService:
         return {"upload_id": session.id, "chunk_size": chunk_size}
 
     def write_chunk(self, upload_id: str, index: int, data: bytes) -> dict:
-        with self._storage.session_factory() as db:
+        with self._session_factory() as db:
             session = UploadSessionRepo(db).get(upload_id)
             if session.state != "active":
                 raise ConflictError(f"upload session is {session.state}")
@@ -66,7 +70,7 @@ class UploadService:
             return {"index": index, "received": len(data)}
 
     def get_status(self, upload_id: str) -> dict:
-        with self._storage.session_factory() as db:
+        with self._session_factory() as db:
             session = UploadSessionRepo(db).get(upload_id)
             chunks = self._storage.engine.list_uploaded_chunks(upload_id)
             return {
@@ -76,7 +80,7 @@ class UploadService:
             }
 
     def abort_session(self, upload_id: str) -> None:
-        with self._storage.session_factory() as db:
+        with self._session_factory() as db:
             UploadSessionRepo(db).update_state(upload_id, "aborted")
         self._storage.engine.abort_upload(upload_id)
 
@@ -88,7 +92,7 @@ class UploadService:
     ) -> dict:
         pipelines = pipelines or []
 
-        with self._storage.session_factory() as db:
+        with self._session_factory() as db:
             session = UploadSessionRepo(db).get(upload_id)
             if session.state != "active":
                 raise ConflictError(f"upload session is {session.state}")
@@ -103,6 +107,7 @@ class UploadService:
                 viewer_purpose=viewer_purpose,
                 expected_sha256=None,
                 expected_size=expected_size,
+                db=db,
             )
 
             job_repo = PipelineJobRepo(db)
@@ -113,7 +118,7 @@ class UploadService:
 
             job_id_dispatch: str | None = None
             if self._pipeline is not None:
-                with self._storage.session_factory() as db2:
+                with self._session_factory() as db2:
                     job_id_dispatch = self._pipeline.dispatch(
                         file_record, pipelines, db2,
                     )

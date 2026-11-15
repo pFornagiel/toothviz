@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import Callable
 
 from sqlalchemy.orm import Session
 
@@ -11,15 +10,15 @@ from backend.storage.engine import StorageEngine
 
 
 class StorageService:
-    """Combines CAS engine operations with DB FileRecord management."""
+    """Coordinates CAS / study-file I/O. Does not own the DB session factory.
 
-    def __init__(
-        self,
-        engine: StorageEngine,
-        session_factory: Callable[[], Session],
-    ) -> None:
+    Callers inject ``session_factory`` separately and pass an open ``Session`` into
+    ``store_original`` / ``store_derived`` so metadata writes stay on the caller's
+    unit of work.
+    """
+
+    def __init__(self, engine: StorageEngine) -> None:
         self.engine = engine
-        self.session_factory = session_factory
 
     def store_original(
         self,
@@ -30,6 +29,7 @@ class StorageService:
         viewer_purpose: str | None,
         expected_sha256: str | None,
         expected_size: int | None,
+        db: Session,
     ):
         blob_hash, size = self.engine.commit_upload_to_cas(
             upload_id, expected_sha256, expected_size,
@@ -39,20 +39,18 @@ class StorageService:
             study_id, file_id, filename, blob_hash,
         )
 
-        with self.session_factory() as db:
-            repo = FileRepo(db)
-            if viewer_purpose:
-                repo.clear_viewer_purpose(study_id, viewer_purpose)
-            record = repo.create_file_record(
-                file_id=file_id,
-                study_id=study_id,
-                kind=kind,
-                viewer_purpose=viewer_purpose,
-                display_name=filename,
-                blob_hash=blob_hash,
-                size=size,
-            )
-            return record
+        repo = FileRepo(db)
+        if viewer_purpose:
+            repo.clear_viewer_purpose(study_id, viewer_purpose)
+        return repo.create_file_record(
+            file_id=file_id,
+            study_id=study_id,
+            kind=kind,
+            viewer_purpose=viewer_purpose,
+            display_name=filename,
+            blob_hash=blob_hash,
+            size=size,
+        )
 
     def store_derived(
         self,
@@ -61,6 +59,7 @@ class StorageService:
         filename: str,
         kind: str,
         viewer_purpose: str | None,
+        db: Session,
         file_id: str | None = None,
     ):
         blob_hash, size = self.engine.commit_file_to_cas(src_path)
@@ -69,20 +68,18 @@ class StorageService:
             study_id, fid, filename, blob_hash,
         )
 
-        with self.session_factory() as db:
-            repo = FileRepo(db)
-            if viewer_purpose:
-                repo.clear_viewer_purpose(study_id, viewer_purpose)
-            record = repo.create_file_record(
-                file_id=fid,
-                study_id=study_id,
-                kind=kind,
-                viewer_purpose=viewer_purpose,
-                display_name=filename,
-                blob_hash=blob_hash,
-                size=size,
-            )
-            return record
+        repo = FileRepo(db)
+        if viewer_purpose:
+            repo.clear_viewer_purpose(study_id, viewer_purpose)
+        return repo.create_file_record(
+            file_id=fid,
+            study_id=study_id,
+            kind=kind,
+            viewer_purpose=viewer_purpose,
+            display_name=filename,
+            blob_hash=blob_hash,
+            size=size,
+        )
 
     def sweep_orphans(self) -> int:
         return self.engine.sweep_orphaned_blobs()
