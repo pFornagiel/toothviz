@@ -108,7 +108,6 @@ async def lifespan(app: FastAPI):
     app.state.study_service = study_service
     app.state.job_pipeline_service = job_pipeline_service
     app.state.storage_service = storage_service
-    app.state.session_factory = SessionLocal
     app.state.broadcaster = broadcaster
 
     yield
