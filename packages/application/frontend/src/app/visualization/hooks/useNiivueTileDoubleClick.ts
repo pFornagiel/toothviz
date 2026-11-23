@@ -1,8 +1,8 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type NiiVueGPU from "@niivue/niivue/webgl2";
 import { SLICE_TYPE } from "@niivue/niivue";
 import type { ViewPhase } from "../types";
-import { SliceTypeKey, DEFAULT_SLICE_TYPE } from "../constants";
+import { SliceTypeKey, DEFAULT_SLICE_TYPE, GRID_SLICE_TYPES } from "../constants";
 
 function hitToSliceKey(hit: { isRender?: boolean; sliceType?: number }): SliceTypeKey | null {
   if (hit.isRender) {
@@ -21,8 +21,8 @@ function hitToSliceKey(hit: { isRender?: boolean; sliceType?: number }): SliceTy
 }
 
 /*
-  Double-click a multiplanar tile to expand it to a single-plane (or 3D) view.
-  Double-click again in a single view restores the default multiplanar layout.
+  Double-click a tile in a grid layout to expand it to a single-plane (or 3D) view.
+  Double-click again in a single view restores the grid layout it came from.
   Intercepted in capture phase so NiiVue's own dblclick (crosshair pick) does not run.
 */
 export default function useNiivueTileDoubleClick({
@@ -38,6 +38,13 @@ export default function useNiivueTileDoubleClick({
   sliceType: SliceTypeKey;
   handleSliceTypeChange: (type: SliceTypeKey) => void;
 }): void {
+  const lastGridRef = useRef<SliceTypeKey>(DEFAULT_SLICE_TYPE);
+  useEffect(() => {
+    if (GRID_SLICE_TYPES.has(sliceType)) {
+      lastGridRef.current = sliceType;
+    }
+  }, [sliceType]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = canvas?.parentElement;
@@ -67,13 +74,13 @@ export default function useNiivueTileDoubleClick({
       e.preventDefault();
       e.stopPropagation();
 
-      if (sliceType === SliceTypeKey.Multiplanar) {
+      if (GRID_SLICE_TYPES.has(sliceType)) {
         handleSliceTypeChange(target);
         return;
       }
 
-      // Already a single view: toggle back to default multiplanar.
-      handleSliceTypeChange(DEFAULT_SLICE_TYPE);
+      // Already a single view: toggle back to the last grid layout.
+      handleSliceTypeChange(lastGridRef.current);
     };
 
     container.addEventListener("dblclick", handleDblClick, { capture: true });
