@@ -227,7 +227,7 @@ export function CreateStudyModal({ isOpen, onClose, onSubmit }: CreateStudyModal
                         <p className="text-sm text-foreground mb-1">Drag & Drop file here</p>
                         <p className="text-xs text-muted-foreground">
                           or click to browse (
-                          {fileType === FileType.Nifti ? ".nii, .nii.gz" : ".zip, .dcm"})
+                          {fileType === FileType.Nifti ? ".nii, .nii.gz" : "ZIP of DICOM folder, .dcm"})
                         </p>
                       </>
                     )}

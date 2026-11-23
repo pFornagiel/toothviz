@@ -10,10 +10,12 @@ export function errorHints(failedStep?: string | null): string[] {
     "Create a new study from the home page if this message appeared after a failed run.";
 
   if (failedStep === "dicom_to_nifti") {
+    // The error message itself names the concrete problem (incomplete ZIP,
+    // missing slices, no 3D series...); these hints cover the usual fixes.
     return [
-      "DICOM conversion failed - check that the ZIP is not corrupt and contains valid DICOM.",
-      dicomArchive,
-      precomputedMask,
+      "DICOM conversion failed - the message above says what is wrong with the upload.",
+      "Export the whole CBCT volume from the scanner software: a ZIP of the DICOM folder or a single multi-frame DICOM file.",
+      "If the ZIP was downloaded or copied, let the transfer finish completely, then upload it again.",
       newStudy,
     ];
   }
