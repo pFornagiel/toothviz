@@ -97,9 +97,11 @@ class PadToSize(BaseTransform):
             pad_right = pad - pad_left
             pad_widths.append((pad_left, pad_right))
 
-        if pad_value is None:
-            pad_value = float(ctx.data.min())
-        ctx.data = np.pad(ctx.data, pad_widths, mode='constant', constant_values=pad_value)
+        if any(before or after for before, after in pad_widths):
+            if pad_value is None:
+                pad_value = float(ctx.data.min())
+            ctx.data = np.pad(ctx.data, pad_widths, mode='constant', constant_values=pad_value)
+        # else: already large enough - np.pad would only make a full copy.
 
         slicer_revert = [slice(None)]
         for curr_dim_size, pw in zip(shape_before_pad[1:], pad_widths[1:]):
@@ -214,16 +216,31 @@ class ResampleToInputGrid(BaseTransform):
 
 # 2.5D models: each axial slice is a 2D image whose channels are the slice and its neighbours.
 
+def _stack_slice_context(volume: np.ndarray, shifts: list[int]) -> np.ndarray:
+    """(Z, Y, X) -> (len(shifts), Z, Y, X) float32; channel c holds slice z + shifts[c],
+    clamped at the edges.
+
+    Each channel is gathered straight into a preallocated output. Building the
+    channels separately and stacking them would hold every channel twice (plus
+    another copy for the dtype cast) - ~3x the output size, which for a
+    full-size CBCT is many GB.
+    """
+    volume = volume.astype(np.float32, copy=False)  # np.take(out=...) needs matching dtypes
+    depth = volume.shape[0]
+    z = np.arange(depth)
+    out = np.empty((len(shifts), *volume.shape), dtype=np.float32)
+    for c, shift in enumerate(shifts):
+        # Indices are already clamped; mode="clip" also stops numpy from
+        # buffering ``out`` (it does for the default mode="raise").
+        np.take(volume, np.clip(z + shift, 0, depth - 1), axis=0, out=out[c], mode="clip")
+    return out
+
+
 @TransformRegistry.register("SliceContext25D")
 class SliceContext25D(BaseTransform):
     """(1, Z, Y, X) -> (3, Z, Y, X): slices z - offset, z, z + offset (clamped at the edges)."""
     def forward(self, ctx: InferenceContext, offset: int, **kwargs) -> None:
-        volume = ctx.data[0]
-        z = np.arange(volume.shape[0])
-        last = volume.shape[0] - 1
-        below = volume[np.clip(z - offset, 0, last)]
-        above = volume[np.clip(z + offset, 0, last)]
-        ctx.data = np.stack([below, volume, above]).astype(np.float32)
+        ctx.data = _stack_slice_context(ctx.data[0], [-offset, 0, offset])
 
 
 @TransformRegistry.register("SliceContext25D5Channel")
@@ -231,16 +248,8 @@ class SliceContext25D5Channel(BaseTransform):
     """(1, Z, Y, X) -> (5, Z, Y, X): slices z - offset[1], z - offset[0], z, z + offset[0],
     z + offset[1] (clamped at the edges)."""
     def forward(self, ctx: InferenceContext, offset: tuple[int, int], **kwargs) -> None:
-        volume = ctx.data[0]
-        z = np.arange(volume.shape[0])
-        last = volume.shape[0] - 1
-        
-        below_2 = volume[np.clip(z - offset[1], 0, last)]
-        below_1 = volume[np.clip(z - offset[0], 0, last)]
-        above_1 = volume[np.clip(z + offset[0], 0, last)]
-        above_2 = volume[np.clip(z + offset[1], 0, last)]
-
-        ctx.data = np.stack([below_2, below_1, volume, above_1, above_2]).astype(np.float32)
+        near, far = offset[0], offset[1]
+        ctx.data = _stack_slice_context(ctx.data[0], [-far, -near, 0, near, far])
 
 
 @TransformRegistry.register("ZScorePerChannel")

@@ -30,7 +30,10 @@ def run_pipeline(
     # File loading
     logger.info(f"Loading NIfTI image from {input_nifti_path}")
     img = nib.load(input_nifti_path)
-    image_data = np.asarray(img.get_fdata(dtype=np.float32))
+    # caching="unchanged": do not keep a float copy inside ``img``. For a large
+    # CBCT that copy is GBs and would stay alive for the whole run, although the
+    # preprocessing replaces the data (resampling) almost immediately.
+    image_data = np.asarray(img.get_fdata(dtype=np.float32, caching="unchanged"))
 
     # Check whether the NIFTI file is 3D volume, raise otherwise
     if image_data.ndim == 4 and image_data.shape[-1] == 1:
@@ -47,6 +50,7 @@ def run_pipeline(
 
     # Create required context for inference
     ctx = InferenceContext.from_nifti(image_data, spacing, img.affine)
+    del image_data  # ctx owns the data now; let the first resample free it
 
     # 1. Preprocessing
     preprocessing_steps = config.get("preprocessing", [])
