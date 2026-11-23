@@ -178,7 +178,7 @@ The main technologies are:
 - **Desktop:** Electron and TypeScript
 - **Interface:** React, Vite, Tailwind CSS, Material UI, and NiiVue
 - **Backend:** FastAPI, SQLAlchemy, and SQLite
-- **Medical imaging:** dicom2nifti and NiBabel
+- **Medical imaging:** pydicom (+ GDCM codecs) and NiBabel
 - **Visualisation:** NiiVue, modified in order to achieve better performance
 - **Inference:** ONNX Runtime with the CPU execution provider
 

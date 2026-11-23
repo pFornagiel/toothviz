@@ -51,7 +51,7 @@ Runtime dependencies currently include:
 | `pydantic` | Request and response schemas. |
 | `python-multipart` | Request body support for API usage. |
 | `nibabel`, `scipy`, `onnxruntime` | NIfTI I/O, array utilities, and ONNX inference. |
-| `dicom2nifti` | DICOM series → NIfTI conversion inside the DICOM worker subprocess. |
+| `pydicom`, `python-gdcm` | DICOM reading for the in-house converter (`backend/dicom`); GDCM decodes JPEG / JPEG-LS / JPEG 2000 pixel data. |
 | `dicom-anonymizer` | Optional DICOM tag anonymization (used by the `AnonymiseDicomStep` module; see pipeline section). |
 
 Dev dependency group (see `[dependency-groups]` in `pyproject.toml`) includes `pytest`, `pytest-asyncio`, and `httpx` for tests and HTTP clients.
@@ -92,11 +92,15 @@ packages/application/backend/
 |   |-- models.py
 |   |-- session.py
 |   `-- repos/
+|-- dicom/
+|   |-- errors.py
+|   |-- series.py
+|   |-- sources.py
+|   `-- volume.py
 |-- routers/
 |-- services/
 |-- storage/
 |-- utils/
-|   |-- dicom_zip.py
 |   `-- status.py
 `-- workers/
     |-- pipeline_runner.py
@@ -129,7 +133,7 @@ packages/application/backend/
 | `routers/` | FastAPI route modules for studies, uploads, files, and WebSocket pipeline updates. |
 | `services/` | Business logic layer used by routers. |
 | `storage/` | Storage protocol and local filesystem implementation. |
-| `utils/dicom_zip.py` | Safe extraction of DICOM ZIPs (size/member limits, path traversal checks), helpers to materialize DICOM input from ZIP or single `.dcm`, and optional directory→ZIP bundling. |
+| `dicom/` | DICOM → NIfTI conversion: `sources.py` lists candidate files in a ZIP / file / directory without extracting (skips `__MACOSX`, viewer programs, etc.; ZIP limits); `series.py` reads headers, picks the largest 3D series and computes slice geometry (single- and multi-frame); `volume.py` decodes pixels into one preallocated array and writes LAS-ordered NIfTI. User-facing failures raise `DicomConversionError`. |
 | `utils/status.py` | Shared status mapping used by API responses. |
 | `workers/` | Pipeline runner, process pools, WebSocket broadcaster, pipeline steps (and per-step `configs/`), and subprocess compute functions. |
 
@@ -497,7 +501,7 @@ If no steps are produced, dispatch returns `None` and the upload flow marks the 
 | `SegmentNiftiStep` | `workers/steps/segment_nifti.py` | NIfTI path | `segmentation_mask.nii.gz`, `kind="segmentation_mask"`, `purpose="viewer_overlay"` |
 | `AnonymiseDicomStep` | `workers/steps/dicom_anonymise.py` | ZIP, DICOM tree, or single `.dcm` | None by default (forwards anonymized path or bundle ZIP as `next_input_path` only). |
 
-`DicomToNiftiStep` uses `DicomToNiftiStepConfig` (ZIP member cap and max uncompressed bytes, aligned with `utils/dicom_zip` defaults). `SegmentNiftiStep` now directly uses a dictionary configuration, loading default JSON configuration if not provided in the request.
+`DicomToNiftiStep` uses `DicomToNiftiStepConfig` (ZIP member cap, max uncompressed ZIP bytes and max decoded volume bytes; defaults in `backend/dicom`). `SegmentNiftiStep` now directly uses a dictionary configuration, loading default JSON configuration if not provided in the request.
 
 `AnonymiseDicomStep` is implemented for pipeline composition but is **not** registered in `app.py`'s `step_registry` today, so it is not reachable from the public finalize `pipelines` payload until wired through configuration.
 
@@ -507,7 +511,7 @@ If no steps are produced, dispatch returns `None` and the upload flow marks the 
 
 | Function | File | Behavior |
 |---|---|---|
-| `convert_dicom(...)` | `workers/subprocesses/dicom_fn.py` | Materializes DICOM from ZIP or single file via `populate_dir_from_zip_or_file` (limits from step config), runs `dicom2nifti.convert_directory`, collects `*.nii` / `*.nii.gz` outputs, selects the **primary** volume (largest 3D voxel count) when several exist, writes `converted.nii.gz`, and validates by loading with nibabel. Raises `RuntimeError` with actionable text when conversion fails or yields no volume. |
+| `convert_dicom(...)` | `workers/subprocesses/dicom_fn.py` | Runs `backend.dicom.convert_to_nifti` on a ZIP or single DICOM file (limits from step config) and writes `converted.nii.gz`. Reads ZIP members in place, selects the largest 3D grayscale series (skipping localizers, 2D views, colour screenshots), validates slice spacing (missing slices are an error), and reports progress while decoding. Raises `DicomConversionError` with a user-facing message (incomplete ZIP, truncated files, no 3D series, undecodable compression, size limits). |
 | `_init_segmentation(...)` | `workers/subprocesses/segmentation_fn.py` | Loads the ONNX model once per worker process using `execution_providers` from config. |
 | `run_segmentation(...)` | `workers/subprocesses/segmentation_fn.py` | Loads a NIfTI, requires a **3D** volume (with a squeeze for singleton 4D trailing dim), pads to a configurable multiple (default 16), runs ONNX inference, thresholds by configurable threshold (default `0.5`), unpads, and saves `segmentation_mask.nii.gz` with `uint8` storage dtype. |
 
@@ -807,7 +811,7 @@ Integration tests exercise HTTP/API-level flows:
 - CAS blobs are immutable by content hash. `FileRecord` rows provide study ownership, display name, purpose, and API visibility.
 - The frontend's duplicate study-name check is a UI-level guard only. The database allows duplicate names.
 - Pipeline WebSocket messages are transient. Current durable state is stored on `PipelineJob`, not in a separate event log.
-- DICOM conversion uses `dicom2nifti` in a dedicated subprocess pool; multi-series ZIPs may yield several NIfTI files—the worker selects the largest volumetric candidate. Non-stackable or scout-only series may still produce **no** NIfTI (surfaced as a `RuntimeError` in the worker).
+- DICOM conversion runs in a dedicated subprocess pool. Peak memory is about one decoded volume (e.g. ~1.2 GB for an 860×860×760 int16 CBCT). Series with missing slices or uneven spacing are rejected rather than interpolated, so no anatomy is invented. Output voxel order is LAS, matching what the previous `dicom2nifti`-based converter wrote.
 - `AnonymiseDicomStep` and `dicom-anonymizer` are available in the codebase for future pipeline wiring; they are not exposed in the FastAPI `step_registry` yet.
 - CAS orphan sweeping based on hardlink count works best when study files are hardlinks. If the engine had to copy because hardlinks failed, DB-reference cleanup during study deletion is the more reliable cleanup path.
 

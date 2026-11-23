@@ -32,6 +32,7 @@ class DicomToNiftiStep:
                 self.config.max_zip_members,
                 self.config.max_uncompressed_zip_bytes,
                 progress_queue,
+                self.config.max_volume_bytes,
             )
 
         nifti_path_str = await run_with_progress_pump(
