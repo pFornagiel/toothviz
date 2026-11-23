@@ -1,15 +1,23 @@
 // Slice-type identifiers used by the slice-type selector and niivue layout switching
 export enum SliceTypeKey {
   Multiplanar = "multiplanar",
+  Slices = "slices",
   Axial = "axial",
   Coronal = "coronal",
   Sagittal = "sagittal",
   Render = "render",
 }
 
+// Layouts that tile several views; double-clicking a tile expands it
+export const GRID_SLICE_TYPES: ReadonlySet<SliceTypeKey> = new Set([
+  SliceTypeKey.Multiplanar,
+  SliceTypeKey.Slices,
+]);
+
 // Human-readable labels for the slice-type selector
 export const SLICE_TYPE_LABELS: Record<SliceTypeKey, string> = {
   [SliceTypeKey.Multiplanar]: "Multiplanar",
+  [SliceTypeKey.Slices]: "Slices only",
   [SliceTypeKey.Axial]: "Axial",
   [SliceTypeKey.Coronal]: "Coronal",
   [SliceTypeKey.Sagittal]: "Sagittal",

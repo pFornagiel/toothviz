@@ -33,7 +33,8 @@ export default function useViewLayoutControls({
     sliceType === SliceTypeKey.Axial ||
     sliceType === SliceTypeKey.Coronal ||
     sliceType === SliceTypeKey.Sagittal ||
-    sliceType === SliceTypeKey.Multiplanar;
+    sliceType === SliceTypeKey.Multiplanar ||
+    sliceType === SliceTypeKey.Slices;
 
   const handleSliceTypeChange = (type: SliceTypeKey) => {
     const nv = nvRef.current;
@@ -46,6 +47,11 @@ export default function useViewLayoutControls({
       case SliceTypeKey.Multiplanar:
         nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
         nv.showRender = SHOW_RENDER.ALWAYS;
+        nv.sliceType = SLICE_TYPE.MULTIPLANAR;
+        break;
+      case SliceTypeKey.Slices:
+        nv.multiplanarType = MULTIPLANAR_TYPE.GRID;
+        nv.showRender = SHOW_RENDER.NEVER;
         nv.sliceType = SLICE_TYPE.MULTIPLANAR;
         break;
       case SliceTypeKey.Axial:

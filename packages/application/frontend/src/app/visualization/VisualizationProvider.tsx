@@ -29,7 +29,7 @@ import useNiivueToothPick from "./hooks/useNiivueToothPick";
 import useProcessingPreview from "./hooks/useProcessingPreview";
 import type { VisualizationContextValue, VisualizationLocationState } from "./types";
 import { ViewPhase } from "./types";
-import { SliceTypeKey } from "./constants";
+import { GRID_SLICE_TYPES, SliceTypeKey } from "./constants";
 
 const VisualizationContext = createContext<VisualizationContextValue | null>(null);
 
@@ -138,12 +138,12 @@ export function VisualizationProvider({ children }: { children: ReactNode }) {
     onOverlayLoaded: syncAfterVolumesLoaded,
   });
 
-  // Keep a single view that already shows the plane; otherwise show all planes.
+  // Keep a view that already shows the plane; otherwise show all planes.
   const currentSliceType = viewLayout.sliceType;
   const changeSliceType = viewLayout.handleSliceTypeChange;
   const showMeasuredPlane = useCallback(
     (plane: SliceTypeKey | null) => {
-      if (currentSliceType !== SliceTypeKey.Multiplanar && currentSliceType !== plane) {
+      if (!GRID_SLICE_TYPES.has(currentSliceType) && currentSliceType !== plane) {
         changeSliceType(SliceTypeKey.Multiplanar);
       }
     },

@@ -220,6 +220,17 @@ function MultiplanarIcon({ className }: { className?: string }) {
   );
 }
 
+/** Multiplanar grid without the 3D tile. */
+function SlicesOnlyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="1.25" y="1.25" width="6" height="6" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="8.75" y="1.25" width="6" height="6" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="1.25" y="8.75" width="6" height="6" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 type SliceTypeOption = {
   key: SliceTypeKey;
   icon?: LucideIcon | React.ComponentType<{ className?: string }>;
@@ -228,6 +239,7 @@ type SliceTypeOption = {
 
 const SLICE_LAYOUT_OPTIONS: SliceTypeOption[] = [
   { key: SliceTypeKey.Multiplanar, icon: MultiplanarIcon },
+  { key: SliceTypeKey.Slices, icon: SlicesOnlyIcon },
   { key: SliceTypeKey.Render, icon: Box },
 ];
 
@@ -1048,7 +1060,7 @@ export function VisualizationSidebar() {
               <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Slice type</span>
                 <div className="space-y-1.5">
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5">
                     {SLICE_LAYOUT_OPTIONS.map((option) => (
                       <SliceTypeButton
                         key={option.key}
